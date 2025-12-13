@@ -1,10 +1,11 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square } from 'lucide-react';
+import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
 import { STYLE_PRESETS } from '../constants';
+import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 
 interface Step4Props {
   state: AppState;
@@ -20,12 +21,7 @@ type Resolution = '720p' | '1080p' | '4K';
 type RhythmPhase = 'AMBIENT' | 'WARMUP' | 'SWING_LEFT' | 'SWING_RIGHT' | 'DROP' | 'CHAOS';
 
 // Interpolation Modes
-// SMOOTH: Slow crossfade (interpolated vibe)
-// SLIDE: Directional shift
-// CUT: Instant change
-// MORPH: Fast crossfade
-type InterpMode = 'CUT' | 'SLIDE' | 'MORPH' | 'SMOOTH';
-
+type InterpMode = 'CUT' | 'SLIDE' | 'MORPH' | 'SMOOTH' | 'ZOOM_IN';
 type FXMode = 'NORMAL' | 'INVERT' | 'BW' | 'STROBE' | 'GHOST';
 
 interface FrameData {
@@ -45,8 +41,19 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const containerRef = useRef<HTMLDivElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
   
+  // -- Audio Hook --
+  const { 
+    audioDestRef, 
+    isMicActive, 
+    connectFileAudio, 
+    connectMicAudio, 
+    disconnectMic, 
+    getFrequencyData 
+  } = useAudioAnalyzer();
+
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
   
@@ -57,19 +64,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const hologramRef = useRef<QuantumVisualizer | null>(null);
   
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceNodeRef = useRef<MediaElementAudioSourceNode | MediaStreamAudioSourceNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null); 
-  
   const requestRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0); 
   const lastBeatTimeRef = useRef<number>(0);
-  const lastSnareTimeRef = useRef<number>(0);
   const lastStutterTimeRef = useRef<number>(0);
   
   const [brainState, setBrainState] = useState({ activePoseName: 'BASE', fps: 0 });
+  const [hoveredFrame, setHoveredFrame] = useState<FrameData | null>(null); // For Tooltip
 
   // --- INTERPOLATION STATE ---
   const sourcePoseRef = useRef<string>('base'); 
@@ -78,6 +79,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const transitionSpeedRef = useRef<number>(10.0);   
   const transitionModeRef = useRef<InterpMode>('CUT');
 
+  // --- DYNAMIC CHOREOGRAPHY STATE ---
+  const energyHistoryRef = useRef<number[]>(new Array(30).fill(0));
   const beatCounterRef = useRef<number>(0); 
   const closeupLockTimeRef = useRef<number>(0); 
   const currentDirectionRef = useRef<MoveDirection>('center');
@@ -111,13 +114,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   
   const [framesByEnergy, setFramesByEnergy] = useState<Record<EnergyLevel, FrameData[]>>({ low: [], mid: [], high: [] });
   const [closeupFrames, setCloseupFrames] = useState<FrameData[]>([]); 
+  const [allProcessedFrames, setAllProcessedFrames] = useState<FrameData[]>([]); // For Deck
   const [frameCount, setFrameCount] = useState(0);
 
   const poseImagesRef = useRef<Record<string, HTMLImageElement>>({}); 
   const [imagesReady, setImagesReady] = useState(false);
   
   const [isPlaying, setIsPlaying] = useState(false);
-  const [isMicActive, setIsMicActive] = useState(false);
   const [superCamActive, setSuperCamActive] = useState(true);
 
   // 1. Initialize Hologram
@@ -148,6 +151,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   useEffect(() => {
     const sorted: Record<EnergyLevel, FrameData[]> = { low: [], mid: [], high: [] };
     const closeups: FrameData[] = [];
+    const allProcessed: FrameData[] = [];
+
     const framesToLoad = state.generatedFrames.length > 0 
       ? state.generatedFrames 
       : (state.imagePreviewUrl ? [{ url: state.imagePreviewUrl, pose: 'base', energy: 'low' as EnergyLevel, type: 'body' as FrameType, direction: 'center' as MoveDirection }] : []);
@@ -156,36 +161,40 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     framesToLoad.forEach(f => {
         const frameData: FrameData = { url: f.url, pose: f.pose, energy: f.energy, direction: f.direction, type: f.type };
+        allProcessed.push(frameData);
+
         if (f.type === 'closeup') closeups.push(frameData);
         else {
             if (sorted[f.energy]) sorted[f.energy].push(frameData);
             
             // --- VIRTUAL CAMERA STITCHING ---
-            // High energy: Virtual Zoom (Crash/Impact)
             if (f.energy === 'high' && f.type === 'body') {
-                closeups.push({
+                const vFrame = {
                     url: f.url,
                     pose: f.pose + '_vzoom',
-                    energy: 'high',
+                    energy: 'high' as EnergyLevel,
                     direction: f.direction,
                     isVirtual: true,
                     virtualZoom: 1.6,
                     virtualOffsetY: 0.2,
                     type: f.type
-                });
+                };
+                closeups.push(vFrame);
+                // We don't push virtual to allProcessed for deck visibility to keep deck clean, 
+                // or we could if we want to show zoom options. Let's keep deck clean.
             }
-            // Mid energy: Virtual Mid-Shot (TV Style Cut)
             if (f.energy === 'mid' && f.type === 'body') {
-                sorted.mid.push({
+                const vFrame = {
                     url: f.url,
                     pose: f.pose + '_vmid',
-                    energy: 'mid',
+                    energy: 'mid' as EnergyLevel,
                     direction: f.direction,
                     isVirtual: true,
                     virtualZoom: 1.25,
-                    virtualOffsetY: 0.1, // Slight upward crop
+                    virtualOffsetY: 0.1, 
                     type: f.type
-                });
+                };
+                sorted.mid.push(vFrame);
             }
         }
     });
@@ -198,6 +207,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     setFramesByEnergy(sorted);
     setCloseupFrames(closeups);
+    setAllProcessedFrames(allProcessed);
 
     let loadedCount = 0;
     const images: Record<string, HTMLImageElement> = {};
@@ -233,55 +243,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     poseImagesRef.current = { ...poseImagesRef.current, ...images };
   }, [state.generatedFrames, state.imagePreviewUrl]);
 
-  // Audio Engine
-  const initAudio = () => {
-      if (!audioCtxRef.current) {
-          audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-          analyserRef.current = audioCtxRef.current.createAnalyser();
-          analyserRef.current.fftSize = 256; 
-          audioDestRef.current = audioCtxRef.current.createMediaStreamDestination();
-      }
-      return audioCtxRef.current;
-  };
-
-  const connectFileAudio = () => {
-      const ctx = initAudio();
-      if (ctx.state === 'suspended') ctx.resume();
-      if (audioElementRef.current && analyserRef.current && audioDestRef.current) {
-          try {
-             if (!sourceNodeRef.current) { 
-                 const src = ctx.createMediaElementSource(audioElementRef.current);
-                 src.connect(analyserRef.current);
-                 src.connect(ctx.destination);
-                 src.connect(audioDestRef.current);
-                 sourceNodeRef.current = src;
-             }
-          } catch(e) {}
-      }
-  };
-
-  const connectMicAudio = async () => {
-      const ctx = initAudio();
-      if (ctx.state === 'suspended') ctx.resume();
-      try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          micStreamRef.current = stream;
-          if (analyserRef.current && audioDestRef.current) {
-              if (audioElementRef.current) audioElementRef.current.pause();
-              setIsPlaying(false);
-              const src = ctx.createMediaStreamSource(stream);
-              src.connect(analyserRef.current);
-              src.connect(audioDestRef.current); 
-          }
-          setIsMicActive(true);
-      } catch (e) { alert("Microphone access denied."); }
-  };
-
   const toggleMic = () => {
       if (isMicActive) {
-          if (micStreamRef.current) { micStreamRef.current.getTracks().forEach(t => t.stop()); micStreamRef.current = null; }
-          setIsMicActive(false);
-      } else { connectMicAudio(); }
+          disconnectMic();
+      } else {
+          setIsPlaying(false);
+          if (audioElementRef.current) audioElementRef.current.pause();
+          connectMicAudio();
+      }
   };
 
   // Helper to trigger a Smart Transition
@@ -296,6 +265,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       let speed = 20.0;
       if (mode === 'CUT') speed = 1000.0; // Instant
       else if (mode === 'MORPH') speed = 5.0; // Fast crossfade
+      else if (mode === 'ZOOM_IN') speed = 6.0; // Rapid Zoom
       else if (mode === 'SLIDE') speed = 8.0; // Fluid
       else if (mode === 'SMOOTH') speed = 1.5; // Slow interpolation (Ambient)
       
@@ -316,42 +286,31 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         if (transitionProgressRef.current > 1.0) transitionProgressRef.current = 1.0;
     }
 
-    let bass = 0, mid = 0, high = 0, energy = 0;
+    // Get Audio Data from Hook
+    const { bass, mid, high, energy } = getFrequencyData();
     
-    if (analyserRef.current) {
-        const bufferLength = analyserRef.current.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        analyserRef.current.getByteFrequencyData(dataArray);
+    // --- DYNAMIC CHOREOGRAPHY ANALYSIS ---
+    energyHistoryRef.current.shift();
+    energyHistoryRef.current.push(energy);
+    const avgEnergy = energyHistoryRef.current.reduce((a, b) => a + b, 0) / energyHistoryRef.current.length;
+    const energyTrend = energy - avgEnergy;
 
-        const bassRange = dataArray.slice(0, 5); 
-        const midRange = dataArray.slice(5, 30); 
-        const highRange = dataArray.slice(30, 100); 
-        
-        bass = bassRange.reduce((a, b) => a + b, 0) / (bassRange.length * 255);
-        mid = midRange.reduce((a, b) => a + b, 0) / (midRange.length * 255);
-        high = highRange.reduce((a, b) => a + b, 0) / (highRange.length * 255);
-        energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
-    }
-
-    // --- PHYSICS (HIGH ENERGY UNLOCKED) ---
+    // --- PHYSICS ---
     const stiffness = 140;
     const damping = 8; 
     
-    const targetRotX = bass * 35.0; // Headbang
-    const targetRotY = mid * 25.0 * Math.sin(time * 0.005); // Twist
-    const targetRotZ = high * 15.0; // Roll
+    const targetRotX = bass * 35.0; 
+    const targetRotY = mid * 25.0 * Math.sin(time * 0.005); 
+    const targetRotZ = high * 15.0; 
 
     // Spring Solver
-    const forceX = (targetRotX - masterRotXRef.current) * stiffness - (masterVelXRef.current * damping);
-    masterVelXRef.current += forceX * deltaTime;
+    masterVelXRef.current += ((targetRotX - masterRotXRef.current) * stiffness - (masterVelXRef.current * damping)) * deltaTime;
     masterRotXRef.current += masterVelXRef.current * deltaTime;
 
-    const forceY = (targetRotY - masterRotYRef.current) * (stiffness * 0.5) - (masterVelYRef.current * (damping * 0.8));
-    masterVelYRef.current += forceY * deltaTime;
+    masterVelYRef.current += ((targetRotY - masterRotYRef.current) * (stiffness * 0.5) - (masterVelYRef.current * (damping * 0.8))) * deltaTime;
     masterRotYRef.current += masterVelYRef.current * deltaTime;
 
-    const forceZ = (targetRotZ - masterRotZRef.current) * stiffness - (masterVelZRef.current * damping);
-    masterVelZRef.current += forceZ * deltaTime;
+    masterVelZRef.current += ((targetRotZ - masterRotZRef.current) * stiffness - (masterVelZRef.current * damping)) * deltaTime;
     masterRotZRef.current += masterVelZRef.current * deltaTime;
 
     if (hologramRef.current) {
@@ -366,7 +325,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     const isCloseupLocked = now < closeupLockTimeRef.current;
     
     // --- STUTTER & SCRATCH ENGINE ---
-    // Only stutter if energy implies it
     const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
     
     if (isStuttering && (now - lastStutterTimeRef.current) > 50) { 
@@ -393,11 +351,9 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     }
 
     // --- MAIN GROOVE ENGINE ---
-    // Threshold lowered slightly, but logic refined for smooth ambient
     const beatThreshold = 0.5;
     
     if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 300) {
-        // Is it a beat?
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
             beatCounterRef.current = (beatCounterRef.current + 1) % 16; 
@@ -409,7 +365,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             else if (beat === 12 || beat === 13) phase = 'DROP'; 
             else if (beat >= 14) phase = 'CHAOS'; 
             
-            // FX Logic
             if (phase === 'CHAOS' || phase === 'DROP') {
                 const rand = Math.random();
                 if (rand > 0.7) activeFXModeRef.current = 'INVERT';
@@ -419,7 +374,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                 activeFXModeRef.current = 'NORMAL';
             }
 
-            // Physics Impulse
             camZoomRef.current = BASE_ZOOM + (bass * 0.35); 
             charSquashRef.current = 0.85; 
             charBounceYRef.current = -50 * bass; 
@@ -432,19 +386,22 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
             let pool: FrameData[] = [];
             
-            // If locked in closeup (from vocals), iterate closeups
             if (isCloseupLocked) {
                 pool = closeupFrames;
             } else {
-                if (phase === 'WARMUP') pool = framesByEnergy.low; 
-                else if (phase === 'SWING_LEFT') {
-                    const leftFrames = framesByEnergy.mid.filter(f => f.direction === 'left');
-                    pool = leftFrames.length > 0 ? leftFrames : framesByEnergy.mid;
-                } else if (phase === 'SWING_RIGHT') {
-                    const rightFrames = framesByEnergy.mid.filter(f => f.direction === 'right');
-                    pool = rightFrames.length > 0 ? rightFrames : framesByEnergy.mid;
-                } else if (phase === 'DROP') pool = framesByEnergy.high;
-                else if (phase === 'CHAOS') pool = framesByEnergy.high;
+                if (energyTrend > 0.1 && framesByEnergy.high.length > 0) {
+                    pool = framesByEnergy.high;
+                } else {
+                    if (phase === 'WARMUP') pool = framesByEnergy.low; 
+                    else if (phase === 'SWING_LEFT') {
+                        const leftFrames = framesByEnergy.mid.filter(f => f.direction === 'left');
+                        pool = leftFrames.length > 0 ? leftFrames : framesByEnergy.mid;
+                    } else if (phase === 'SWING_RIGHT') {
+                        const rightFrames = framesByEnergy.mid.filter(f => f.direction === 'right');
+                        pool = rightFrames.length > 0 ? rightFrames : framesByEnergy.mid;
+                    } else if (phase === 'DROP') pool = framesByEnergy.high;
+                    else if (phase === 'CHAOS') pool = framesByEnergy.high;
+                }
             }
 
             if (pool.length === 0) pool = framesByEnergy.mid;
@@ -458,27 +415,27 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                     attempts++;
                 }
                 
-                // SMART TRANSITION LOGIC
                 let mode: InterpMode = 'CUT'; 
                 
                 if (isCloseupLocked || nextFrame.type === 'closeup') {
-                    mode = 'MORPH'; 
+                    mode = 'ZOOM_IN'; 
                 } else if (phase === 'SWING_LEFT' || phase === 'SWING_RIGHT') {
-                    mode = 'SLIDE';
+                    if (high > 0.4) mode = 'SMOOTH';
+                    else mode = 'SLIDE';
+                } else if (phase === 'DROP') {
+                    mode = 'CUT';
+                } else if (energyTrend < -0.1) {
+                    mode = 'SMOOTH';
                 }
 
                 triggerTransition(nextFrame.pose, mode);
             }
         } 
-        // --- AMBIENT / LOW ENERGY MODE ---
         else if (bass < 0.3 && mid < 0.3) {
-            // Check if we should drift to a new idle pose
-            // 2% chance per frame to drift if ambient
              if (Math.random() < 0.02) {
                  const pool = framesByEnergy.low;
                  if (pool.length > 0) {
                      const next = pool[Math.floor(Math.random() * pool.length)];
-                     // Use SMOOTH transition for ambient drift
                      triggerTransition(next.pose, 'SMOOTH');
                  }
                  targetTiltRef.current = 0;
@@ -487,13 +444,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }
     }
     
-    // Vocal Gate / Closeup Trigger
-    // Trigger burst of closeups on high vocal energy
     if (!isCloseupLocked && high > 0.6 && mid > 0.4 && bass < 0.5) {
         if (closeupFrames.length > 0 && Math.random() < 0.5) {
             const next = closeupFrames[Math.floor(Math.random() * closeupFrames.length)].pose;
-            triggerTransition(next, 'MORPH', 1.0); 
-            // Lock closeups for 2-3 seconds
+            triggerTransition(next, 'ZOOM_IN', 1.0); 
             closeupLockTimeRef.current = now + 2500;
         }
     }
@@ -513,13 +467,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     ghostAmountRef.current *= Math.exp(-8 * deltaTime); 
     echoTrailRef.current *= Math.exp(-4 * deltaTime);
     
-    // Counter-Move Camera Panning (Parallax)
     let targetPanX = 0;
     if (currentDirectionRef.current === 'left') targetPanX = 30;
     else if (currentDirectionRef.current === 'right') targetPanX = -30;
     camPanXRef.current += (targetPanX - camPanXRef.current) * (4 * deltaTime);
 
-    // Full Rotation for Character
     const rotX = superCamActive ? masterRotXRef.current : 0;
     const rotY = superCamActive ? masterRotYRef.current : 0;
     const rotZ = superCamActive ? masterRotZRef.current : 0;
@@ -529,13 +481,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         const cy = h/2;
         ctx.clearRect(0, 0, w, h);
         
-        // Apply Visual FX (Invert / B&W)
         if (activeFXModeRef.current === 'INVERT') ctx.filter = 'invert(1)';
         else if (activeFXModeRef.current === 'BW') ctx.filter = 'grayscale(1)';
         else ctx.filter = 'none';
 
-        // --- SMART INTERPOLATION BLENDER ---
-        const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number) => {
+        const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
             const img = poseImagesRef.current[pose];
             
@@ -573,7 +523,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                 if (skewOffset !== 0) ctx.transform(1, 0, skewOffset, 1, 0, 0);
                 if (charSkewRef.current !== 0) ctx.transform(1, 0, charSkewRef.current * 0.2, 1, 0, 0);
 
-                ctx.scale(zoom, zoom);
+                ctx.scale(zoom * extraScale, zoom * extraScale);
                 ctx.translate(0, offsetY * dh); 
                 
                 if (blurAmount > 0) {
@@ -599,7 +549,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             let effectiveZoom = camZoomRef.current;
             let effectiveOffsetY = 0;
             
-            // Handle Virtual Zoom adjustments
             if (frame && frame.isVirtual && frame.virtualZoom) {
                 effectiveZoom *= frame.virtualZoom;
                 effectiveOffsetY = frame.virtualOffsetY || 0;
@@ -620,21 +569,22 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         if (progress >= 1.0 || mode === 'CUT') {
             drawLayer(targetPoseRef.current, 1.0, 0, 0);
         } else {
-            // Easing for smooth
             const easeT = progress * progress * (3 - 2 * progress); 
             
-            if (mode === 'SLIDE') {
+            if (mode === 'ZOOM_IN') {
+                 const zoomFactor = 1.0 + (easeT * 0.5); 
+                 drawLayer(sourcePoseRef.current, 1.0 - easeT, easeT * 10, 0, zoomFactor);
+                 drawLayer(targetPoseRef.current, easeT, 0, 0);
+            } else if (mode === 'SLIDE') {
                 const dirMultiplier = targetPoseRef.current.includes('right') ? -1 : 1;
                 drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
                 drawLayer(targetPoseRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
             } else if (mode === 'SMOOTH' || mode === 'MORPH') {
-                // Crossfade
                 drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, 0);
                 drawLayer(targetPoseRef.current, easeT, 0, 0); 
             }
         }
             
-        // GHOSTING FX
         if (mid > 0.4) {
             ctx.save();
             ctx.fillStyle = `rgba(0,0,0, ${mid * 0.3})`;
@@ -655,6 +605,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         if (ctx) renderCharacterCanvas(ctx, charCanvasRef.current.width, charCanvasRef.current.height);
     }
     
+    // Recording Renderer
     if (isRecording && recordCanvasRef.current && bgCanvasRef.current) {
         const ctx = recordCanvasRef.current.getContext('2d');
         if (ctx) {
@@ -675,7 +626,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         fps: Math.round(1/deltaTime)
     });
 
-  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording]);
+  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording, getFrequencyData]);
 
 
   useEffect(() => {
@@ -685,18 +636,22 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     return () => cancelAnimationFrame(requestRef.current);
   }, [loop, imagesReady]);
 
+  // Audio Playback Handling
   useEffect(() => {
       if(audioElementRef.current && isPlaying) {
-          connectFileAudio();
+          connectFileAudio(audioElementRef.current);
           audioElementRef.current.play();
       } else if(audioElementRef.current) {
           audioElementRef.current.pause();
       }
-  }, [isPlaying]);
+  }, [isPlaying, connectFileAudio]);
 
 
   const handleExportWidget = () => {
       if(!hologramRef.current) return;
+      // We need to pass virtual frames logic or processed frames to the player
+      // For simplicity in the player, we'll pass the processed list that Step4 uses
+      // We will re-construct the virtual frames in the player script for size efficiency, but passing raw logic
       const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
       const blob = new Blob([html], {type: 'text/html'});
       const url = URL.createObjectURL(blob);
@@ -726,6 +681,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
       const stream = recordCanvasRef.current.captureStream(60);
       
+      // Use audioDest from hook
       if (audioDestRef.current) {
           const audioTracks = audioDestRef.current.stream.getAudioTracks();
           if (audioTracks.length > 0) {
@@ -845,6 +801,41 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           <audio ref={audioElementRef} src={state.audioPreviewUrl} loop crossOrigin="anonymous" onEnded={() => setIsPlaying(false)} />
       )}
 
+      {/* NEURAL DECK / FRAME INSPECTOR */}
+      {showDeck && (
+         <div className="absolute bottom-24 left-0 right-0 z-40 p-4 animate-slide-in-right">
+             <div className="bg-black/80 backdrop-blur-lg border-t border-white/10 p-4 overflow-x-auto">
+                 <div className="flex gap-4">
+                     {allProcessedFrames.map((f, i) => (
+                         <div 
+                            key={i} 
+                            className="relative flex-shrink-0 w-24 h-24 bg-white/5 rounded-lg border border-white/10 hover:border-brand-500 hover:bg-brand-500/20 cursor-pointer group transition-all"
+                            onMouseEnter={() => setHoveredFrame(f)}
+                            onMouseLeave={() => setHoveredFrame(null)}
+                            onClick={() => triggerTransition(f.pose, 'CUT')}
+                         >
+                             <img src={f.url} className="w-full h-full object-contain p-1" />
+                             <div className="absolute top-0 right-0 bg-black/60 text-[10px] px-1 rounded-bl text-white font-mono">{f.energy.toUpperCase()}</div>
+                         </div>
+                     ))}
+                 </div>
+             </div>
+         </div>
+      )}
+      
+      {/* TOOLTIP FOR HOVERED FRAME */}
+      {hoveredFrame && (
+          <div className="absolute bottom-52 left-1/2 -translate-x-1/2 z-50 bg-brand-900/90 border border-brand-500/50 p-4 rounded-xl shadow-[0_0_30px_rgba(139,92,246,0.5)] backdrop-blur-xl animate-fade-in flex items-center gap-4">
+               <img src={hoveredFrame.url} className="w-16 h-16 object-contain bg-black/50 rounded-lg" />
+               <div>
+                   <div className="text-xs font-bold text-brand-300 tracking-widest uppercase">FRAME DATA</div>
+                   <div className="text-white font-mono text-sm">POSE: {hoveredFrame.pose}</div>
+                   <div className="text-white font-mono text-sm">ENERGY: {hoveredFrame.energy}</div>
+                   <div className="text-white font-mono text-sm">TYPE: {hoveredFrame.type}</div>
+               </div>
+          </div>
+      )}
+
       <div className="absolute inset-0 pointer-events-none z-30 p-6 flex flex-col justify-between">
           <div className="flex justify-between items-start">
              <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
@@ -867,6 +858,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                    <button onClick={toggleMic} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${isMicActive ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'border-transparent text-gray-400 hover:text-white'}`}>{isMicActive ? <Mic size={16} /> : <MicOff size={16} />} LIVE INPUT</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> SUPER CAM</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
               </div>
               <div className="flex gap-3">
                   <button onClick={onGenerateMore} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Package size={14} /> NEW VARIATIONS</button>

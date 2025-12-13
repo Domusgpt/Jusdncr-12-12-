@@ -81,6 +81,29 @@ export const generatePlayerHTML = (
             font-size: 24px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; display: block;
             text-shadow: 0 0 20px rgba(139,92,246,0.5);
         }
+
+        /* NEURAL DECK (Frame Swapping) */
+        #deck {
+            position: absolute; bottom: 100px; left: 0; right: 0;
+            height: 100px; padding: 0 20px;
+            display: flex; gap: 10px; overflow-x: auto;
+            align-items: center; justify-content: center;
+            z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+        }
+        #deck.visible { opacity: 1; pointer-events: auto; }
+        .frame-thumb {
+            width: 60px; height: 60px; border-radius: 8px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
+            cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+            overflow: hidden; position: relative;
+        }
+        .frame-thumb img { width: 100%; height: 100%; object-fit: contain; }
+        .frame-thumb:hover { transform: scale(1.1); border-color: #a78bfa; background: rgba(139,92,246,0.2); }
+        .frame-thumb .badge {
+            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); 
+            color: white; font-size: 8px; padding: 2px 4px; border-top-left-radius: 4px;
+        }
     </style>
 </head>
 <body>
@@ -104,12 +127,14 @@ export const generatePlayerHTML = (
         <span id="fps">0 FPS</span> // <span id="poseDisplay">INIT</span>
     </div>
 
+    <div id="deck"></div>
+
     <div id="ui">
         <button id="btnPlay">⏯️ PLAY</button>
         <button id="btnMic">🎙️ MIC INPUT</button>
         <div class="separator"></div>
         <button id="btnCam" class="active">🎥 DYNAMIC CAM</button>
-        <button id="btnFilter">✨ FX</button>
+        <button id="btnDeck">👁️ DECK</button>
         <div class="separator"></div>
         <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 LOAD</button>
         <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
@@ -222,12 +247,14 @@ export const generatePlayerHTML = (
         const charC = document.getElementById('charCanvas');
         const ctx = charC.getContext('2d');
         const loader = document.getElementById('loader');
+        const deck = document.getElementById('deck');
         
         const viz = new Visualizer(bgC);
         
         let IMAGES = {};
         let FRAMES_BY_ENERGY = { low:[], mid:[], high:[] };
         let CLOSEUPS = [];
+        let ALL_FRAMES = [];
         
         const STATE = {
             masterRot: {x:0, y:0, z:0},
@@ -267,11 +294,22 @@ export const generatePlayerHTML = (
             IMAGES = {};
             FRAMES_BY_ENERGY = { low:[], mid:[], high:[] };
             CLOSEUPS = [];
+            ALL_FRAMES = [];
+            deck.innerHTML = '';
             
             // Replicate Step4Preview Virtual Frame Logic
             let processedFrames = [];
             FRAMES.forEach(f => {
                 processedFrames.push(f);
+                ALL_FRAMES.push(f);
+                // Create Frame Thumbnail in Deck
+                const thumb = document.createElement('div');
+                thumb.className = 'frame-thumb';
+                thumb.onclick = () => triggerTransition(f.pose, 'CUT');
+                thumb.innerHTML = \`<img src="\${f.url}"> <div class="badge">\${f.energy.toUpperCase()}</div>\`;
+                deck.appendChild(thumb);
+
+                // Create Virtuals logic
                 if(f.energy === 'high' && f.type === 'body') {
                     processedFrames.push({ ...f, pose: f.pose+'_vzoom', isVirtual: true, virtualZoom: 1.6, virtualOffsetY: 0.2 });
                 }
@@ -355,8 +393,14 @@ export const generatePlayerHTML = (
             if (mode === 'CUT') speed = 1000.0;
             else if (mode === 'MORPH') speed = 5.0;
             else if (mode === 'SLIDE') speed = 8.0;
+            else if (mode === 'ZOOM_IN') speed = 6.0;
+            else if (mode === 'SMOOTH') speed = 1.5;
+            
             STATE.transitionSpeed = speed;
         }
+
+        // ENERGY HISTORY FOR TREND
+        const energyHistory = new Array(30).fill(0);
 
         function loop() {
             requestAnimationFrame(loop);
@@ -373,7 +417,14 @@ export const generatePlayerHTML = (
             const bass = freq.slice(0,5).reduce((a,b)=>a+b,0)/(5*255);
             const mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
             const high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
+            const energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
             
+            // Trend Analysis
+            energyHistory.shift();
+            energyHistory.push(energy);
+            const avgEnergy = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length;
+            const energyTrend = energy - avgEnergy;
+
             // Physics Update (Spring Solver)
             if(STATE.dynamicCam) {
                 const stiffness = 140;
@@ -403,8 +454,22 @@ export const generatePlayerHTML = (
             
             // The Brain (Choreography)
             const isCloseupLocked = now < STATE.closeupLockTime;
+            const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
             
-            if(bass > 0.6 && (now - STATE.lastBeat) > 300) {
+            // Stutter Logic
+            if (isStuttering && Math.random() < 0.1) {
+                if (Math.random() < 0.35) {
+                     // Reverse
+                     const swap = STATE.targetPose;
+                     triggerTransition(STATE.sourcePose, 'CUT');
+                     STATE.sourcePose = swap;
+                     STATE.charSkew = (Math.random() - 0.5) * 2.0;
+                     STATE.masterRot.z += (Math.random() - 0.5) * 10;
+                }
+            }
+
+            // Rhythm Logic
+            if(bass > 0.5 && (now - STATE.lastBeat) > 300) {
                 STATE.lastBeat = now;
                 STATE.beatCount = (STATE.beatCount + 1) % 16;
                 const beat = STATE.beatCount;
@@ -429,10 +494,15 @@ export const generatePlayerHTML = (
                 
                 let pool = [];
                 if(isCloseupLocked) pool = CLOSEUPS;
-                else if(phase === 'WARMUP') pool = FRAMES_BY_ENERGY.low;
-                else if(phase === 'SWING_LEFT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='left');
-                else if(phase === 'SWING_RIGHT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='right');
-                else if(phase === 'DROP') pool = FRAMES_BY_ENERGY.high;
+                else {
+                    if (energyTrend > 0.1 && FRAMES_BY_ENERGY.high.length > 0) pool = FRAMES_BY_ENERGY.high;
+                    else {
+                        if(phase === 'WARMUP') pool = FRAMES_BY_ENERGY.low;
+                        else if(phase === 'SWING_LEFT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='left');
+                        else if(phase === 'SWING_RIGHT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='right');
+                        else if(phase === 'DROP') pool = FRAMES_BY_ENERGY.high;
+                    }
+                }
                 
                 if(pool.length === 0) pool = FRAMES_BY_ENERGY.mid;
                 if(pool.length === 0) pool = FRAMES_BY_ENERGY.low;
@@ -440,14 +510,39 @@ export const generatePlayerHTML = (
                 if(pool.length > 0) {
                     const next = pool[Math.floor(Math.random()*pool.length)];
                     let mode = 'CUT';
-                    if(isCloseupLocked || next.type === 'closeup') mode = 'MORPH';
-                    else if(phase.includes('SWING')) mode = 'SLIDE';
+                    
+                    if(isCloseupLocked || next.type === 'closeup') mode = 'ZOOM_IN';
+                    else if(phase.includes('SWING')) {
+                         if(high > 0.4) mode = 'SMOOTH';
+                         else mode = 'SLIDE';
+                    } else if (energyTrend < -0.1) {
+                        mode = 'SMOOTH';
+                    }
+                    
                     triggerTransition(next.pose, mode);
+                }
+            } else if (bass < 0.3 && mid < 0.3 && Math.random() < 0.02) {
+                 // Ambient drift
+                 const pool = FRAMES_BY_ENERGY.low;
+                 if(pool.length > 0) {
+                     const next = pool[Math.floor(Math.random()*pool.length)];
+                     triggerTransition(next.pose, 'SMOOTH');
+                 }
+                 STATE.targetTilt = 0;
+            }
+            
+            // Vocal Gate
+            if(!isCloseupLocked && high > 0.6 && mid > 0.4 && bass < 0.5) {
+                if(CLOSEUPS.length > 0 && Math.random() < 0.5) {
+                    const next = CLOSEUPS[Math.floor(Math.random()*CLOSEUPS.length)];
+                    triggerTransition(next.pose, 'ZOOM_IN');
+                    STATE.closeupLockTime = now + 2500;
                 }
             }
             
             // Decay
             STATE.charSquash += (1.0 - STATE.charSquash) * (12 * dt);
+            STATE.charSkew += (0.0 - STATE.charSkew) * (10 * dt);
             STATE.charTilt += (STATE.targetTilt - STATE.charTilt) * (6 * dt);
             STATE.charBounceY += (0 - STATE.charBounceY) * (10 * dt);
             STATE.flashIntensity *= Math.exp(-15 * dt);
@@ -477,7 +572,7 @@ export const generatePlayerHTML = (
                 ctx.fillRect(0,0,w,h);
             }
 
-            const drawLayer = (pose, opacity, offsetX) => {
+            const drawLayer = (pose, opacity, blur, skew, extraScale) => {
                 const frame = [...FRAMES_BY_ENERGY.low, ...FRAMES_BY_ENERGY.mid, ...FRAMES_BY_ENERGY.high, ...CLOSEUPS].find(f => f.pose === pose);
                 const img = IMAGES[pose];
                 if(!img || !img.complete) return;
@@ -501,8 +596,15 @@ export const generatePlayerHTML = (
                 ctx.rotate(tiltZ + (STATE.charTilt * Math.PI/180));
                 ctx.scale(Math.abs(scaleX), Math.abs(scaleY));
                 ctx.scale(1/STATE.charSquash, STATE.charSquash);
-                ctx.scale(zoom, zoom);
-                ctx.translate(offsetX || 0, vOffset * dh);
+                if(skew) ctx.transform(1,0,skew,1,0,0);
+                if(STATE.charSkew !== 0) ctx.transform(1,0,STATE.charSkew * 0.2,1,0,0);
+                
+                const finalZoom = zoom * (extraScale || 1.0);
+                ctx.scale(finalZoom, finalZoom);
+                ctx.translate(0, vOffset * dh);
+                
+                if(blur > 0) ctx.filter = (ctx.filter === 'none' ? '' : ctx.filter) + \` blur(\${blur}px)\`;
+                
                 ctx.globalAlpha = opacity;
                 ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
                 ctx.restore();
@@ -510,16 +612,20 @@ export const generatePlayerHTML = (
             
             const prog = STATE.transitionProgress;
             if(prog >= 1.0 || STATE.transitionMode === 'CUT') {
-                drawLayer(STATE.targetPose, 1.0, 0);
+                drawLayer(STATE.targetPose, 1.0, 0, 0, 1.0);
             } else {
                 const easeT = prog * prog * (3 - 2 * prog);
-                if(STATE.transitionMode === 'SLIDE') {
+                if(STATE.transitionMode === 'ZOOM_IN') {
+                    const zf = 1.0 + (easeT * 0.5);
+                    drawLayer(STATE.sourcePose, 1.0-easeT, easeT*10, 0, zf);
+                    drawLayer(STATE.targetPose, easeT, 0, 0, 1.0);
+                } else if(STATE.transitionMode === 'SLIDE') {
                     const dir = STATE.targetPose.includes('right') ? -1 : 1;
-                    drawLayer(STATE.sourcePose, 1.0-easeT, w*0.2*easeT*dir);
-                    drawLayer(STATE.targetPose, easeT, w*0.2*(1.0-easeT)*-dir);
+                    drawLayer(STATE.sourcePose, 1.0-easeT, 0, w*0.0002*easeT*dir, 1.0);
+                    drawLayer(STATE.targetPose, easeT, 0, w*0.0002*(1.0-easeT)*-dir, 1.0);
                 } else {
-                    drawLayer(STATE.sourcePose, 1.0-easeT, 0);
-                    drawLayer(STATE.targetPose, easeT, 0);
+                    drawLayer(STATE.sourcePose, 1.0-easeT, 0, 0, 1.0);
+                    drawLayer(STATE.targetPose, easeT, 0, 0, 1.0);
                 }
             }
             
@@ -534,7 +640,7 @@ export const generatePlayerHTML = (
         const btnMic = document.getElementById('btnMic');
         const btnPlay = document.getElementById('btnPlay');
         const btnCam = document.getElementById('btnCam');
-        const btnFilter = document.getElementById('btnFilter');
+        const btnDeck = document.getElementById('btnDeck');
         const fileInput = document.getElementById('fileInput');
 
         btnMic.onclick = async () => {
@@ -571,10 +677,9 @@ export const generatePlayerHTML = (
         
         btnCam.onclick = () => { STATE.dynamicCam = !STATE.dynamicCam; btnCam.classList.toggle('active'); };
         
-        btnFilter.onclick = () => {
-            const modes = ['NORMAL', 'INVERT', 'BW'];
-            const curr = modes.indexOf(STATE.filterMode);
-            STATE.filterMode = modes[(curr+1)%3];
+        btnDeck.onclick = () => {
+            deck.classList.toggle('visible');
+            btnDeck.classList.toggle('active');
         };
 
         // --- 9. DRAG AND DROP ---

@@ -207,7 +207,7 @@ const mirrorFrame = (frameUrl: string): Promise<string> => {
     });
 };
 
-const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 3) => {
+const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 2) => {
     let lastError: any;
     for (let i = 0; i < retries; i++) {
         try {
@@ -229,79 +229,89 @@ const generateSingleSheet = async (
     motionPrompt: string,
     category: SubjectCategory,
     seed: number, 
-    contextImageBase64?: string
+    contextImageBase64?: string,
+    useFallbackPrompt: boolean = false
 ): Promise<{ frames: GeneratedFrame[], rawSheetBase64?: string }> => {
     
     const rows = 4;
     const cols = 4;
     const isTextOrSymbol = category === 'TEXT' || category === 'SYMBOL';
     
-    // Inject Motion Prompt explicitly so "Charleston" is respected
     const danceStyle = motionPrompt ? `Specific Dance Style: ${motionPrompt}.` : "Style: Rhythmic, energetic dance loop.";
 
-    // MECHANICAL PROMPT: STRICT GRID & CENTERING
-    let systemPrompt = `TASK: Generate a strict 4x4 Grid Sprite Sheet (16 frames).
-    
-    MECHANICAL RULES:
-    1. GRID: Exactly 4 columns, 4 rows.
-    2. SPACING: Use the FULL CELL for each frame.
-    3. CENTERING: The character must be centered in the MIDDLE of each grid cell.
-    4. PADDING: Leave a small gap between the character and the cell edge to prevent clipping.
-    5. IDENTITY: Maintain exact character consistency from Input Image.
-    
-    Visual Style: ${stylePrompt}
-    ${danceStyle}
-    `;
+    let systemPrompt = "";
 
-    if (isTextOrSymbol) {
-         systemPrompt += `
-         SUBJECT: TEXT/LOGO.
-         Action: Dynamic Motion/Pulsing.
-         Keep content centered in each cell.
-         `;
+    // Fallback Prompt: Simplified to ensure generation success if the complex one fails
+    if (useFallbackPrompt) {
+        systemPrompt = `Generate a 4x4 Sprite Sheet (16 frames) of this character dancing.
+        Grid: 4 columns, 4 rows.
+        Center the character in each cell.
+        Style: ${stylePrompt}.
+        ${danceStyle}
+        Ensure consistent character identity.`;
     } else {
-        if (role === 'base') {
-            systemPrompt += `
-            SHEET 1 (BASE LOOP):
-            Row 1: Idle / Groove (Center) - Establishing the character.
-            Row 2: ${motionPrompt ? 'Signature Move Part A' : 'Step Left'} - ${danceStyle}
-            Row 3: ${motionPrompt ? 'Signature Move Part B' : 'Step Right'} - ${danceStyle}
-            Row 4: Power Pose / Freeze Frame
-            Ensure feet are visible. Center of mass in middle of cell.
-            `;
-        } else if (role === 'alt') {
-            // ALT IS NOW "BASE EXTENSION" - MORE MOVES
-            systemPrompt += `
-            SHEET 2 (VARIATIONS):
-            Generate 16 NEW frames extending the dance.
-            Row 1: Dynamic Jump or Hop
-            Row 2: Low movement / Crouch / Floor work
-            Row 3: Spin / Rotation frames
-            Row 4: Expressive Extension / Kick
-            Keep action contained within cell boundaries.
-            MUST MATCH CHARACTER FROM SHEET 1 EXACTLY.
-            `;
-        } else if (role === 'flourish') {
-            // Prioritize Closeups
-            systemPrompt += `
-            SHEET 3 (DETAILS & FACES):
-            Row 1: Face Closeup (Neutral / Cool)
-            Row 2: Face Closeup (Smiling / Expressive)
-            Row 3: Hand Gestures / Mudras / Signs
-            Row 4: Extreme Closeup (Eyes/Mouth) or Accessory Detail
-            FOCUS ON FACIAL EXPRESSION AND DETAIL.
-            Maintain style consistency.
-            `;
-        } else if (role === 'smooth') {
+        // MECHANICAL PROMPT: STRICT GRID & CENTERING (Standard)
+        systemPrompt = `TASK: Generate a strict 4x4 Grid Sprite Sheet (16 frames).
+        
+        MECHANICAL RULES:
+        1. GRID: Exactly 4 columns, 4 rows.
+        2. SPACING: Use the FULL CELL for each frame.
+        3. CENTERING: The character must be centered in the MIDDLE of each grid cell.
+        4. PADDING: Leave a small gap between the character and the cell edge to prevent clipping.
+        5. IDENTITY: Maintain exact character consistency from Input Image.
+        
+        Visual Style: ${stylePrompt}
+        ${danceStyle}
+        `;
+
+        if (isTextOrSymbol) {
              systemPrompt += `
-             SHEET 4 (INTERPOLATION):
-             Generate in-between poses that connect the previous movements.
-             Focus on smooth transitions and weight shifting.
+             SUBJECT: TEXT/LOGO.
+             Action: Dynamic Motion/Pulsing.
+             Keep content centered in each cell.
              `;
+        } else {
+            if (role === 'base') {
+                systemPrompt += `
+                SHEET 1 (BASE LOOP):
+                Row 1: Idle / Groove (Center) - Establishing the character.
+                Row 2: ${motionPrompt ? 'Signature Move Part A' : 'Step Left'} - ${danceStyle}
+                Row 3: ${motionPrompt ? 'Signature Move Part B' : 'Step Right'} - ${danceStyle}
+                Row 4: Power Pose / Freeze Frame
+                Ensure feet are visible. Center of mass in middle of cell.
+                `;
+            } else if (role === 'alt') {
+                systemPrompt += `
+                SHEET 2 (VARIATIONS):
+                Generate 16 NEW frames extending the dance.
+                Row 1: Dynamic Jump or Hop
+                Row 2: Low movement / Crouch / Floor work
+                Row 3: Spin / Rotation frames
+                Row 4: Expressive Extension / Kick
+                Keep action contained within cell boundaries.
+                MUST MATCH CHARACTER FROM SHEET 1 EXACTLY.
+                `;
+            } else if (role === 'flourish') {
+                systemPrompt += `
+                SHEET 3 (DETAILS & FACES):
+                Row 1: Face Closeup (Neutral / Cool)
+                Row 2: Face Closeup (Smiling / Expressive)
+                Row 3: Hand Gestures / Mudras / Signs
+                Row 4: Extreme Closeup (Eyes/Mouth) or Accessory Detail
+                FOCUS ON FACIAL EXPRESSION AND DETAIL.
+                Maintain style consistency.
+                `;
+            } else if (role === 'smooth') {
+                 systemPrompt += `
+                 SHEET 4 (INTERPOLATION):
+                 Generate in-between poses that connect the previous movements.
+                 Focus on smooth transitions and weight shifting.
+                 `;
+            }
         }
     }
 
-    console.log(`[Gemini] Generating Sheet: ${role} (${category})...`);
+    console.log(`[Gemini] Generating Sheet: ${role} (${category}) [Fallback: ${useFallbackPrompt}]...`);
 
     const cleanBase64 = imageBase64.includes('base64,') ? imageBase64.split('base64,')[1] : imageBase64;
     const cleanContext = contextImageBase64 && contextImageBase64.includes('base64,') ? contextImageBase64.split('base64,')[1] : contextImageBase64;
@@ -312,7 +322,9 @@ const generateSingleSheet = async (
 
     if (cleanContext) {
         parts.push({ inlineData: { mimeType: 'image/jpeg', data: cleanContext } });
-        systemPrompt += "\nREFERENCE: Use the second image (previous sprite sheet) as the MASTER REFERENCE for spatial alignment and character consistency.";
+        if (!useFallbackPrompt) {
+            systemPrompt += "\nREFERENCE: Use the second image (previous sprite sheet) as the MASTER REFERENCE for spatial alignment and character consistency.";
+        }
     }
 
     parts.push({ text: systemPrompt });
@@ -348,7 +360,6 @@ const generateSingleSheet = async (
              throw new Error("Model returned no image data.");
         }
         
-        // Ensure proper data URI prefix
         const dataUri = `data:${mimeType};base64,${spriteSheetBase64}`;
         const rawFrames = await sliceSpriteSheet(dataUri, rows, cols);
         const finalFrames: GeneratedFrame[] = [];
@@ -372,9 +383,8 @@ const generateSingleSheet = async (
             }
             else if (role === 'flourish') {
                 energy = 'high';
-                // Rows 1, 2, 4 are Closeups in new prompt
                 if (i < 8 || i >= 12) type = 'closeup'; 
-                else type = 'body'; // Row 3 is hands (bodyish)
+                else type = 'body'; 
             }
 
             finalFrames.push({
@@ -386,7 +396,6 @@ const generateSingleSheet = async (
                 direction
             });
             
-            // Mirror logic 
             const shouldMirror = !isTextOrSymbol && type === 'body' && role !== 'flourish';
             
             if (shouldMirror) {
@@ -410,7 +419,7 @@ const generateSingleSheet = async (
 
     } catch (e: any) {
         console.error(`Failed to generate sheet ${role}:`, e);
-        // If it's the base sheet, we must throw to alert the user
+        // If Base fails, we propagate error to retry logic in parent
         if (role === 'base') throw e;
         return { frames: [] };
     }
@@ -441,12 +450,23 @@ export const generateDanceFrames = async (
   let baseSheetBase64: string | undefined = undefined;
 
   // 1. GENERATE BASE (The Foundation)
-  // This might throw, catching in UI
-  const baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed);
+  // Implemented simple retry logic with fallback prompt
+  let baseResult;
+  try {
+      baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed);
+  } catch (e) {
+      console.warn("Base generation failed with strict prompt. Retrying with fallback...");
+      try {
+          // Retry with fallback (simpler prompt)
+          baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed, undefined, true);
+      } catch (e2) {
+          throw new Error("Base generation failed after retry. Please try a different image.");
+      }
+  }
   
-  if (baseResult.frames.length > 0) {
+  if (baseResult && baseResult.frames.length > 0) {
       allFrames = [...allFrames, ...baseResult.frames];
-      onFrameUpdate(allFrames); // FAST UI UPDATE
+      onFrameUpdate(allFrames); 
       baseSheetBase64 = baseResult.rawSheetBase64; 
   } else {
       throw new Error("Base generation produced 0 frames.");
@@ -454,12 +474,10 @@ export const generateDanceFrames = async (
 
   // 2. GENERATE EXTENSIONS PARALLEL
   // We want faces (Flourish) AND moves (Alt) fast.
-  // Note: We run Flourish even in Turbo mode now because user wants closeups.
-  
   const generateAlt = async () => {
        if (!useTurbo || superMode) {
             try {
-                await delay(100);
+                // Remove artificial delay to optimize speed as requested
                 const result = await generateSingleSheet(ai, 'alt', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
                 if(result.frames.length > 0) {
                     allFrames = [...allFrames, ...result.frames];
@@ -470,7 +488,6 @@ export const generateDanceFrames = async (
   };
 
   const generateFlourish = async () => {
-      // ENABLE FOR ALL: Closeups are key to the new vibe
       try {
           const result = await generateSingleSheet(ai, 'flourish', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
           if(result.frames.length > 0) {
@@ -483,7 +500,7 @@ export const generateDanceFrames = async (
   const generateSmooth = async () => {
       if (superMode) {
           try {
-              await delay(200);
+              // Remove delay
               const result = await generateSingleSheet(ai, 'smooth', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
               if(result.frames.length > 0) {
                   allFrames = [...allFrames, ...result.frames];
