@@ -2,15 +2,15 @@
 import { GoogleGenAI } from "@google/genai";
 import { GeneratedFrame, PoseType, EnergyLevel, SubjectCategory, FrameType, SheetRole, MoveDirection } from "../types";
 
-// Use environment variable as per strict guidelines. 
-const API_KEY = process.env.API_KEY || 'AIzaSyDFjSQY6Ne38gtzEd6Q_5zyyW65ah5_anw';
+// Strict API Key usage as per guidelines
+const API_KEY = process.env.API_KEY;
 
 // --- UTILITIES ---
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper to wrap image loading in a timeout to prevent hanging
-const loadImageWithTimeout = (src: string, timeoutMs: number = 5000): Promise<HTMLImageElement> => {
+const loadImageWithTimeout = (src: string, timeoutMs: number = 8000): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -88,8 +88,12 @@ const resizeImage = (file: File, maxDim: number = 384): Promise<string> => {
                     return fileToBase64(file).then(resolve).catch(reject); 
                 }
                 
+                // Fill with white to handle transparent PNGs correctly (prevent black backgrounds)
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
                 ctx.drawImage(img, 0, 0, width, height);
-                const dataUrl = canvas.toDataURL('image/jpeg', 0.6); 
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.85); 
                 URL.revokeObjectURL(url);
                 resolve(dataUrl);
             } catch (e) {
@@ -167,8 +171,6 @@ const sliceSpriteSheet = (base64Image: string, rows: number, cols: number): Prom
                             0, 0, cellCanvas.width, cellCanvas.height
                         );
                         
-                        // Use dataURL instead of toBlob for better compatibility and speed in this context
-                        // (Blobs are better for memory, but DataURLs are sync and safer for small batches)
                         frames.push(cellCanvas.toDataURL('image/jpeg', 0.85));
                     }
                 }
@@ -211,7 +213,7 @@ const generateWithRetry = async (ai: GoogleGenAI, params: any, retries = 3) => {
         try {
             return await ai.models.generateContent(params);
         } catch (e: any) {
-            console.warn(`Gemini generation attempt ${i + 1} failed:`, e);
+            console.warn(`Gemini generation attempt ${i + 1} failed:`, e.message);
             lastError = e;
             await delay(1000 * Math.pow(2, i)); 
         }
@@ -280,12 +282,15 @@ const generateSingleSheet = async (
             MUST MATCH CHARACTER FROM SHEET 1 EXACTLY.
             `;
         } else if (role === 'flourish') {
+            // Prioritize Closeups
             systemPrompt += `
-            SHEET 3 (DETAILS & FX):
-            Row 1: Hand Movements / Gestures
-            Row 2: Fast Motion Blur / Smears
-            Row 3: Face Closeup (Neutral)
-            Row 4: Face Closeup (Expressive/Singing)
+            SHEET 3 (DETAILS & FACES):
+            Row 1: Face Closeup (Neutral / Cool)
+            Row 2: Face Closeup (Smiling / Expressive)
+            Row 3: Hand Gestures / Mudras / Signs
+            Row 4: Extreme Closeup (Eyes/Mouth) or Accessory Detail
+            FOCUS ON FACIAL EXPRESSION AND DETAIL.
+            Maintain style consistency.
             `;
         } else if (role === 'smooth') {
              systemPrompt += `
@@ -326,10 +331,13 @@ const generateSingleSheet = async (
         if (!candidate) throw new Error("API returned no candidates.");
         
         let spriteSheetBase64: string | undefined = undefined;
+        let mimeType = 'image/png'; // Default guess
+
         if (candidate.content && candidate.content.parts) {
             for (const part of candidate.content.parts) {
                 if (part.inlineData && part.inlineData.data) {
                     spriteSheetBase64 = part.inlineData.data;
+                    if (part.inlineData.mimeType) mimeType = part.inlineData.mimeType;
                     break;
                 }
             }
@@ -337,10 +345,12 @@ const generateSingleSheet = async (
 
         if (!spriteSheetBase64) {
              console.warn(`[Gemini] Sheet ${role} yielded no image data.`);
-             return { frames: [] };
+             throw new Error("Model returned no image data.");
         }
-
-        const rawFrames = await sliceSpriteSheet(`data:image/jpeg;base64,${spriteSheetBase64}`, rows, cols);
+        
+        // Ensure proper data URI prefix
+        const dataUri = `data:${mimeType};base64,${spriteSheetBase64}`;
+        const rawFrames = await sliceSpriteSheet(dataUri, rows, cols);
         const finalFrames: GeneratedFrame[] = [];
 
         for (let i = 0; i < rawFrames.length; i++) {
@@ -362,7 +372,9 @@ const generateSingleSheet = async (
             }
             else if (role === 'flourish') {
                 energy = 'high';
-                if (i >= 8) type = 'closeup';
+                // Rows 1, 2, 4 are Closeups in new prompt
+                if (i < 8 || i >= 12) type = 'closeup'; 
+                else type = 'body'; // Row 3 is hands (bodyish)
             }
 
             finalFrames.push({
@@ -398,6 +410,8 @@ const generateSingleSheet = async (
 
     } catch (e: any) {
         console.error(`Failed to generate sheet ${role}:`, e);
+        // If it's the base sheet, we must throw to alert the user
+        if (role === 'base') throw e;
         return { frames: [] };
     }
 };
@@ -411,6 +425,10 @@ export const generateDanceFrames = async (
   onFrameUpdate: (frames: GeneratedFrame[]) => void 
 ): Promise<{ frames: GeneratedFrame[], category: SubjectCategory }> => {
 
+  if (!API_KEY) {
+      throw new Error("API Key is missing. Please check your environment variables.");
+  }
+
   const ai = new GoogleGenAI({ apiKey: API_KEY });
   
   const masterSeed = Math.floor(Math.random() * 2147483647);
@@ -423,6 +441,7 @@ export const generateDanceFrames = async (
   let baseSheetBase64: string | undefined = undefined;
 
   // 1. GENERATE BASE (The Foundation)
+  // This might throw, catching in UI
   const baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed);
   
   if (baseResult.frames.length > 0) {
@@ -430,43 +449,41 @@ export const generateDanceFrames = async (
       onFrameUpdate(allFrames); // FAST UI UPDATE
       baseSheetBase64 = baseResult.rawSheetBase64; 
   } else {
-      throw new Error("Base generation failed. Aborting.");
+      throw new Error("Base generation produced 0 frames.");
   }
 
-  // 2. GENERATE EXTENSIONS (Using Base as Reference)
-  // We pass baseSheetBase64 as 'contextImage' to ensure style/pose consistency
-  const altPromise = (async () => {
-     if (!useTurbo || superMode) {
-         await delay(100); 
-         try {
-             // Alt is now Base-Extension
-             const result = await generateSingleSheet(ai, 'alt', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
-             if(result.frames.length > 0) {
-                 allFrames = [...allFrames, ...result.frames];
-                 onFrameUpdate(allFrames);
-             }
-         } catch(e) { console.warn("Alt sheet failed", e); }
-     }
-  })();
+  // 2. GENERATE EXTENSIONS PARALLEL
+  // We want faces (Flourish) AND moves (Alt) fast.
+  // Note: We run Flourish even in Turbo mode now because user wants closeups.
+  
+  const generateAlt = async () => {
+       if (!useTurbo || superMode) {
+            try {
+                await delay(100);
+                const result = await generateSingleSheet(ai, 'alt', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
+                if(result.frames.length > 0) {
+                    allFrames = [...allFrames, ...result.frames];
+                    onFrameUpdate(allFrames);
+                }
+            } catch(e) { console.warn("Alt sheet failed", e); }
+       }
+  };
 
-  const flourishPromise = (async () => {
-      if (superMode) {
-          await delay(200); 
-          try {
-              const result = await generateSingleSheet(ai, 'flourish', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
-              if(result.frames.length > 0) {
-                  allFrames = [...allFrames, ...result.frames];
-                  onFrameUpdate(allFrames);
-              }
-          } catch(e) { console.warn("Flourish sheet failed", e); }
-      }
-  })();
+  const generateFlourish = async () => {
+      // ENABLE FOR ALL: Closeups are key to the new vibe
+      try {
+          const result = await generateSingleSheet(ai, 'flourish', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
+          if(result.frames.length > 0) {
+              allFrames = [...allFrames, ...result.frames];
+              onFrameUpdate(allFrames);
+          }
+      } catch(e) { console.warn("Flourish sheet failed", e); }
+  };
 
-  const smoothPromise = (async () => {
+  const generateSmooth = async () => {
       if (superMode) {
-          await delay(300); 
           try {
-              // Smooth frames also use base reference
+              await delay(200);
               const result = await generateSingleSheet(ai, 'smooth', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
               if(result.frames.length > 0) {
                   allFrames = [...allFrames, ...result.frames];
@@ -474,9 +491,10 @@ export const generateDanceFrames = async (
               }
           } catch(e) { console.warn("Smooth sheet failed", e); }
       }
-  })();
+  };
 
-  await Promise.allSettled([altPromise, flourishPromise, smoothPromise]);
+  // Run secondary sheets in parallel for speed
+  await Promise.allSettled([generateFlourish(), generateAlt(), generateSmooth()]);
 
   if (allFrames.length === 0) {
       throw new Error("Generation failed: No frames produced.");

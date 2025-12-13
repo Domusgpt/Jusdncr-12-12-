@@ -17,12 +17,15 @@ interface Step4Props {
 type AspectRatio = '9:16' | '1:1' | '16:9';
 type Resolution = '720p' | '1080p' | '4K';
 
-type RhythmPhase = 'WARMUP' | 'SWING_LEFT' | 'SWING_RIGHT' | 'DROP' | 'CHAOS';
+type RhythmPhase = 'AMBIENT' | 'WARMUP' | 'SWING_LEFT' | 'SWING_RIGHT' | 'DROP' | 'CHAOS';
 
 // Interpolation Modes
-type InterpMode = 'CUT' | 'SLIDE' | 'MORPH';
+// SMOOTH: Slow crossfade (interpolated vibe)
+// SLIDE: Directional shift
+// CUT: Instant change
+// MORPH: Fast crossfade
+type InterpMode = 'CUT' | 'SLIDE' | 'MORPH' | 'SMOOTH';
 
-// FX Modes
 type FXMode = 'NORMAL' | 'INVERT' | 'BW' | 'STROBE' | 'GHOST';
 
 interface FrameData {
@@ -81,7 +84,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const BASE_ZOOM = 1.15;
   const camZoomRef = useRef<number>(BASE_ZOOM);
-  const camPanXRef = useRef<number>(0); // New: Camera Panning
+  const camPanXRef = useRef<number>(0); 
   
   // Physics
   const charSquashRef = useRef<number>(1.0); 
@@ -104,7 +107,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const scratchModeRef = useRef<boolean>(false);
   const rgbSplitRef = useRef<number>(0); 
   const flashIntensityRef = useRef<number>(0); 
-  const activeFXModeRef = useRef<FXMode>('NORMAL'); // NEW: For Color Dynamics
+  const activeFXModeRef = useRef<FXMode>('NORMAL'); 
   
   const [framesByEnergy, setFramesByEnergy] = useState<Record<EnergyLevel, FrameData[]>>({ low: [], mid: [], high: [] });
   const [closeupFrames, setCloseupFrames] = useState<FrameData[]>([]); 
@@ -212,7 +215,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
        img.crossOrigin = "anonymous"; 
        img.src = frame.url;
        
-       // ROBUST LOADER: Even if error, we count it so the overlay dismisses
        const markLoaded = () => {
            loadedCount++;
            if (loadedCount >= totalToLoad) setImagesReady(true);
@@ -291,11 +293,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       transitionProgressRef.current = 0.0;
       transitionModeRef.current = mode;
       
-      // MECHANICALLY FAST SPEEDS
       let speed = 20.0;
       if (mode === 'CUT') speed = 1000.0; // Instant
-      else if (mode === 'MORPH') speed = 5.0; 
+      else if (mode === 'MORPH') speed = 5.0; // Fast crossfade
       else if (mode === 'SLIDE') speed = 8.0; // Fluid
+      else if (mode === 'SMOOTH') speed = 1.5; // Slow interpolation (Ambient)
       
       transitionSpeedRef.current = speed * speedMultiplier;
   };
@@ -364,13 +366,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     const isCloseupLocked = now < closeupLockTimeRef.current;
     
     // --- STUTTER & SCRATCH ENGINE ---
-    const isStuttering = mid > 0.6 || high > 0.5;
+    // Only stutter if energy implies it
+    const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
     
-    // Don't stutter if we are in a close-up lock to preserve the moment
-    if (isStuttering && (now - lastStutterTimeRef.current) > 50 && !isCloseupLocked) { 
+    if (isStuttering && (now - lastStutterTimeRef.current) > 50) { 
         lastStutterTimeRef.current = now;
         
-        if (Math.random() < 0.45) { 
+        if (Math.random() < 0.35) { 
              const swap = targetPoseRef.current;
              triggerTransition(sourcePoseRef.current, 'CUT'); 
              sourcePoseRef.current = swap; 
@@ -379,11 +381,9 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
              fluidStutterRef.current = 1.0; 
              scratchModeRef.current = true;
              rgbSplitRef.current = 1.0; 
-             
-             // Dynamic Camera Jitter on Scratch
              masterRotZRef.current += (Math.random() - 0.5) * 10;
         } else {
-             const pool = [...framesByEnergy.high, ...closeupFrames];
+             const pool = [...framesByEnergy.high];
              if(pool.length > 0) {
                  const next = pool[Math.floor(Math.random() * pool.length)].pose;
                  triggerTransition(next, 'CUT', 1.0);
@@ -392,88 +392,109 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }
     }
 
-    // --- MAIN GROOVE ENGINE & COLOR DYNAMICS ---
-    if (!scratchModeRef.current && bass > 0.6 && (now - lastBeatTimeRef.current) > 300) { 
-        lastBeatTimeRef.current = now;
-        beatCounterRef.current = (beatCounterRef.current + 1) % 16; 
+    // --- MAIN GROOVE ENGINE ---
+    // Threshold lowered slightly, but logic refined for smooth ambient
+    const beatThreshold = 0.5;
+    
+    if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 300) {
+        // Is it a beat?
+        if (bass > beatThreshold) {
+            lastBeatTimeRef.current = now;
+            beatCounterRef.current = (beatCounterRef.current + 1) % 16; 
 
-        const beat = beatCounterRef.current;
-        let phase: RhythmPhase = 'WARMUP';
-        if (beat >= 4 && beat < 8) phase = 'SWING_LEFT';
-        else if (beat >= 8 && beat < 12) phase = 'SWING_RIGHT';
-        else if (beat === 12 || beat === 13) phase = 'DROP'; 
-        else if (beat >= 14) phase = 'CHAOS'; 
-        
-        // COLOR DYNAMICS (User Requested)
-        // Trigger Invert or B&W on CHAOS or DROP
-        if (phase === 'CHAOS' || phase === 'DROP') {
-            const rand = Math.random();
-            if (rand > 0.7) activeFXModeRef.current = 'INVERT';
-            else if (rand > 0.4) activeFXModeRef.current = 'BW';
-            else activeFXModeRef.current = 'NORMAL';
-        } else {
-            activeFXModeRef.current = 'NORMAL';
-        }
-
-        // Physics Impulse
-        camZoomRef.current = BASE_ZOOM + (bass * 0.35); 
-        charSquashRef.current = 0.85; 
-        charBounceYRef.current = -50 * bass; 
-        flashIntensityRef.current = 0.8; 
-
-        if (phase === 'SWING_LEFT') { targetTiltRef.current = -8; currentDirectionRef.current = 'left'; }
-        else if (phase === 'SWING_RIGHT') { targetTiltRef.current = 8; currentDirectionRef.current = 'right'; }
-        else if (phase === 'CHAOS') targetTiltRef.current = (Math.random() - 0.5) * 25; 
-        else { targetTiltRef.current = 0; currentDirectionRef.current = 'center'; }
-
-        let pool: FrameData[] = [];
-        
-        if (isCloseupLocked) {
-             pool = closeupFrames;
-        } else {
-            if (phase === 'WARMUP') pool = framesByEnergy.low; 
-            else if (phase === 'SWING_LEFT') {
-                const leftFrames = framesByEnergy.mid.filter(f => f.direction === 'left');
-                pool = leftFrames.length > 0 ? leftFrames : framesByEnergy.mid;
-            } else if (phase === 'SWING_RIGHT') {
-                const rightFrames = framesByEnergy.mid.filter(f => f.direction === 'right');
-                pool = rightFrames.length > 0 ? rightFrames : framesByEnergy.mid;
-            } else if (phase === 'DROP') pool = framesByEnergy.high;
-            else if (phase === 'CHAOS') pool = [...framesByEnergy.high, ...closeupFrames];
-        }
-
-        if (pool.length === 0) pool = framesByEnergy.mid;
-        if (pool.length === 0) pool = framesByEnergy.low;
-        
-        if (pool.length > 0) {
-            let nextFrame = pool[Math.floor(Math.random() * pool.length)];
-            let attempts = 0;
-            while (nextFrame.pose === targetPoseRef.current && attempts < 3 && phase !== 'CHAOS') {
-                 nextFrame = pool[Math.floor(Math.random() * pool.length)];
-                 attempts++;
-            }
+            const beat = beatCounterRef.current;
+            let phase: RhythmPhase = 'WARMUP';
+            if (beat >= 4 && beat < 8) phase = 'SWING_LEFT';
+            else if (beat >= 8 && beat < 12) phase = 'SWING_RIGHT';
+            else if (beat === 12 || beat === 13) phase = 'DROP'; 
+            else if (beat >= 14) phase = 'CHAOS'; 
             
-            // SMART TRANSITION LOGIC
-            let mode: InterpMode = 'CUT'; 
-            
-            if (isCloseupLocked || nextFrame.type === 'closeup') {
-                 mode = 'MORPH'; 
-            } else if (phase === 'SWING_LEFT' || phase === 'SWING_RIGHT') {
-                 // Use SLIDE for directional swings to add fluidity (User Request)
-                 mode = 'SLIDE';
+            // FX Logic
+            if (phase === 'CHAOS' || phase === 'DROP') {
+                const rand = Math.random();
+                if (rand > 0.7) activeFXModeRef.current = 'INVERT';
+                else if (rand > 0.4) activeFXModeRef.current = 'BW';
+                else activeFXModeRef.current = 'NORMAL';
+            } else {
+                activeFXModeRef.current = 'NORMAL';
             }
 
-            triggerTransition(nextFrame.pose, mode);
+            // Physics Impulse
+            camZoomRef.current = BASE_ZOOM + (bass * 0.35); 
+            charSquashRef.current = 0.85; 
+            charBounceYRef.current = -50 * bass; 
+            flashIntensityRef.current = 0.8; 
+
+            if (phase === 'SWING_LEFT') { targetTiltRef.current = -8; currentDirectionRef.current = 'left'; }
+            else if (phase === 'SWING_RIGHT') { targetTiltRef.current = 8; currentDirectionRef.current = 'right'; }
+            else if (phase === 'CHAOS') targetTiltRef.current = (Math.random() - 0.5) * 25; 
+            else { targetTiltRef.current = 0; currentDirectionRef.current = 'center'; }
+
+            let pool: FrameData[] = [];
+            
+            // If locked in closeup (from vocals), iterate closeups
+            if (isCloseupLocked) {
+                pool = closeupFrames;
+            } else {
+                if (phase === 'WARMUP') pool = framesByEnergy.low; 
+                else if (phase === 'SWING_LEFT') {
+                    const leftFrames = framesByEnergy.mid.filter(f => f.direction === 'left');
+                    pool = leftFrames.length > 0 ? leftFrames : framesByEnergy.mid;
+                } else if (phase === 'SWING_RIGHT') {
+                    const rightFrames = framesByEnergy.mid.filter(f => f.direction === 'right');
+                    pool = rightFrames.length > 0 ? rightFrames : framesByEnergy.mid;
+                } else if (phase === 'DROP') pool = framesByEnergy.high;
+                else if (phase === 'CHAOS') pool = framesByEnergy.high;
+            }
+
+            if (pool.length === 0) pool = framesByEnergy.mid;
+            if (pool.length === 0) pool = framesByEnergy.low;
+            
+            if (pool.length > 0) {
+                let nextFrame = pool[Math.floor(Math.random() * pool.length)];
+                let attempts = 0;
+                while (nextFrame.pose === targetPoseRef.current && attempts < 3 && phase !== 'CHAOS') {
+                    nextFrame = pool[Math.floor(Math.random() * pool.length)];
+                    attempts++;
+                }
+                
+                // SMART TRANSITION LOGIC
+                let mode: InterpMode = 'CUT'; 
+                
+                if (isCloseupLocked || nextFrame.type === 'closeup') {
+                    mode = 'MORPH'; 
+                } else if (phase === 'SWING_LEFT' || phase === 'SWING_RIGHT') {
+                    mode = 'SLIDE';
+                }
+
+                triggerTransition(nextFrame.pose, mode);
+            }
+        } 
+        // --- AMBIENT / LOW ENERGY MODE ---
+        else if (bass < 0.3 && mid < 0.3) {
+            // Check if we should drift to a new idle pose
+            // 2% chance per frame to drift if ambient
+             if (Math.random() < 0.02) {
+                 const pool = framesByEnergy.low;
+                 if (pool.length > 0) {
+                     const next = pool[Math.floor(Math.random() * pool.length)];
+                     // Use SMOOTH transition for ambient drift
+                     triggerTransition(next.pose, 'SMOOTH');
+                 }
+                 targetTiltRef.current = 0;
+                 currentDirectionRef.current = 'center';
+             }
         }
     }
     
     // Vocal Gate / Closeup Trigger
+    // Trigger burst of closeups on high vocal energy
     if (!isCloseupLocked && high > 0.6 && mid > 0.4 && bass < 0.5) {
-        const singers = closeupFrames.filter(f => f.pose.includes('open'));
-        if (singers.length > 0 && Math.random() < 0.4) {
-            const next = singers[Math.floor(Math.random() * singers.length)].pose;
-            triggerTransition(next, 'MORPH', 1.5); 
-            closeupLockTimeRef.current = now + 2000;
+        if (closeupFrames.length > 0 && Math.random() < 0.5) {
+            const next = closeupFrames[Math.floor(Math.random() * closeupFrames.length)].pose;
+            triggerTransition(next, 'MORPH', 1.0); 
+            // Lock closeups for 2-3 seconds
+            closeupLockTimeRef.current = now + 2500;
         }
     }
 
@@ -493,7 +514,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     echoTrailRef.current *= Math.exp(-4 * deltaTime);
     
     // Counter-Move Camera Panning (Parallax)
-    // If char moves left, camera pans right slightly
     let targetPanX = 0;
     if (currentDirectionRef.current === 'left') targetPanX = 30;
     else if (currentDirectionRef.current === 'right') targetPanX = -30;
@@ -519,7 +539,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
             const img = poseImagesRef.current[pose];
             
-            // CRITICAL FIX: Ensure image is loaded and valid before drawing
             if (!img || !img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
             
             const aspect = img.width / img.height;
@@ -558,7 +577,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                 ctx.translate(0, offsetY * dh); 
                 
                 if (blurAmount > 0) {
-                     // Stack with existing filter if any
                      const currentFilter = ctx.filter === 'none' ? '' : ctx.filter;
                      ctx.filter = `${currentFilter} blur(${blurAmount}px)`;
                 }
@@ -572,12 +590,9 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                      if(colorChannel === 'b') ctx.filter = 'hue-rotate(-90deg)';
                 }
 
-                // MECHANICAL CENTERING FIX
                 try {
                     ctx.drawImage(image, -dw/2, -dh/2, dw, dh);
-                } catch (e) {
-                    // Suppress broken image errors
-                }
+                } catch (e) {}
                 ctx.restore();
             };
 
@@ -605,28 +620,21 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         if (progress >= 1.0 || mode === 'CUT') {
             drawLayer(targetPoseRef.current, 1.0, 0, 0);
         } else {
+            // Easing for smooth
             const easeT = progress * progress * (3 - 2 * progress); 
             
             if (mode === 'SLIDE') {
-                // FLUID SLIDE EFFECT
-                // source slides out to the left/right, target slides in
                 const dirMultiplier = targetPoseRef.current.includes('right') ? -1 : 1;
                 drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
                 drawLayer(targetPoseRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
-            } else {
-                // MORPH
+            } else if (mode === 'SMOOTH' || mode === 'MORPH') {
+                // Crossfade
                 drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, 0);
                 drawLayer(targetPoseRef.current, easeT, 0, 0); 
             }
         }
             
         // GHOSTING FX
-        // Only trigger ghosting on high energy or specific mode
-        const ghostImg = poseImagesRef.current[sourcePoseRef.current];
-        if (ghostImg && ghostImg.complete && ghostImg.naturalWidth > 0 && ghostAmountRef.current > 0.2) {
-             // simplified ghosting logic
-        }
-            
         if (mid > 0.4) {
             ctx.save();
             ctx.fillStyle = `rgba(0,0,0, ${mid * 0.3})`;
@@ -810,15 +818,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
               </div>
           </div>
       )}
-
-      {/* 
-        CRITICAL FIX: The loader now only shows if state.isGenerating is TRUE. 
-        However, if Step4 is mounted (which happens when appState.step === PREVIEW), 
-        we also want to show a loader if images are still decoding locally (!imagesReady).
-        BUT, to prevent it from sticking if isGenerating is false but images failed, 
-        we prioritize the AppState isGenerating flag for the 'EXPANDING REALITY' message,
-        and show a simpler 'Initializing' message for local decoding.
-      */}
 
       {!imagesReady && !state.isGenerating && (
          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50 backdrop-blur-md">
