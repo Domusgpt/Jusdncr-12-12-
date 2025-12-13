@@ -46,6 +46,7 @@ export interface SavedProject {
     frames: GeneratedFrame[];
     styleId: string;
     subjectCategory: SubjectCategory;
+    hologramParams?: HolographicParams; // NEW: Save params for standalone portability
 }
 
 export interface AuthUser {

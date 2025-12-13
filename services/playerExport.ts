@@ -8,122 +8,128 @@ export const generatePlayerHTML = (
     subjectCategory: SubjectCategory
 ): string => {
     
+    // Embed the data directly into the HTML
     const framesJSON = JSON.stringify(frames);
     const paramsJSON = JSON.stringify(hologramParams);
     
-    return `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DNCE-R Standalone Widget</title>
+    <title>jusDNCE // Standalone Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: 'Courier New', monospace; user-select: none; }
+        body { margin: 0; background: #050505; overflow: hidden; font-family: 'Rajdhani', sans-serif; user-select: none; color: #fff; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #bgCanvas { z-index: 1; transition: opacity 0.3s; }
+        #bgCanvas { z-index: 1; }
         #charCanvas { z-index: 2; pointer-events: none; }
         
         /* UI OVERLAY */
         #ui {
-            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10;
-            display: flex; gap: 10px; padding: 10px;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-            border-radius: 20px; border: 1px solid rgba(255,255,255,0.1);
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100;
+            display: flex; gap: 12px; align-items: center;
+            background: rgba(10,10,12,0.8); backdrop-filter: blur(16px);
+            padding: 12px 24px; border-radius: 24px; 
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
             transition: opacity 0.3s, transform 0.3s;
         }
-        #ui.hidden { opacity: 0; pointer-events: none; transform: translateX(-50%) translateY(20px); }
         
         button {
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
-            color: #ccc; padding: 8px 16px; border-radius: 12px;
-            cursor: pointer; font-weight: bold; font-size: 12px;
-            transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: #ccc; padding: 10px 20px; border-radius: 14px;
+            cursor: pointer; font-weight: 700; font-size: 13px; font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 1px; text-transform: uppercase;
+            transition: all 0.2s; display: flex; align-items: center; gap: 8px;
         }
-        button:hover { background: rgba(255,255,255,0.25); color: white; transform: scale(1.05); }
-        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 10px rgba(139,92,246,0.5); }
-        button.red { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.5); color: #fca5a5; }
-        button.red.active { background: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 0 10px rgba(239,68,68,0.5); }
+        button:hover { background: rgba(255,255,255,0.15); color: white; transform: translateY(-2px); border-color: rgba(255,255,255,0.3); }
+        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 20px rgba(139,92,246,0.4); }
+        button.red { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+        button.red.active { background: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.4); }
         
-        /* Loading Screen */
+        .separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+
+        /* Loader */
         #loader {
-            position: absolute; inset: 0; background: #000; z-index: 100;
+            position: absolute; inset: 0; background: #000; z-index: 200;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: opacity 0.5s;
+            transition: opacity 0.5s; pointer-events: none;
         }
         .spinner {
-            width: 40px; height: 40px; border: 4px solid #333; border-top-color: #8b5cf6;
-            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;
+            width: 50px; height: 50px; border: 3px solid rgba(139,92,246,0.3); border-top-color: #8b5cf6;
+            border-radius: 50%; animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite; margin-bottom: 20px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         
         /* Drag Overlay */
         #dropOverlay {
-            position: absolute; inset: 0; z-index: 50; background: rgba(139, 92, 246, 0.8);
-            display: none; align-items: center; justify-content: center;
-            font-size: 2em; color: white; font-weight: 900; letter-spacing: 2px;
-            backdrop-filter: blur(5px);
+            position: absolute; inset: 0; z-index: 300; background: rgba(139, 92, 246, 0.9);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            backdrop-filter: blur(10px); opacity: 0; pointer-events: none; transition: opacity 0.2s;
         }
-        .drag-over #dropOverlay { display: flex; }
+        body.drag-active #dropOverlay { opacity: 1; }
+        .drop-title { font-size: 3em; color: white; font-weight: 900; letter-spacing: 4px; margin-bottom: 10px; }
         
-        /* Header/Controls Hover Area */
-        #hoverZone {
-            position: absolute; bottom: 0; left: 0; width: 100%; height: 100px; z-index: 5;
-        }
-        #hoverZone:hover + #ui { opacity: 1; transform: translateX(-50%) translateY(0); }
-        
-        /* Corner Info */
+        /* Info Corner */
         #info {
-            position: absolute; top: 20px; left: 20px; z-index: 5;
-            color: rgba(255,255,255,0.3); font-size: 10px; pointer-events: none;
+            position: absolute; top: 30px; left: 30px; z-index: 50;
+            color: rgba(255,255,255,0.4); font-size: 12px; pointer-events: none;
+            line-height: 1.5; font-weight: 600;
+        }
+        .brand {
+            font-size: 24px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; display: block;
+            text-shadow: 0 0 20px rgba(139,92,246,0.5);
         }
     </style>
 </head>
-<body class="drag-over-target">
+<body>
 
-    <!-- CANVAS LAYERS -->
     <canvas id="bgCanvas"></canvas>
     <canvas id="charCanvas"></canvas>
     
-    <!-- OVERLAYS -->
     <div id="loader">
         <div class="spinner"></div>
-        <div style="color: #666; font-size: 12px; letter-spacing: 2px;">INITIALIZING DNCE-R RIG...</div>
+        <div style="color: #888; font-size: 14px; letter-spacing: 4px; font-weight: 700;">INITIALIZING NEURAL RIG...</div>
     </div>
     
-    <div id="dropOverlay">DROP AUDIO FILE HERE</div>
+    <div id="dropOverlay">
+        <div class="drop-title">DROP FILE</div>
+        <div style="font-size: 1.2em; color: rgba(255,255,255,0.8); letter-spacing: 2px;">IMPORT .JUSDNCE RIG OR AUDIO FILE</div>
+    </div>
     
     <div id="info">
-        DNCE-R // ${subjectCategory}<br>
-        <span id="fps">0 FPS</span>
+        <span class="brand">jusDNCE</span>
+        MODE: <span id="subjectDisplay">${subjectCategory}</span><br>
+        <span id="fps">0 FPS</span> // <span id="poseDisplay">INIT</span>
     </div>
 
-    <!-- UI -->
-    <div id="hoverZone"></div>
     <div id="ui">
-        <button id="btnMic">🎙️ LIVE</button>
-        <button id="btnPlay" style="display:none">⏯️ PLAY</button>
-        <div style="width: 1px; background: rgba(255,255,255,0.2); margin: 0 5px;"></div>
-        <button id="btnCam">🎥 DYNAMIC CAM</button>
-        <button id="btnGreen">🟩 TRANSPARENT</button>
-        <button id="btnZen">Zen Mode</button>
+        <button id="btnPlay">⏯️ PLAY</button>
+        <button id="btnMic">🎙️ MIC INPUT</button>
+        <div class="separator"></div>
+        <button id="btnCam" class="active">🎥 DYNAMIC CAM</button>
+        <button id="btnFilter">✨ FX</button>
+        <div class="separator"></div>
+        <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 LOAD</button>
+        <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
     </div>
 
     <script>
-        // --- CONFIG ---
-        const FRAMES = ${framesJSON};
-        const PARAMS = ${paramsJSON};
-        const SUBJECT = "${subjectCategory}";
+        // --- 1. DATA INJECTION ---
+        let FRAMES = ${framesJSON};
+        let PARAMS = ${paramsJSON};
+        let SUBJECT = "${subjectCategory}";
         
-        // --- SHADER SOURCE ---
+        // --- 2. SHADER SOURCE ---
         const VERTEX = \`${VERTEX_SHADER}\`;
         const FRAGMENT = \`${FRAGMENT_SHADER}\`;
-        
-        // --- 1. QUANTUM VISUALIZER ENGINE ---
+
+        // --- 3. QUANTUM VISUALIZER ENGINE ---
         class Visualizer {
             constructor(canvas) {
                 this.canvas = canvas;
-                this.gl = canvas.getContext('webgl', { alpha: true, preserveDrawingBuffer: true }); // Alpha true for green screen
+                this.gl = canvas.getContext('webgl', { alpha: false, preserveDrawingBuffer: true });
                 if(!this.gl) this.gl = canvas.getContext('experimental-webgl');
                 this.startTime = Date.now();
                 this.mouse = {x:0, y:0};
@@ -157,6 +163,7 @@ export const generatePlayerHTML = (
                     spd: this.gl.getUniformLocation(this.program, 'u_speed'),
                     int: this.gl.getUniformLocation(this.program, 'u_intensity'),
                     chs: this.gl.getUniformLocation(this.program, 'u_chaos'),
+                    mph: this.gl.getUniformLocation(this.program, 'u_morph'),
                     camZ: this.gl.getUniformLocation(this.program, 'u_cameraZ'),
                     camRot: this.gl.getUniformLocation(this.program, 'u_cameraRot'),
                 };
@@ -175,9 +182,10 @@ export const generatePlayerHTML = (
                     this.gl.viewport(0,0,w,h);
                 }
                 
-                // Color Logic
+                // HSL to RGB conversion embedded
                 const hVal = (PARAMS.hue || 200) / 360;
-                const sVal = 0.8, lVal = 0.6;
+                const sVal = PARAMS.saturation || 0.8;
+                const lVal = 0.6;
                 const q = lVal < 0.5 ? lVal * (1 + sVal) : lVal + sVal - lVal * sVal;
                 const p = 2 * lVal - q;
                 const hue2rgb = (p, q, t) => {
@@ -197,20 +205,19 @@ export const generatePlayerHTML = (
                 this.gl.uniform1f(this.locs.bass, audio.bass);
                 this.gl.uniform1f(this.locs.mid, audio.mid);
                 this.gl.uniform1f(this.locs.high, audio.high);
-                
                 this.gl.uniform3f(this.locs.col, r, g, b);
                 this.gl.uniform1f(this.locs.den, PARAMS.density || 2.0);
                 this.gl.uniform1f(this.locs.spd, PARAMS.speed || 0.1);
                 this.gl.uniform1f(this.locs.int, PARAMS.intensity || 0.6);
                 this.gl.uniform1f(this.locs.chs, PARAMS.chaos || 0.5);
+                this.gl.uniform1f(this.locs.mph, PARAMS.morph || 0.0);
                 this.gl.uniform1f(this.locs.camZ, camZ);
                 this.gl.uniform3f(this.locs.camRot, rot.x, rot.y, rot.z);
-                
                 this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
             }
         }
 
-        // --- 2. SETUP ---
+        // --- 4. ENGINE STATE ---
         const bgC = document.getElementById('bgCanvas');
         const charC = document.getElementById('charCanvas');
         const ctx = charC.getContext('2d');
@@ -218,301 +225,389 @@ export const generatePlayerHTML = (
         
         const viz = new Visualizer(bgC);
         
-        // Asset Management
-        const IMAGES = {};
-        const POOL = { low:[], mid:[], high:[] };
-        const SHUFFLE_DECKS = { low:[], mid:[], high:[] };
-
-        let readyCount = 0;
-        let lastFrameTime = Date.now();
+        let IMAGES = {};
+        let FRAMES_BY_ENERGY = { low:[], mid:[], high:[] };
+        let CLOSEUPS = [];
         
-        // --- 3. PHYSICS ENGINE (Springs) ---
-        const PHYSICS = {
-            camZoom: 1.15,
-            
-            // SPRING PHYSICS STATE
+        const STATE = {
             masterRot: {x:0, y:0, z:0},
             masterVel: {x:0, y:0, z:0},
-            
+            camZoom: 1.15,
+            camPanX: 0,
             charSquash: 1.0,
             charSkew: 0.0,
             charTilt: 0.0,
-            
-            ghostAmount: 0.0,
-            echoTrail: 0.0,
-            
-            // Logic
+            charBounceY: 0.0,
+            targetTilt: 0.0,
+            sourcePose: 'base',
             targetPose: 'base',
-            prevPose: 'base',
-            lastDir: 'left',
+            transitionProgress: 1.0,
+            transitionSpeed: 10.0,
+            transitionMode: 'CUT',
+            direction: 'center',
             lastBeat: 0,
-            lastSnare: 0,
-            
-            // Toggles
+            beatCount: 0,
+            closeupLockTime: 0,
+            flashIntensity: 0.0,
             dynamicCam: true,
-            transparent: false
+            filterMode: 'NORMAL' // NORMAL, INVERT, BW
         };
 
-        // --- 4. INIT ---
-        function init() {
-            if(FRAMES.length === 0) { hideLoader(); return; }
+        // --- 5. INITIALIZATION LOGIC ---
+        function loadRig(newFrames, newParams, newSubject) {
+            loader.style.opacity = 1;
+            document.body.appendChild(loader);
+            
+            if(newFrames) FRAMES = newFrames;
+            if(newParams) PARAMS = newParams;
+            if(newSubject) SUBJECT = newSubject;
+            
+            document.getElementById('subjectDisplay').innerText = SUBJECT;
+            
+            IMAGES = {};
+            FRAMES_BY_ENERGY = { low:[], mid:[], high:[] };
+            CLOSEUPS = [];
+            
+            // Replicate Step4Preview Virtual Frame Logic
+            let processedFrames = [];
             FRAMES.forEach(f => {
+                processedFrames.push(f);
+                if(f.energy === 'high' && f.type === 'body') {
+                    processedFrames.push({ ...f, pose: f.pose+'_vzoom', isVirtual: true, virtualZoom: 1.6, virtualOffsetY: 0.2 });
+                }
+                if(f.energy === 'mid' && f.type === 'body') {
+                    processedFrames.push({ ...f, pose: f.pose+'_vmid', isVirtual: true, virtualZoom: 1.25, virtualOffsetY: 0.1 });
+                }
+            });
+            
+            processedFrames.forEach(f => {
+                const data = { ...f };
+                if(f.type === 'closeup') CLOSEUPS.push(data);
+                else {
+                    if(!FRAMES_BY_ENERGY[f.energy]) FRAMES_BY_ENERGY[f.energy] = [];
+                    FRAMES_BY_ENERGY[f.energy].push(data);
+                }
+            });
+            
+            // Fallbacks
+            if(FRAMES_BY_ENERGY.low.length===0) FRAMES_BY_ENERGY.low = FRAMES_BY_ENERGY.mid.length > 0 ? [...FRAMES_BY_ENERGY.mid] : [...FRAMES_BY_ENERGY.high];
+            if(FRAMES_BY_ENERGY.mid.length===0) FRAMES_BY_ENERGY.mid = [...FRAMES_BY_ENERGY.low];
+            if(FRAMES_BY_ENERGY.high.length===0) FRAMES_BY_ENERGY.high = [...FRAMES_BY_ENERGY.mid];
+            
+            // Preload Images
+            let loaded = 0;
+            const total = processedFrames.length;
+            if(total === 0) { hideLoader(); return; }
+            
+            processedFrames.forEach(f => {
+                if(IMAGES[f.pose]) { 
+                    loaded++; 
+                    if(loaded===total) hideLoader();
+                    return; 
+                }
                 const img = new Image();
                 img.crossOrigin = "anonymous";
                 img.src = f.url;
-                img.onload = () => {
-                    IMAGES[f.pose] = img;
-                    readyCount++;
-                    if(readyCount === FRAMES.length) hideLoader();
-                };
-                img.onerror = () => { readyCount++; if(readyCount === FRAMES.length) hideLoader(); };
-                if(!POOL[f.energy]) POOL[f.energy] = [];
-                POOL[f.energy].push(f.pose);
+                const onDone = () => { loaded++; if(loaded === total) hideLoader(); };
+                img.onload = onDone;
+                img.onerror = onDone;
+                IMAGES[f.pose] = img;
             });
-            if(POOL.mid.length===0) POOL.mid = POOL.low;
-            if(POOL.high.length===0) POOL.high = POOL.mid;
+            
+            STATE.targetPose = processedFrames[0]?.pose || 'base';
+            STATE.sourcePose = STATE.targetPose;
         }
         
         function hideLoader() {
             loader.style.opacity = 0;
-            setTimeout(() => loader.remove(), 500);
-            loop();
+            setTimeout(() => { if(loader.parentNode) loader.parentNode.removeChild(loader); }, 500);
         }
 
-        // --- 5. AUDIO SYSTEM ---
+        // --- 6. AUDIO SYSTEM ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 1024;
+        analyser.fftSize = 256;
         let sourceNode = null;
         let micStream = null;
-        let audioEl = null;
+        let audioEl = new Audio();
+        audioEl.crossOrigin = "anonymous";
+        audioEl.loop = true;
 
-        function connectSource(node) {
-            if(sourceNode) sourceNode.disconnect();
-            sourceNode = node;
-            sourceNode.connect(analyser);
-            if(node instanceof MediaElementAudioSourceNode) {
-                analyser.connect(audioCtx.destination);
-            } else {
-                analyser.disconnect();
+        function connectAudioElement() {
+            if(!sourceNode) {
+                sourceNode = audioCtx.createMediaElementSource(audioEl);
+                sourceNode.connect(analyser);
+                sourceNode.connect(audioCtx.destination);
             }
         }
 
-        // --- 6. SMART SHUFFLE ---
-        function getNextPose(poolKey, dir) {
-            let pool = POOL[poolKey];
-            const dirFrames = pool.filter(p => p.toLowerCase().includes(dir));
-            const activePool = (dirFrames.length > 0 && SUBJECT !== 'TEXT') ? dirFrames : pool;
-            const deckKey = poolKey + '_' + dir;
-            if (!SHUFFLE_DECKS[deckKey] || SHUFFLE_DECKS[deckKey].length === 0) {
-                 SHUFFLE_DECKS[deckKey] = [...activePool];
-                 for (let i = SHUFFLE_DECKS[deckKey].length - 1; i > 0; i--) {
-                     const j = Math.floor(Math.random() * (i + 1));
-                     [SHUFFLE_DECKS[deckKey][i], SHUFFLE_DECKS[deckKey][j]] = [SHUFFLE_DECKS[deckKey][j], SHUFFLE_DECKS[deckKey][i]];
-                 }
-            }
-            return SHUFFLE_DECKS[deckKey].pop() || 'base';
+        // --- 7. MAIN LOOP (PHYSICS & RENDER) ---
+        let lastTime = Date.now();
+        
+        function triggerTransition(newPose, mode) {
+            if (newPose === STATE.targetPose) return;
+            STATE.sourcePose = STATE.targetPose;
+            STATE.targetPose = newPose;
+            STATE.transitionProgress = 0.0;
+            STATE.transitionMode = mode;
+            
+            let speed = 20.0;
+            if (mode === 'CUT') speed = 1000.0;
+            else if (mode === 'MORPH') speed = 5.0;
+            else if (mode === 'SLIDE') speed = 8.0;
+            STATE.transitionSpeed = speed;
         }
 
-        // --- 7. RENDER LOOP ---
         function loop() {
             requestAnimationFrame(loop);
-            
-            // DELTA TIME
             const now = Date.now();
-            const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
-            lastFrameTime = now;
-            
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
             const w = window.innerWidth;
             const h = window.innerHeight;
             
-            // 1. Audio Analysis
+            // Audio Data
             const freq = new Uint8Array(analyser.frequencyBinCount);
             analyser.getByteFrequencyData(freq);
-            const bass = freq.slice(0,15).reduce((a,b)=>a+b,0)/15/255;
-            const mid = freq.slice(15,100).reduce((a,b)=>a+b,0)/85/255;
-            const high = freq.slice(100,300).reduce((a,b)=>a+b,0)/200/255;
-            const energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
             
-            // 2. Spring Solver
-            if(PHYSICS.dynamicCam) {
-                const stiffness = 150;
-                const damping = 12;
-                const targetRotX = bass * 25;
-                const targetRotY = mid * 20 * Math.sin(now * 0.005);
-                const targetRotZ = high * 10;
+            const bass = freq.slice(0,5).reduce((a,b)=>a+b,0)/(5*255);
+            const mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
+            const high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
+            
+            // Physics Update (Spring Solver)
+            if(STATE.dynamicCam) {
+                const stiffness = 140;
+                const damping = 8;
                 
-                // Solve X
-                const forceX = (targetRotX - PHYSICS.masterRot.x) * stiffness - (PHYSICS.masterVel.x * damping);
-                PHYSICS.masterVel.x += forceX * dt;
-                PHYSICS.masterRot.x += PHYSICS.masterVel.x * dt;
-                // Solve Y
-                const forceY = (targetRotY - PHYSICS.masterRot.y) * (stiffness*0.5) - (PHYSICS.masterVel.y * (damping*0.8));
-                PHYSICS.masterVel.y += forceY * dt;
-                PHYSICS.masterRot.y += PHYSICS.masterVel.y * dt;
-                // Solve Z
-                const forceZ = (targetRotZ - PHYSICS.masterRot.z) * stiffness - (PHYSICS.masterVel.z * damping);
-                PHYSICS.masterVel.z += forceZ * dt;
-                PHYSICS.masterRot.z += PHYSICS.masterVel.z * dt;
+                const tRotX = bass * 35.0;
+                const tRotY = mid * 25.0 * Math.sin(now * 0.005);
+                const tRotZ = high * 15.0;
+                
+                STATE.masterVel.x += ((tRotX - STATE.masterRot.x) * stiffness - STATE.masterVel.x * damping) * dt;
+                STATE.masterRot.x += STATE.masterVel.x * dt;
+                
+                STATE.masterVel.y += ((tRotY - STATE.masterRot.y) * stiffness*0.5 - STATE.masterVel.y * damping*0.8) * dt;
+                STATE.masterRot.y += STATE.masterVel.y * dt;
+                
+                STATE.masterVel.z += ((tRotZ - STATE.masterRot.z) * stiffness - STATE.masterVel.z * damping) * dt;
+                STATE.masterRot.z += STATE.masterVel.z * dt;
             } else {
-                PHYSICS.masterRot = {x:0, y:0, z:0};
+                STATE.masterRot = {x:0, y:0, z:0};
             }
             
-            // 3. Logic
-            if(bass > 0.6 && now - PHYSICS.lastBeat > 300) {
-                PHYSICS.lastBeat = now;
-                const isHard = bass > 0.8;
-                let poolKey = energy > 0.7 ? 'high' : (energy > 0.4 ? 'mid' : 'low');
+            // Transition Update
+            if(STATE.transitionProgress < 1.0) {
+                STATE.transitionProgress += STATE.transitionSpeed * dt;
+                if(STATE.transitionProgress > 1.0) STATE.transitionProgress = 1.0;
+            }
+            
+            // The Brain (Choreography)
+            const isCloseupLocked = now < STATE.closeupLockTime;
+            
+            if(bass > 0.6 && (now - STATE.lastBeat) > 300) {
+                STATE.lastBeat = now;
+                STATE.beatCount = (STATE.beatCount + 1) % 16;
+                const beat = STATE.beatCount;
                 
-                PHYSICS.prevPose = PHYSICS.targetPose;
-                let dir = PHYSICS.lastDir === 'left' ? 'right' : 'left';
-                if(Math.random() < 0.25) dir = PHYSICS.lastDir; 
-                PHYSICS.lastDir = dir;
-                PHYSICS.targetPose = getNextPose(poolKey, dir);
+                let phase = 'WARMUP';
+                if(beat >= 4 && beat < 8) phase = 'SWING_LEFT';
+                else if(beat >= 8 && beat < 12) phase = 'SWING_RIGHT';
+                else if(beat >= 12) phase = 'DROP';
                 
-                // Impact
-                if(PHYSICS.dynamicCam) {
-                    PHYSICS.camZoom = 1.15 + (bass * 0.25);
-                    PHYSICS.charSquash = 0.85;
-                    PHYSICS.charTilt = (Math.random()-0.5)*15;
+                // Chaos Mode triggers FX
+                if (phase === 'DROP' && Math.random() > 0.7) STATE.filterMode = Math.random() > 0.5 ? 'INVERT' : 'BW';
+                else STATE.filterMode = 'NORMAL';
+                
+                STATE.camZoom = 1.15 + (bass * 0.35);
+                STATE.charSquash = 0.85;
+                STATE.charBounceY = -50 * bass;
+                STATE.flashIntensity = 0.8;
+                
+                if(phase === 'SWING_LEFT') { STATE.targetTilt = -8; STATE.direction = 'left'; }
+                else if(phase === 'SWING_RIGHT') { STATE.targetTilt = 8; STATE.direction = 'right'; }
+                else { STATE.targetTilt = 0; STATE.direction = 'center'; }
+                
+                let pool = [];
+                if(isCloseupLocked) pool = CLOSEUPS;
+                else if(phase === 'WARMUP') pool = FRAMES_BY_ENERGY.low;
+                else if(phase === 'SWING_LEFT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='left');
+                else if(phase === 'SWING_RIGHT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='right');
+                else if(phase === 'DROP') pool = FRAMES_BY_ENERGY.high;
+                
+                if(pool.length === 0) pool = FRAMES_BY_ENERGY.mid;
+                if(pool.length === 0) pool = FRAMES_BY_ENERGY.low;
+                
+                if(pool.length > 0) {
+                    const next = pool[Math.floor(Math.random()*pool.length)];
+                    let mode = 'CUT';
+                    if(isCloseupLocked || next.type === 'closeup') mode = 'MORPH';
+                    else if(phase.includes('SWING')) mode = 'SLIDE';
+                    triggerTransition(next.pose, mode);
                 }
             }
-            if(mid > 0.6 && bass < 0.7 && now - PHYSICS.lastSnare > 200) {
-                PHYSICS.lastSnare = now;
-                PHYSICS.charSkew = (Math.random()-0.5)*0.8;
-                if(mid > 0.8) { PHYSICS.ghostAmount = 1.0; PHYSICS.echoTrail = 0.8; }
-            }
             
-            // 4. Decay
-            PHYSICS.charSquash += (1.0 - PHYSICS.charSquash) * (15 * dt);
-            PHYSICS.charSkew += (0.0 - PHYSICS.charSkew) * (12 * dt);
-            PHYSICS.charTilt += (0.0 - PHYSICS.charTilt) * (10 * dt);
-            const decay = 1 - Math.exp(-8 * dt);
-            PHYSICS.camZoom += (1.15 - PHYSICS.camZoom) * decay;
-            PHYSICS.ghostAmount *= Math.exp(-10 * dt);
-            PHYSICS.echoTrail *= Math.exp(-5 * dt);
+            // Decay
+            STATE.charSquash += (1.0 - STATE.charSquash) * (12 * dt);
+            STATE.charTilt += (STATE.targetTilt - STATE.charTilt) * (6 * dt);
+            STATE.charBounceY += (0 - STATE.charBounceY) * (10 * dt);
+            STATE.flashIntensity *= Math.exp(-15 * dt);
+            STATE.camZoom += (1.15 - STATE.camZoom) * (1 - Math.exp(-5 * dt));
+            
+            let targetPanX = 0;
+            if(STATE.direction === 'left') targetPanX = 30;
+            else if(STATE.direction === 'right') targetPanX = -30;
+            STATE.camPanX += (targetPanX - STATE.camPanX) * (4 * dt);
 
-            // 5. Render Background (Anchor Phase)
-            const rx = PHYSICS.masterRot.x;
-            const ry = PHYSICS.masterRot.y;
-            const rz = PHYSICS.masterRot.z;
+            // Render
+            const rx = STATE.dynamicCam ? STATE.masterRot.x : 0;
+            const ry = STATE.dynamicCam ? STATE.masterRot.y : 0;
+            const rz = STATE.dynamicCam ? STATE.masterRot.z : 0;
+            viz.render({bass,mid,high}, 0, {x: rx*0.3, y: ry*0.3, z: rz*0.2});
             
-            if(!PHYSICS.transparent) {
-                viz.render({bass,mid,high}, 0, {x: rx*0.5, y: ry*0.3, z: rz*0.1});
-                bgC.style.opacity = 1;
-            } else {
-                const gl = viz.gl; gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
-                bgC.style.opacity = 0;
-            }
-            
-            // 6. Render Character (Converse Phase)
             if(charC.width !== w || charC.height !== h) { charC.width=w; charC.height=h; }
             const cx = w/2; const cy = h/2;
-            const img = IMAGES[PHYSICS.targetPose];
-            const ghostImg = IMAGES[PHYSICS.prevPose];
-            
             ctx.clearRect(0,0,w,h);
             
-            if(img) {
+            if(STATE.filterMode === 'INVERT') ctx.filter = 'invert(1)';
+            else if(STATE.filterMode === 'BW') ctx.filter = 'grayscale(1)';
+            else ctx.filter = 'none';
+            
+            if(STATE.flashIntensity > 0.01) {
+                ctx.fillStyle = \`rgba(255,255,255,\${STATE.flashIntensity})\`;
+                ctx.fillRect(0,0,w,h);
+            }
+
+            const drawLayer = (pose, opacity, offsetX) => {
+                const frame = [...FRAMES_BY_ENERGY.low, ...FRAMES_BY_ENERGY.mid, ...FRAMES_BY_ENERGY.high, ...CLOSEUPS].find(f => f.pose === pose);
+                const img = IMAGES[pose];
+                if(!img || !img.complete) return;
+                
                 const aspect = img.width / img.height;
-                let dw = w * 0.9;
-                let dh = dw / aspect;
-                if(dh > h*0.9) { dh = h*0.9; dw = dh*aspect; }
+                let dw = w * 1.0; let dh = dw / aspect;
+                if(dh > h) { dh = h; dw = dh*aspect; }
                 
-                const draw = (image, zoom, opacity, composite='source-over') => {
-                    ctx.save();
-                    ctx.translate(cx, cy);
-                    
-                    // Converse Tilt Logic
-                    const tiltX = (rx * 1.0) * (Math.PI/180);
-                    const tiltY = (-ry * 1.5) * (Math.PI/180);
-                    const tiltZ = (rz * 0.8) * (Math.PI/180);
-                    
-                    ctx.rotate(tiltZ + (PHYSICS.charTilt * Math.PI/180));
-                    ctx.transform(1, tiltX*0.5, tiltY*0.5, 1, -ry*0.8, -rx*0.8);
-                    ctx.scale(1/PHYSICS.charSquash, PHYSICS.charSquash);
-                    ctx.transform(1, 0, PHYSICS.charSkew, 1, 0, 0);
-                    
-                    ctx.scale(zoom, zoom);
-                    ctx.globalAlpha = opacity;
-                    ctx.globalCompositeOperation = composite;
-                    ctx.drawImage(image, -dw/2, -dh/2, dw, dh);
-                    ctx.restore();
-                };
+                let zoom = STATE.camZoom;
+                let vOffset = 0;
+                if(frame && frame.isVirtual) { zoom *= frame.virtualZoom || 1; vOffset = frame.virtualOffsetY || 0; }
                 
-                if(PHYSICS.ghostAmount > 0.05 && ghostImg) draw(ghostImg, PHYSICS.camZoom*1.2, PHYSICS.ghostAmount*0.4, 'screen');
-                if(PHYSICS.echoTrail > 0.05) draw(img, PHYSICS.camZoom*1.02, PHYSICS.echoTrail*0.3);
-                draw(img, PHYSICS.camZoom, 1.0);
+                ctx.save();
+                ctx.translate(cx + STATE.camPanX, cy + STATE.charBounceY);
+                
+                const radX = (rx * Math.PI) / 180;
+                const radY = (ry * Math.PI) / 180;
+                const scaleX = Math.cos(radY); const scaleY = Math.cos(radX);
+                const tiltZ = (rz * 0.8) * (Math.PI/180);
+                
+                ctx.rotate(tiltZ + (STATE.charTilt * Math.PI/180));
+                ctx.scale(Math.abs(scaleX), Math.abs(scaleY));
+                ctx.scale(1/STATE.charSquash, STATE.charSquash);
+                ctx.scale(zoom, zoom);
+                ctx.translate(offsetX || 0, vOffset * dh);
+                ctx.globalAlpha = opacity;
+                ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+                ctx.restore();
+            };
+            
+            const prog = STATE.transitionProgress;
+            if(prog >= 1.0 || STATE.transitionMode === 'CUT') {
+                drawLayer(STATE.targetPose, 1.0, 0);
+            } else {
+                const easeT = prog * prog * (3 - 2 * prog);
+                if(STATE.transitionMode === 'SLIDE') {
+                    const dir = STATE.targetPose.includes('right') ? -1 : 1;
+                    drawLayer(STATE.sourcePose, 1.0-easeT, w*0.2*easeT*dir);
+                    drawLayer(STATE.targetPose, easeT, w*0.2*(1.0-easeT)*-dir);
+                } else {
+                    drawLayer(STATE.sourcePose, 1.0-easeT, 0);
+                    drawLayer(STATE.targetPose, easeT, 0);
+                }
             }
             
             document.getElementById('fps').innerText = Math.round(1/dt) + ' FPS';
+            document.getElementById('poseDisplay').innerText = STATE.targetPose.toUpperCase();
         }
 
-        init();
+        loadRig();
+        loop();
 
-        // --- UI BINDINGS ---
+        // --- 8. UI HANDLERS ---
         const btnMic = document.getElementById('btnMic');
         const btnPlay = document.getElementById('btnPlay');
         const btnCam = document.getElementById('btnCam');
-        const btnGreen = document.getElementById('btnGreen');
-        const btnZen = document.getElementById('btnZen');
-        const ui = document.getElementById('ui');
+        const btnFilter = document.getElementById('btnFilter');
+        const fileInput = document.getElementById('fileInput');
 
         btnMic.onclick = async () => {
             audioCtx.resume();
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
                 btnMic.classList.remove('red', 'active');
-                btnMic.innerText = '🎙️ LIVE';
+                if(sourceNode) { sourceNode.disconnect(); sourceNode=null; }
             } else {
-                micStream = await navigator.mediaDevices.getUserMedia({audio:true});
-                connectSource(audioCtx.createMediaStreamSource(micStream));
-                btnMic.classList.add('red', 'active');
-                btnMic.innerText = '🎙️ ON AIR';
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+                    const micNode = audioCtx.createMediaStreamSource(micStream);
+                    if(sourceNode) sourceNode.disconnect();
+                    sourceNode = micNode;
+                    sourceNode.connect(analyser);
+                    if(audioEl) audioEl.pause();
+                    btnMic.classList.add('red', 'active');
+                } catch(e) { alert("Mic access denied"); }
             }
         };
-        
-        btnCam.classList.add('active');
-        btnCam.onclick = () => {
-            PHYSICS.dynamicCam = !PHYSICS.dynamicCam;
-            btnCam.classList.toggle('active');
-        };
-        
-        btnGreen.onclick = () => {
-            PHYSICS.transparent = !PHYSICS.transparent;
-            btnGreen.classList.toggle('active');
-            if(PHYSICS.transparent) document.body.style.background = 'transparent';
-            else document.body.style.background = '#000';
-        };
-        
-        btnZen.onclick = () => ui.classList.add('hidden');
-        
-        // Drag Drop
-        window.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-over'); });
-        window.addEventListener('dragleave', e => { e.preventDefault(); document.body.classList.remove('drag-over'); });
-        window.addEventListener('drop', e => {
-            e.preventDefault(); document.body.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if(file && file.type.startsWith('audio')) {
-                const url = URL.createObjectURL(file);
-                if(audioEl) audioEl.pause();
-                audioEl = new Audio(url);
-                audioEl.loop = true;
-                audioCtx.resume();
-                audioEl.play();
-                connectSource(audioCtx.createMediaElementSource(audioEl));
-                btnPlay.style.display = 'flex';
-                btnPlay.classList.add('active');
-            }
-        });
         
         btnPlay.onclick = () => {
-            if(audioEl.paused) { audioEl.play(); btnPlay.classList.add('active'); }
-            else { audioEl.pause(); btnPlay.classList.remove('active'); }
+            audioCtx.resume();
+            if(audioEl.paused) { 
+                connectAudioElement(); 
+                audioEl.play(); 
+                btnPlay.classList.add('active'); 
+                if(micStream) btnMic.click(); // turn off mic
+            } else { 
+                audioEl.pause(); 
+                btnPlay.classList.remove('active'); 
+            }
+        };
+        
+        btnCam.onclick = () => { STATE.dynamicCam = !STATE.dynamicCam; btnCam.classList.toggle('active'); };
+        
+        btnFilter.onclick = () => {
+            const modes = ['NORMAL', 'INVERT', 'BW'];
+            const curr = modes.indexOf(STATE.filterMode);
+            STATE.filterMode = modes[(curr+1)%3];
         };
 
+        // --- 9. DRAG AND DROP ---
+        document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-active'); });
+        document.body.addEventListener('dragleave', e => { e.preventDefault(); document.body.classList.remove('drag-active'); });
+        document.body.addEventListener('drop', e => {
+            e.preventDefault(); document.body.classList.remove('drag-active');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+        
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+        
+        function handleFile(file) {
+            if(!file) return;
+            if(file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const proj = JSON.parse(ev.target.result);
+                        if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
+                    } catch(e) { alert("Invalid Rig File"); }
+                };
+                reader.readAsText(file);
+            } else if(file.type.startsWith('audio/')) {
+                const url = URL.createObjectURL(file);
+                audioEl.src = url;
+                audioEl.play();
+                connectAudioElement();
+                btnPlay.classList.add('active');
+            }
+        }
     </script>
 </body>
-</html>
-    `;
+</html>`;
 };

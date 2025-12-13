@@ -156,13 +156,16 @@ const App: React.FC = () => {
   const saveProject = () => {
       if (appState.generatedFrames.length === 0) return;
       
+      const style = STYLE_PRESETS.find(s => s.id === appState.selectedStyleId);
+
       const project: SavedProject = {
           id: crypto.randomUUID(),
           name: `Rig_${Date.now()}`,
           createdAt: Date.now(),
           frames: appState.generatedFrames,
           styleId: appState.selectedStyleId,
-          subjectCategory: appState.subjectCategory
+          subjectCategory: appState.subjectCategory,
+          hologramParams: style?.hologramParams // Save visualizer state
       };
       
       const blob = new Blob([JSON.stringify(project)], { type: 'application/json' });
