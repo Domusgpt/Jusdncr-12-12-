@@ -5,6 +5,9 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
 
+    // Get API key from either .env file OR process environment (GitHub Actions)
+    const geminiApiKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY || '';
+
     // For GitHub Pages: Use repo name as base path in production
     // Set VITE_BASE_PATH env var or it defaults to repo name
     const basePath = mode === 'production'
@@ -23,8 +26,8 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
 
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.API_KEY': JSON.stringify(geminiApiKey),
+        'process.env.GEMINI_API_KEY': JSON.stringify(geminiApiKey)
       },
 
       resolve: {
