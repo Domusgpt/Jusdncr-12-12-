@@ -559,63 +559,1088 @@ async function generateWithRefinement(
 
 ---
 
-## Part 5: Lookahead System Enhancement
+## Part 5: Full Song Pre-Analysis (Recommended Approach)
 
-### 5.1 Current: 200ms Linear Regression
+### 5.1 The Problem with Real-Time Lookahead
 
-Simple slope-based prediction of energy trend.
+The current 200ms lookahead buffer attempts to predict the future from limited data.
+But for **file-based playback**, we already have the entire song - why guess?
 
-### 5.2 Proposed: Multi-Scale Lookahead
+**Real-time lookahead only makes sense for:**
+- Live microphone input
+- Streaming audio where future is unknown
+
+**For file playback, we should:**
+- Pre-analyze the ENTIRE song before playback starts
+- Build a complete "song map" with all beats, sections, and patterns
+- During playback, simply look up what's coming from the pre-computed map
+
+### 5.2 Song Structure Analysis Pipeline
 
 ```typescript
-class MultiScaleLookahead {
-  private microBuffer: AudioSample[] = [];   // 50ms - transient prediction
-  private mesoBuffer: AudioSample[] = [];    // 500ms - phrase prediction
-  private macroBuffer: AudioSample[] = [];   // 4000ms - section prediction
+interface SongMap {
+  // Timing & Rhythm
+  bpm: number;
+  timeSignature: [number, number];  // e.g., [4, 4]
+  beats: BeatMarker[];              // Every beat with timestamp + strength
+  downbeats: number[];              // First beat of each bar (ms timestamps)
 
-  analyzeFuture(): MultiScalePrediction {
+  // Structural Sections
+  sections: SongSection[];          // Intro, Verse, Chorus, Bridge, etc.
+
+  // Repeated Patterns (for signature moves)
+  patterns: RepeatedPattern[];      // Chorus hook, recurring riff, etc.
+
+  // Energy Curve
+  energyProfile: EnergyPoint[];     // Energy value at each beat
+
+  // Key Moments
+  drops: DropMarker[];              // High-impact moments
+  breakdowns: BreakdownMarker[];    // Low-energy valleys
+  buildups: BuildupMarker[];        // Energy ramps before drops
+}
+
+interface SongSection {
+  type: 'intro' | 'verse' | 'prechorus' | 'chorus' | 'bridge' | 'breakdown' | 'drop' | 'outro';
+  startTime: number;      // ms
+  endTime: number;        // ms
+  startBeat: number;      // beat index
+  endBeat: number;
+  energy: number;         // average energy 0-1
+  isRepeat: boolean;      // true if this section repeats earlier content
+  repeatOf?: number;      // index of first occurrence (for choreography sync)
+}
+
+interface RepeatedPattern {
+  id: string;
+  occurrences: { startTime: number; endTime: number }[];
+  signature: number[];    // Audio fingerprint for matching
+  choreographyId?: string; // Assigned signature move sequence
+}
+```
+
+### 5.3 Pre-Analysis Implementation
+
+```typescript
+class SongAnalyzer {
+  private audioContext: OfflineAudioContext;
+
+  async analyzeSong(audioBuffer: AudioBuffer): Promise<SongMap> {
+    console.time('Song Analysis');
+
+    // Run all analysis in parallel
+    const [
+      beats,
+      sections,
+      patterns,
+      energyProfile
+    ] = await Promise.all([
+      this.detectBeats(audioBuffer),
+      this.detectSections(audioBuffer),
+      this.findRepeatedPatterns(audioBuffer),
+      this.computeEnergyProfile(audioBuffer)
+    ]);
+
+    // Derive additional markers
+    const drops = this.findDrops(sections, energyProfile);
+    const breakdowns = this.findBreakdowns(sections, energyProfile);
+    const buildups = this.findBuildups(energyProfile, drops);
+
+    console.timeEnd('Song Analysis');
+
     return {
-      micro: this.predictMicro(),   // "Beat about to hit in 30ms"
-      meso: this.predictMeso(),     // "Building to chorus"
-      macro: this.predictMacro()    // "In verse section, drop in ~30s"
+      bpm: this.estimateBPM(beats),
+      timeSignature: this.detectTimeSignature(beats),
+      beats,
+      downbeats: beats.filter(b => b.isDownbeat).map(b => b.time),
+      sections,
+      patterns,
+      energyProfile,
+      drops,
+      breakdowns,
+      buildups
     };
   }
 
-  private predictMicro(): MicroPrediction {
-    // Fast onset detection for immediate reactions
-    const flux = computeSpectralFlux(this.microBuffer);
+  private async detectBeats(buffer: AudioBuffer): Promise<BeatMarker[]> {
+    // Use onset detection + tempo estimation
+    const onsets = await this.detectOnsets(buffer);
+    const tempo = this.estimateTempo(onsets);
+
+    // Quantize onsets to grid
+    const beats: BeatMarker[] = [];
+    const beatInterval = 60000 / tempo; // ms per beat
+
+    let beatIndex = 0;
+    for (let t = 0; t < buffer.duration * 1000; t += beatInterval) {
+      // Find nearest onset
+      const nearestOnset = this.findNearestOnset(onsets, t);
+      const strength = nearestOnset ? nearestOnset.strength : 0.3;
+
+      beats.push({
+        time: t,
+        index: beatIndex,
+        strength,
+        isDownbeat: beatIndex % 4 === 0,  // Assuming 4/4
+        frequency: nearestOnset?.dominantFrequency || 'bass'
+      });
+
+      beatIndex++;
+    }
+
+    return beats;
+  }
+
+  private async detectSections(buffer: AudioBuffer): Promise<SongSection[]> {
+    // Compute chroma features (harmonic content)
+    const chromagram = await this.computeChromagram(buffer);
+
+    // Compute self-similarity matrix
+    const ssm = this.computeSelfSimilarityMatrix(chromagram);
+
+    // Find section boundaries via novelty detection
+    const boundaries = this.detectNoveltyPeaks(ssm);
+
+    // Classify each section
+    const sections: SongSection[] = [];
+    for (let i = 0; i < boundaries.length - 1; i++) {
+      const startTime = boundaries[i];
+      const endTime = boundaries[i + 1];
+
+      const sectionEnergy = this.computeSectionEnergy(buffer, startTime, endTime);
+      const sectionType = this.classifySection(
+        sectionEnergy,
+        i,
+        boundaries.length,
+        ssm
+      );
+
+      // Check if this section is a repeat
+      const repeatInfo = this.findRepeatOf(ssm, i, sections);
+
+      sections.push({
+        type: sectionType,
+        startTime,
+        endTime,
+        startBeat: Math.round(startTime / (60000 / this.bpm)),
+        endBeat: Math.round(endTime / (60000 / this.bpm)),
+        energy: sectionEnergy,
+        isRepeat: repeatInfo.isRepeat,
+        repeatOf: repeatInfo.repeatOf
+      });
+    }
+
+    return sections;
+  }
+
+  private async findRepeatedPatterns(buffer: AudioBuffer): Promise<RepeatedPattern[]> {
+    // Use audio fingerprinting to find repeated melodic/rhythmic patterns
+    const fingerprints = await this.computeFingerprints(buffer, {
+      windowSize: 2000,  // 2 second windows
+      hopSize: 500       // Check every 500ms
+    });
+
+    // Find matching fingerprint clusters
+    const clusters = this.clusterFingerprints(fingerprints);
+
+    // Filter to significant repetitions (at least 2 occurrences)
+    return clusters
+      .filter(c => c.occurrences.length >= 2)
+      .map((c, i) => ({
+        id: `pattern_${i}`,
+        occurrences: c.occurrences,
+        signature: c.centroid
+      }));
+  }
+
+  private classifySection(
+    energy: number,
+    index: number,
+    totalSections: number,
+    ssm: number[][]
+  ): SongSection['type'] {
+    // Heuristic classification based on position and energy
+    const relativePosition = index / totalSections;
+
+    if (relativePosition < 0.1) return 'intro';
+    if (relativePosition > 0.9) return 'outro';
+
+    if (energy > 0.8) return 'drop';
+    if (energy > 0.65) return 'chorus';
+    if (energy < 0.3) return 'breakdown';
+    if (energy < 0.5) return 'verse';
+
+    // Check if building up (energy increasing rapidly)
+    const isBuilding = this.isEnergyRising(ssm, index);
+    if (isBuilding) return 'prechorus';
+
+    return 'verse';
+  }
+}
+```
+
+### 5.4 Choreography Map (Pre-Computed Dance Decisions)
+
+Once we have the song structure, we can **pre-assign choreography** for the entire song:
+
+```typescript
+interface ChoreographyMap {
+  // Beat-level assignments
+  beatAssignments: BeatChoreography[];
+
+  // Section-level moods
+  sectionMoods: Map<number, ChoreographyMood>;
+
+  // Signature moves for repeated patterns
+  signatureMoves: Map<string, MoveSequence>;
+}
+
+interface BeatChoreography {
+  beatIndex: number;
+  timestamp: number;
+
+  // Pre-selected frame
+  targetFrame: string;        // Frame ID to show
+  transitionMode: InterpMode; // How to transition
+
+  // Pre-computed physics targets
+  targetRotation: Vector3;
+  targetSquash: number;
+  targetBounce: number;
+
+  // Effects
+  fx: FXMode;
+  rgbSplit: number;
+  flash: number;
+}
+
+interface ChoreographyMood {
+  energyLevel: 'ambient' | 'groove' | 'hype' | 'peak';
+  framePool: string[];        // Which frames to use
+  transitionSpeed: number;    // Base transition speed
+  stutterProbability: number; // Likelihood of stutter effects
+  closeupProbability: number; // Likelihood of closeup
+}
+
+class ChoreographyPlanner {
+  planEntireSong(songMap: SongMap, frames: GeneratedFrame[]): ChoreographyMap {
+    const beatAssignments: BeatChoreography[] = [];
+    const sectionMoods = new Map<number, ChoreographyMood>();
+    const signatureMoves = new Map<string, MoveSequence>();
+
+    // 1. Assign moods to each section
+    for (const section of songMap.sections) {
+      sectionMoods.set(section.startBeat, this.moodForSection(section, frames));
+    }
+
+    // 2. Create signature move sequences for repeated patterns
+    for (const pattern of songMap.patterns) {
+      if (pattern.occurrences.length >= 2) {
+        // First occurrence: generate a memorable sequence
+        const sequence = this.generateSignatureSequence(pattern, frames);
+        signatureMoves.set(pattern.id, sequence);
+      }
+    }
+
+    // 3. Plan each beat
+    let currentSection = songMap.sections[0];
+    let patternSequenceIndex = new Map<string, number>();
+
+    for (const beat of songMap.beats) {
+      // Update current section
+      currentSection = this.getSectionAt(songMap.sections, beat.time);
+      const mood = sectionMoods.get(currentSection.startBeat)!;
+
+      // Check if we're in a repeated pattern
+      const activePattern = this.getActivePattern(songMap.patterns, beat.time);
+
+      let choreography: BeatChoreography;
+
+      if (activePattern && signatureMoves.has(activePattern.id)) {
+        // Use signature move sequence (same moves every time pattern occurs)
+        const sequence = signatureMoves.get(activePattern.id)!;
+        const seqIndex = patternSequenceIndex.get(activePattern.id) || 0;
+        choreography = sequence.moves[seqIndex % sequence.moves.length];
+        patternSequenceIndex.set(activePattern.id, seqIndex + 1);
+      } else {
+        // Generate based on section mood + beat strength
+        choreography = this.planBeat(beat, mood, frames, songMap.energyProfile);
+      }
+
+      beatAssignments.push(choreography);
+    }
+
+    return { beatAssignments, sectionMoods, signatureMoves };
+  }
+
+  private generateSignatureSequence(
+    pattern: RepeatedPattern,
+    frames: GeneratedFrame[]
+  ): MoveSequence {
+    // Create a memorable, repeatable sequence for this pattern
+    // This is what plays EVERY time the chorus hook hits, for example
+
+    const duration = pattern.occurrences[0].endTime - pattern.occurrences[0].startTime;
+    const beatCount = Math.round(duration / (60000 / this.bpm));
+
+    const moves: BeatChoreography[] = [];
+
+    // Use high-energy frames for patterns (they're usually hooks/choruses)
+    const highFrames = frames.filter(f => f.energy === 'high');
+
+    for (let i = 0; i < beatCount; i++) {
+      const frameIndex = i % highFrames.length;
+      moves.push({
+        beatIndex: i,
+        timestamp: 0, // Relative to pattern start
+        targetFrame: highFrames[frameIndex].pose,
+        transitionMode: i % 4 === 0 ? 'CUT' : 'SLIDE',
+        targetRotation: { x: 20, y: 0, z: 0 },
+        targetSquash: 0.9,
+        targetBounce: -30,
+        fx: 'NORMAL',
+        rgbSplit: i % 4 === 0 ? 0.5 : 0,
+        flash: i % 4 === 0 ? 0.3 : 0
+      });
+    }
+
+    return { moves, patternId: pattern.id };
+  }
+}
+```
+
+### 5.5 Runtime: Simple Lookup Instead of Computation
+
+During playback, the choreography brain becomes **trivially simple**:
+
+```typescript
+class PreComputedChoreography {
+  private map: ChoreographyMap;
+  private currentBeatIndex: number = 0;
+
+  constructor(map: ChoreographyMap) {
+    this.map = map;
+  }
+
+  // Called every frame during playback
+  update(currentTimeMs: number): BeatChoreography | null {
+    // Binary search to find current beat
+    const beatIndex = this.findBeatIndex(currentTimeMs);
+
+    if (beatIndex !== this.currentBeatIndex) {
+      this.currentBeatIndex = beatIndex;
+      return this.map.beatAssignments[beatIndex];
+    }
+
+    return null; // No beat change, continue interpolating
+  }
+
+  // Look ahead with 100% accuracy
+  peekAhead(beats: number): BeatChoreography[] {
+    const start = this.currentBeatIndex;
+    const end = Math.min(start + beats, this.map.beatAssignments.length);
+    return this.map.beatAssignments.slice(start, end);
+  }
+
+  // Get current section info
+  getCurrentSection(): SongSection {
+    return this.getSectionAt(this.currentBeatIndex);
+  }
+
+  // Check if upcoming pattern is a repeat (for anticipation)
+  isSignatureMovecoming(withinBeats: number): { pattern: string; inBeats: number } | null {
+    // Look through upcoming beats for pattern starts
+    for (let i = 0; i < withinBeats; i++) {
+      const beat = this.map.beatAssignments[this.currentBeatIndex + i];
+      if (beat?.patternId) {
+        return { pattern: beat.patternId, inBeats: i };
+      }
+    }
+    return null;
+  }
+}
+```
+
+### 5.6 Hybrid Mode: Pre-Analysis + Real-Time Fine-Tuning
+
+The best approach combines **pre-analysis for structure** with **real-time for nuance**:
+
+```typescript
+class HybridChoreographyEngine {
+  private preComputed: PreComputedChoreography;  // Song structure
+  private realTimeAnalyzer: AudioAnalyzer;       // Live audio feed
+
+  update(currentTimeMs: number, liveAudio: AudioData): ChoreographyDecision {
+    // Get pre-computed decision
+    const planned = this.preComputed.update(currentTimeMs);
+
+    if (!planned) {
+      // Between beats: use real-time audio for micro-expressions
+      return this.microExpressions(liveAudio);
+    }
+
+    // On beat: use pre-computed frame, but modulate with live energy
+    const liveIntensity = liveAudio.energy;
+    const plannedIntensity = planned.energy;
+
+    // If live is much stronger than expected, amplify effects
+    const intensityRatio = liveIntensity / (plannedIntensity + 0.01);
+
     return {
-      imminentKick: flux.bass > this.adaptiveThreshold.bass,
-      imminentSnare: flux.mid > this.adaptiveThreshold.mid,
-      imminentCymbal: flux.high > this.adaptiveThreshold.high,
-      confidence: this.computeConfidence(flux)
+      ...planned,
+      // Amplify physics if live audio is hitting harder
+      targetSquash: planned.targetSquash * Math.min(intensityRatio, 1.5),
+      targetBounce: planned.targetBounce * Math.min(intensityRatio, 1.5),
+      flash: planned.flash * intensityRatio,
+
+      // Keep frame selection from pre-computed (structure)
+      targetFrame: planned.targetFrame,
+      transitionMode: planned.transitionMode
     };
   }
 
-  private predictMeso(): MesoPrediction {
-    // Medium-term phrase detection
-    const energyCurve = this.mesoBuffer.map(s => s.energy);
-    const trend = linearRegression(energyCurve);
-    const curvature = quadraticFit(energyCurve);
-
+  private microExpressions(audio: AudioData): ChoreographyDecision {
+    // Small physics movements between beats based on live audio
     return {
-      energyDirection: trend.slope > 0.01 ? 'rising' : trend.slope < -0.01 ? 'falling' : 'stable',
-      acceleration: curvature > 0 ? 'accelerating' : 'decelerating',
-      peakDistance: estimatePeakDistance(energyCurve, trend, curvature)
+      targetFrame: null,  // Don't change frame
+
+      // Subtle movements from live frequencies
+      additionalRotation: {
+        x: audio.bass * 5,
+        y: audio.mid * 3,
+        z: audio.high * 2
+      },
+      breathe: audio.energy * 0.1  // Subtle scale pulse
+    };
+  }
+}
+```
+
+### 5.7 Benefits of Pre-Analysis
+
+| Aspect | Real-Time Only | Pre-Analysis |
+|--------|----------------|--------------|
+| **Accuracy** | Guessing from 200ms | 100% knowledge |
+| **Section Detection** | Energy heuristics | Actual structure |
+| **Repeated Patterns** | Cannot detect | Exact matches |
+| **Signature Moves** | Impossible | Same move every chorus |
+| **Build-ups** | React when heard | Anticipate and prep |
+| **CPU Usage** | Constant analysis | One-time + simple lookup |
+| **Choreography Quality** | Reactive | Intentional |
+
+### 5.8 When to Use Real-Time Lookahead
+
+**Use Pre-Analysis For:**
+- All file-based playback
+- Known/uploaded audio
+
+**Use Real-Time Lookahead For:**
+- Microphone input (live DJ, karaoke)
+- Streaming audio where full song unavailable
+- "Jam mode" with live instruments
+
+```typescript
+// Mode detection
+function getChoreographyEngine(audioSource: AudioSource): ChoreographyEngine {
+  if (audioSource.type === 'file' && audioSource.buffer) {
+    // Pre-analyze and use lookup
+    const songMap = await analyzer.analyzeSong(audioSource.buffer);
+    const choreoMap = planner.planEntireSong(songMap, frames);
+    return new PreComputedChoreography(choreoMap);
+  } else {
+    // Fall back to real-time
+    return new RealTimeLookahead();
+  }
+}
+
+---
+
+## Part 5B: Mechanical Frame Pipeline (Pre-Computed Derivatives)
+
+### 5B.1 The Problem
+
+Mechanical frames (mirror, zoom, stutter variants) are currently created in multiple places:
+- Some during generation (`mirrorFrame()` in gemini.ts)
+- Some during runtime (virtual zoom in Step4Preview)
+- Some implicitly (stutter mode just replays frames)
+
+This creates uncertainty about what frames exist and their properties.
+
+### 5B.2 Solution: Frame Manifest at Generation Time
+
+**ALL frame variants should be computed ONCE at generation time** and stored in a manifest:
+
+```typescript
+interface FrameManifest {
+  // Source frames (from Gemini)
+  sourceFrames: SourceFrame[];
+
+  // All derived frames (mechanical operations)
+  derivedFrames: DerivedFrame[];
+
+  // Complete pool (source + derived)
+  allFrames: ManifestFrame[];
+
+  // Quick lookup indices
+  byEnergy: Record<EnergyLevel, ManifestFrame[]>;
+  byDirection: Record<MoveDirection, ManifestFrame[]>;
+  byType: Record<FrameType, ManifestFrame[]>;
+  byMechanical: Record<MechanicalFX, ManifestFrame[]>;
+}
+
+interface SourceFrame {
+  id: string;               // e.g., "base_0"
+  url: string;              // Data URL or blob URL
+  role: SheetRole;          // 'base' | 'alt' | 'flourish' | 'smooth'
+  gridPosition: number;     // 0-15 position in sprite sheet
+  energy: EnergyLevel;
+  direction: MoveDirection;
+  type: FrameType;
+}
+
+interface DerivedFrame {
+  id: string;               // e.g., "base_0_mirror" or "base_0_zoom_1.6"
+  sourceId: string;         // Which source frame this derived from
+  url: string;              // Pre-computed data URL
+  operation: MechanicalOperation;
+  energy: EnergyLevel;      // Inherited or modified
+  direction: MoveDirection; // Flipped for mirror
+  type: FrameType;
+}
+
+type MechanicalOperation =
+  | { type: 'mirror'; axis: 'horizontal' | 'vertical' }
+  | { type: 'zoom'; factor: number; offsetY: number }
+  | { type: 'crop'; region: 'face' | 'hands' | 'upper' | 'lower' }
+  | { type: 'rotate'; degrees: number }
+  | { type: 'stutter'; metadata: true };  // Same URL, different playback
+
+interface ManifestFrame {
+  id: string;
+  url: string;
+  isSource: boolean;
+  sourceId?: string;
+  operation?: MechanicalOperation;
+  energy: EnergyLevel;
+  direction: MoveDirection;
+  type: FrameType;
+
+  // Pre-computed for choreography
+  weight: number;           // How often to use (0-1)
+  preferredTransitions: string[];  // IDs of frames that flow well after this
+  bestForPhases: RhythmPhase[];    // When to use this frame
+}
+```
+
+### 5B.3 Frame Generation Pipeline
+
+```typescript
+class FrameManifestBuilder {
+  async buildManifest(
+    sourceSheets: SpriteSheet[],
+    subjectCategory: SubjectCategory
+  ): Promise<FrameManifest> {
+    const sourceFrames: SourceFrame[] = [];
+    const derivedFrames: DerivedFrame[] = [];
+
+    // 1. Extract and tag all source frames
+    for (const sheet of sourceSheets) {
+      const frames = await this.sliceAndTagSheet(sheet);
+      sourceFrames.push(...frames);
+    }
+
+    // 2. Generate ALL mechanical derivatives upfront
+    for (const source of sourceFrames) {
+      const derivatives = await this.generateDerivatives(source, subjectCategory);
+      derivedFrames.push(...derivatives);
+    }
+
+    // 3. Build unified pool with indices
+    const allFrames = [
+      ...sourceFrames.map(f => ({ ...f, isSource: true })),
+      ...derivedFrames.map(f => ({ ...f, isSource: false }))
+    ];
+
+    // 4. Pre-compute choreography weights
+    this.assignWeights(allFrames);
+    this.computeTransitionAffinities(allFrames);
+
+    // 5. Build lookup indices
+    return {
+      sourceFrames,
+      derivedFrames,
+      allFrames,
+      byEnergy: this.indexBy(allFrames, 'energy'),
+      byDirection: this.indexBy(allFrames, 'direction'),
+      byType: this.indexBy(allFrames, 'type'),
+      byMechanical: this.indexByOperation(derivedFrames)
     };
   }
 
-  private predictMacro(): MacroPrediction {
-    // Long-term section detection
-    const segments = segmentByEnergy(this.macroBuffer);
-    const pattern = detectPattern(segments);
+  private async generateDerivatives(
+    source: SourceFrame,
+    category: SubjectCategory
+  ): Promise<DerivedFrame[]> {
+    const derivatives: DerivedFrame[] = [];
+
+    // === MIRROR ===
+    // Only for CHARACTER type (not TEXT/SYMBOL)
+    if (category === 'CHARACTER' && source.type === 'body') {
+      const mirroredUrl = await this.mirrorFrame(source.url);
+      derivatives.push({
+        id: `${source.id}_mirror`,
+        sourceId: source.id,
+        url: mirroredUrl,
+        operation: { type: 'mirror', axis: 'horizontal' },
+        energy: source.energy,
+        direction: this.flipDirection(source.direction),
+        type: source.type
+      });
+    }
+
+    // === ZOOM VARIANTS ===
+    // High energy frames get closeup zoom
+    if (source.energy === 'high' && source.type === 'body') {
+      const zoom160 = await this.zoomFrame(source.url, 1.6, 0.2);
+      derivatives.push({
+        id: `${source.id}_zoom_1.6`,
+        sourceId: source.id,
+        url: zoom160,
+        operation: { type: 'zoom', factor: 1.6, offsetY: 0.2 },
+        energy: 'high',
+        direction: source.direction,
+        type: 'closeup'  // Becomes closeup
+      });
+    }
+
+    // Mid energy frames get subtle zoom
+    if (source.energy === 'mid' && source.type === 'body') {
+      const zoom125 = await this.zoomFrame(source.url, 1.25, 0.1);
+      derivatives.push({
+        id: `${source.id}_zoom_1.25`,
+        sourceId: source.id,
+        url: zoom125,
+        operation: { type: 'zoom', factor: 1.25, offsetY: 0.1 },
+        energy: source.energy,
+        direction: source.direction,
+        type: source.type
+      });
+    }
+
+    // === MIRRORED ZOOMS ===
+    // If we made a mirror AND a zoom, make mirrored zoom too
+    if (category === 'CHARACTER' && source.type === 'body' && source.energy !== 'low') {
+      const mirrorZoom = await this.mirrorFrame(
+        derivatives.find(d => d.operation.type === 'zoom')?.url || source.url
+      );
+      // Add mirrored zoom variant...
+    }
+
+    return derivatives;
+  }
+
+  private async mirrorFrame(url: string): Promise<string> {
+    const img = await loadImage(url);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+
+    // Flip horizontally
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, 0, 0);
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  private async zoomFrame(url: string, factor: number, offsetY: number): Promise<string> {
+    const img = await loadImage(url);
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+
+    // Calculate crop region
+    const cropW = img.width / factor;
+    const cropH = img.height / factor;
+    const cropX = (img.width - cropW) / 2;
+    const cropY = (img.height - cropH) / 2 - (offsetY * img.height);
+
+    // Draw cropped and scaled
+    ctx.drawImage(
+      img,
+      cropX, cropY, cropW, cropH,  // Source region
+      0, 0, canvas.width, canvas.height  // Dest (full canvas)
+    );
+
+    return canvas.toDataURL('image/jpeg', 0.85);
+  }
+
+  private flipDirection(dir: MoveDirection): MoveDirection {
+    if (dir === 'left') return 'right';
+    if (dir === 'right') return 'left';
+    return dir;  // 'center' stays center
+  }
+}
+```
+
+### 5B.4 Frame Weighting System
+
+Pre-compute how often each frame should be used:
+
+```typescript
+private assignWeights(frames: ManifestFrame[]): void {
+  for (const frame of frames) {
+    let weight = 1.0;
+
+    // Source frames preferred over derivatives (more authentic)
+    if (!frame.isSource) weight *= 0.7;
+
+    // Mirror frames slightly less common (variety, not dominance)
+    if (frame.operation?.type === 'mirror') weight *= 0.8;
+
+    // Zoom frames only for specific moments
+    if (frame.operation?.type === 'zoom') {
+      weight *= 0.5;  // Less common overall
+      frame.bestForPhases = ['DROP', 'CHAOS', 'CLOSEUP_LOCK'];
+    }
+
+    // High energy frames reserved for high moments
+    if (frame.energy === 'high') {
+      frame.bestForPhases = ['DROP', 'CHAOS', 'SWING_LEFT', 'SWING_RIGHT'];
+    }
+
+    // Closeups for vocal sections
+    if (frame.type === 'closeup') {
+      frame.bestForPhases = ['VOGUE', 'CLOSEUP_LOCK'];
+      weight *= 0.4;  // Rare, special
+    }
+
+    frame.weight = weight;
+  }
+}
+
+private computeTransitionAffinities(frames: ManifestFrame[]): void {
+  for (const frame of frames) {
+    frame.preferredTransitions = [];
+
+    // Prefer transitions to opposite direction (ping-pong)
+    const opposite = this.flipDirection(frame.direction);
+    const oppositeFrames = frames.filter(f =>
+      f.direction === opposite &&
+      f.energy === frame.energy &&
+      f.id !== frame.id
+    );
+    frame.preferredTransitions.push(...oppositeFrames.map(f => f.id));
+
+    // Also allow same-direction with different pose
+    const sameDir = frames.filter(f =>
+      f.direction === frame.direction &&
+      f.sourceId !== frame.sourceId &&
+      f.id !== frame.id
+    );
+    frame.preferredTransitions.push(...sameDir.slice(0, 3).map(f => f.id));
+  }
+}
+```
+
+### 5B.5 Choreography Uses Manifest
+
+The pre-computed choreography planner now has **complete knowledge** of all frames:
+
+```typescript
+class ChoreographyPlanner {
+  constructor(private manifest: FrameManifest) {}
+
+  selectFrameForBeat(
+    beat: BeatMarker,
+    phase: RhythmPhase,
+    previousFrameId: string | null
+  ): ManifestFrame {
+    // Get candidate pool based on phase
+    let pool = this.manifest.allFrames.filter(f =>
+      f.bestForPhases?.includes(phase) || !f.bestForPhases
+    );
+
+    // Filter by energy
+    const targetEnergy = this.energyForPhase(phase);
+    pool = pool.filter(f => f.energy === targetEnergy);
+
+    // Prefer frames that flow well from previous
+    if (previousFrameId) {
+      const prev = this.manifest.allFrames.find(f => f.id === previousFrameId);
+      if (prev?.preferredTransitions.length) {
+        const preferred = pool.filter(f => prev.preferredTransitions.includes(f.id));
+        if (preferred.length > 0) pool = preferred;
+      }
+    }
+
+    // Weighted random selection
+    const totalWeight = pool.reduce((sum, f) => sum + f.weight, 0);
+    let r = Math.random() * totalWeight;
+    for (const frame of pool) {
+      r -= frame.weight;
+      if (r <= 0) return frame;
+    }
+
+    return pool[0];  // Fallback
+  }
+}
+```
+
+### 5B.6 Benefits of Pre-Computed Manifest
+
+| Without Manifest | With Manifest |
+|-----------------|---------------|
+| Mirror frames created on-demand | All mirrors pre-computed |
+| Virtual zoom applied at render time | Zoom frames pre-rendered |
+| Frame properties guessed from grid position | Properties explicitly tagged |
+| No transition preferences | Pre-computed flow affinities |
+| Mechanical frames scattered in code | Single source of truth |
+| Runtime image processing | Zero runtime processing |
+| Inconsistent frame pool across sessions | Deterministic frame pool |
+
+### 5B.7 Storage Efficiency
+
+```typescript
+interface CompactManifest {
+  // Store URLs separately (can be blob URLs or CDN)
+  urls: string[];
+
+  // Compact frame data (indexes into urls array)
+  frames: CompactFrame[];
+}
+
+interface CompactFrame {
+  u: number;      // URL index
+  e: 0|1|2;       // Energy (low=0, mid=1, high=2)
+  d: 0|1|2;       // Direction (left=0, center=1, right=2)
+  t: 0|1;         // Type (body=0, closeup=1)
+  s?: number;     // Source frame index (for derivatives)
+  o?: number;     // Operation type
+  w: number;      // Weight (0-100, stored as int)
+  p: number[];    // Preferred transition indices
+}
+
+// Serialize/deserialize for caching
+function serializeManifest(m: FrameManifest): string {
+  return JSON.stringify(toCompact(m));
+}
+
+function deserializeManifest(json: string): FrameManifest {
+  return fromCompact(JSON.parse(json));
+}
+```
+
+---
+
+## Part 5C: Dual-Mode Architecture (Pre-Analysis + Real-Time)
+
+### 5C.1 Why Both Systems Are Needed
+
+You're absolutely right - we need **BOTH** systems:
+
+| Input Type | Pre-Analysis | Real-Time | Why |
+|------------|--------------|-----------|-----|
+| Uploaded audio file | ✅ Primary | ✅ Fine-tuning | Pre-analyze structure, real-time for live energy |
+| Streaming audio | ❌ Not possible | ✅ Only option | Can't analyze what we don't have yet |
+| Live microphone | ❌ Not possible | ✅ Only option | Truly unpredictable |
+| Pre-analyzed + playing | ✅ Structure | ✅ Modulation | Best of both worlds |
+
+### 5C.2 Unified Engine Architecture
+
+```typescript
+class DualModeChoreographyEngine {
+  private preComputed: PreComputedChoreography | null = null;
+  private realTime: RealTimeAnalyzer;
+  private manifest: FrameManifest;
+  private mode: 'file' | 'stream' | 'mic';
+
+  constructor(manifest: FrameManifest) {
+    this.manifest = manifest;
+    this.realTime = new RealTimeAnalyzer();
+  }
+
+  async initialize(audioSource: AudioSource): Promise<void> {
+    if (audioSource.type === 'file' && audioSource.buffer) {
+      // File mode: pre-analyze entire song
+      this.mode = 'file';
+      const songMap = await this.analyzeSong(audioSource.buffer);
+      const choreoMap = this.planChoreography(songMap);
+      this.preComputed = new PreComputedChoreography(choreoMap);
+      console.log('Pre-analyzed song:', songMap.sections.length, 'sections');
+    } else if (audioSource.type === 'stream') {
+      // Streaming: real-time only, but accumulate for partial analysis
+      this.mode = 'stream';
+      this.preComputed = null;
+    } else {
+      // Mic: pure real-time
+      this.mode = 'mic';
+      this.preComputed = null;
+    }
+  }
+
+  update(currentTimeMs: number, liveAudio: AudioData): ChoreographyDecision {
+    // Always update real-time analyzer (maintains history)
+    this.realTime.update(liveAudio);
+
+    if (this.preComputed && this.mode === 'file') {
+      // === FILE MODE: Pre-computed + real-time modulation ===
+      return this.fileMode(currentTimeMs, liveAudio);
+    } else {
+      // === LIVE MODE: Real-time only ===
+      return this.liveMode(liveAudio);
+    }
+  }
+
+  private fileMode(timeMs: number, liveAudio: AudioData): ChoreographyDecision {
+    const planned = this.preComputed!.getBeatAt(timeMs);
+
+    if (!planned) {
+      // Between beats: micro-expressions from live audio
+      return {
+        frameId: null,  // Keep current frame
+        physics: this.realTime.getMicroPhysics(liveAudio),
+        fx: null
+      };
+    }
+
+    // On beat: use pre-planned frame, modulate physics with live energy
+    const liveEnergy = liveAudio.energy;
+    const plannedEnergy = planned.expectedEnergy;
+    const energyRatio = liveEnergy / (plannedEnergy + 0.01);
 
     return {
-      currentSection: pattern.current,
-      nextSection: pattern.predicted,
-      timeToTransition: pattern.transitionTime,
-      overallEnergy: average(this.macroBuffer.map(s => s.energy))
+      frameId: planned.frameId,
+      transitionMode: planned.transitionMode,
+      physics: {
+        rotX: planned.physics.rotX * Math.min(energyRatio, 1.3),
+        rotY: planned.physics.rotY * Math.min(energyRatio, 1.3),
+        squash: planned.physics.squash * energyRatio,
+        bounce: planned.physics.bounce * energyRatio
+      },
+      fx: {
+        flash: planned.fx.flash * energyRatio,
+        rgbSplit: planned.fx.rgbSplit,
+        mode: planned.fx.mode
+      }
     };
+  }
+
+  private liveMode(audio: AudioData): ChoreographyDecision {
+    // Fully real-time: detect beats, select frames dynamically
+    const analysis = this.realTime.analyze(audio);
+
+    if (analysis.beatDetected) {
+      // Select frame based on current state
+      const phase = this.realTime.getCurrentPhase();
+      const frame = this.selectFrameRealTime(phase, audio);
+
+      return {
+        frameId: frame.id,
+        transitionMode: this.realTime.selectTransition(phase, audio),
+        physics: this.realTime.getPhysics(audio),
+        fx: this.realTime.getFX(phase, audio)
+      };
+    }
+
+    // No beat: micro-expressions
+    return {
+      frameId: null,
+      physics: this.realTime.getMicroPhysics(audio),
+      fx: null
+    };
+  }
+
+  private selectFrameRealTime(phase: RhythmPhase, audio: AudioData): ManifestFrame {
+    // Use manifest for frame selection even in real-time mode
+    const pool = this.manifest.byEnergy[this.energyForPhase(phase)];
+    const filtered = pool.filter(f => f.bestForPhases?.includes(phase) || !f.bestForPhases);
+
+    // Weighted random from manifest weights
+    return this.weightedSelect(filtered);
+  }
+}
+```
+
+### 5C.3 Streaming Mode: Progressive Analysis
+
+For streaming audio, we can **progressively build** a partial song map:
+
+```typescript
+class ProgressiveAnalyzer {
+  private accumulator: AudioSample[] = [];
+  private partialSongMap: Partial<SongMap> = {};
+  private lastAnalysisTime: number = 0;
+
+  // Call every frame with new audio data
+  accumulate(sample: AudioSample): void {
+    this.accumulator.push(sample);
+
+    // Re-analyze every 10 seconds of accumulated audio
+    if (this.accumulator.length > this.lastAnalysisTime + 600) { // 10s at 60fps
+      this.reanalyze();
+      this.lastAnalysisTime = this.accumulator.length;
+    }
+  }
+
+  private reanalyze(): void {
+    // Detect BPM from accumulated data
+    if (!this.partialSongMap.bpm) {
+      const intervals = this.detectBeatIntervals(this.accumulator);
+      if (intervals.length > 8) {
+        this.partialSongMap.bpm = this.estimateBPM(intervals);
+      }
+    }
+
+    // Detect any repeated patterns
+    const patterns = this.findRepeats(this.accumulator);
+    if (patterns.length > 0) {
+      this.partialSongMap.patterns = patterns;
+    }
+
+    // Estimate current section based on energy curve
+    const energyCurve = this.accumulator.map(s => s.energy);
+    this.partialSongMap.currentSection = this.classifySection(energyCurve);
+  }
+
+  // Returns whatever we know so far
+  getPartialMap(): Partial<SongMap> {
+    return this.partialSongMap;
+  }
+}
+```
+
+### 5C.4 Mode Transitions
+
+Handle switching between modes gracefully:
+
+```typescript
+class DualModeChoreographyEngine {
+  // ... previous code ...
+
+  // Called when user switches from mic to file, etc.
+  async switchSource(newSource: AudioSource): Promise<void> {
+    const previousMode = this.mode;
+
+    await this.initialize(newSource);
+
+    // Smooth transition: keep current frame briefly
+    if (previousMode !== this.mode) {
+      this.transitionGracePeriod = 500; // ms
+    }
+  }
+
+  // For streaming that becomes a complete file (e.g., YouTube video loads fully)
+  async upgradeToFullAnalysis(completeBuffer: AudioBuffer): Promise<void> {
+    if (this.mode === 'stream') {
+      console.log('Upgrading stream to pre-analyzed mode');
+      const songMap = await this.analyzeSong(completeBuffer);
+      const choreoMap = this.planChoreography(songMap);
+      this.preComputed = new PreComputedChoreography(choreoMap);
+      this.mode = 'file';
+    }
   }
 }
 ```
