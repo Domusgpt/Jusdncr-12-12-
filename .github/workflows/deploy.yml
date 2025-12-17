@@ -48,6 +48,9 @@ jobs:
         run: |
           echo "Building with API key: ${GEMINI_API_KEY:0:10}..."
           npm run build
+          cp -r public/* dist/ 2>/dev/null || true
+          echo "Build complete. Contents of dist:"
+          ls -la dist/
         env:
           # Add your Gemini API key as a repository secret
           # Go to Settings > Secrets > Actions > New repository secret
