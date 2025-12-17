@@ -1,0 +1,23 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "./engine/index.ts",
+    "./hooks/useKineticEngine.ts",
+    "./hooks/useAudioAnalyzer.ts",
+    "./types.ts"
+  ],
+  "out": "./docs/api",
+  "name": "jusDNCE API Documentation",
+  "readme": "./docs/EVOLUTION.md",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+  "includeVersion": true,
+  "categorizeByGroup": true,
+  "searchInComments": true,
+  "cleanOutputDir": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/Domusgpt/Jusdncr-12-12-"
+  },
+  "plugin": []
+}
