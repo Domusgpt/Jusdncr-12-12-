@@ -122,3 +122,26 @@ export {
   // Factory
   createDualModeEngine
 } from './DualModeEngine';
+
+// =============================================================================
+// DIRECT VIDEO EXPORTER (New - No Real-Time Recording Needed)
+// =============================================================================
+
+export {
+  // Types
+  type ExportOptions,
+  type ExportProgress,
+  type RenderedFrame,
+  type QuickExportParams,
+
+  // Constants
+  DEFAULT_EXPORT_OPTIONS,
+
+  // Classes
+  FrameRenderer,
+  DirectVideoExporter,
+
+  // Convenience functions
+  exportVideo,
+  exportAndDownload
+} from './DirectVideoExporter';
