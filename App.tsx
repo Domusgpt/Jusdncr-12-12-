@@ -16,7 +16,7 @@ const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(DEFAULT_STATE);
-  const [importRef] = useState<React.RefObject<HTMLInputElement>>(React.createRef());
+  const importRef = React.useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (file: File) => {
     try {
