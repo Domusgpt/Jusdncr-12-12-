@@ -323,76 +323,81 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     const now = Date.now();
     const isCloseupLocked = now < closeupLockTimeRef.current;
-    
-    // --- STUTTER & SCRATCH ENGINE ---
-    const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
-    
-    if (isStuttering && (now - lastStutterTimeRef.current) > 50) { 
+
+    // --- STUTTER & SCRATCH ENGINE (Tuned: less aggressive) ---
+    // Only stutter on VERY high energy moments, not constant mid/high
+    const isStuttering = (mid > 0.8 && high > 0.7 && bass > 0.5) && !isCloseupLocked;
+
+    // Increased cooldown from 50ms to 200ms - less frantic
+    if (isStuttering && (now - lastStutterTimeRef.current) > 200) {
         lastStutterTimeRef.current = now;
-        
-        if (Math.random() < 0.35) { 
+
+        // Reduced probability from 0.35 to 0.2
+        if (Math.random() < 0.2) {
              const swap = targetPoseRef.current;
-             triggerTransition(sourcePoseRef.current, 'CUT'); 
-             sourcePoseRef.current = swap; 
-             
-             charSkewRef.current = (Math.random() - 0.5) * 2.0; 
-             fluidStutterRef.current = 1.0; 
+             triggerTransition(sourcePoseRef.current, 'CUT');
+             sourcePoseRef.current = swap;
+
+             charSkewRef.current = (Math.random() - 0.5) * 1.0; // Reduced from 2.0
+             fluidStutterRef.current = 0.5; // Reduced from 1.0
              scratchModeRef.current = true;
-             rgbSplitRef.current = 1.0; 
-             masterRotZRef.current += (Math.random() - 0.5) * 10;
+             rgbSplitRef.current = 0.4; // Reduced from 1.0
+             masterRotZRef.current += (Math.random() - 0.5) * 5; // Reduced from 10
         } else {
              const pool = [...framesByEnergy.high];
              if(pool.length > 0) {
                  const next = pool[Math.floor(Math.random() * pool.length)].pose;
-                 triggerTransition(next, 'CUT', 1.0);
+                 triggerTransition(next, 'SLIDE', 1.0); // Changed from CUT to SLIDE
              }
              scratchModeRef.current = false;
         }
     }
 
-    // --- MAIN GROOVE ENGINE ---
-    const beatThreshold = 0.5;
-    
-    if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 300) {
+    // --- MAIN GROOVE ENGINE (Beat-focused) ---
+    const beatThreshold = 0.55; // Slightly higher threshold for cleaner beat detection
+
+    // Increased cooldown from 300ms to 400ms - more deliberate timing
+    if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
-            beatCounterRef.current = (beatCounterRef.current + 1) % 16; 
+            beatCounterRef.current = (beatCounterRef.current + 1) % 16;
 
             const beat = beatCounterRef.current;
             let phase: RhythmPhase = 'WARMUP';
             if (beat >= 4 && beat < 8) phase = 'SWING_LEFT';
             else if (beat >= 8 && beat < 12) phase = 'SWING_RIGHT';
-            else if (beat === 12 || beat === 13) phase = 'DROP'; 
-            else if (beat >= 14) phase = 'CHAOS'; 
-            
-            if (phase === 'CHAOS' || phase === 'DROP') {
+            else if (beat === 12 || beat === 13) phase = 'DROP';
+            else if (beat >= 14) phase = 'CHAOS';
+
+            // Reduced FX mode frequency - only on DROP, not CHAOS
+            if (phase === 'DROP') {
                 const rand = Math.random();
-                if (rand > 0.7) activeFXModeRef.current = 'INVERT';
-                else if (rand > 0.4) activeFXModeRef.current = 'BW';
+                if (rand > 0.85) activeFXModeRef.current = 'INVERT'; // Was 0.7
+                else if (rand > 0.7) activeFXModeRef.current = 'BW'; // Was 0.4
                 else activeFXModeRef.current = 'NORMAL';
             } else {
                 activeFXModeRef.current = 'NORMAL';
             }
 
-            camZoomRef.current = BASE_ZOOM + (bass * 0.35); 
-            charSquashRef.current = 0.85; 
-            charBounceYRef.current = -50 * bass; 
-            flashIntensityRef.current = 0.8; 
+            camZoomRef.current = BASE_ZOOM + (bass * 0.25); // Reduced from 0.35
+            charSquashRef.current = 0.9; // Less squash (was 0.85)
+            charBounceYRef.current = -35 * bass; // Reduced from -50
+            flashIntensityRef.current = 0.3; // Much lower (was 0.8)
 
-            if (phase === 'SWING_LEFT') { targetTiltRef.current = -8; currentDirectionRef.current = 'left'; }
-            else if (phase === 'SWING_RIGHT') { targetTiltRef.current = 8; currentDirectionRef.current = 'right'; }
-            else if (phase === 'CHAOS') targetTiltRef.current = (Math.random() - 0.5) * 25; 
+            if (phase === 'SWING_LEFT') { targetTiltRef.current = -6; currentDirectionRef.current = 'left'; } // Reduced from -8
+            else if (phase === 'SWING_RIGHT') { targetTiltRef.current = 6; currentDirectionRef.current = 'right'; } // Reduced from 8
+            else if (phase === 'CHAOS') targetTiltRef.current = (Math.random() - 0.5) * 15; // Reduced from 25
             else { targetTiltRef.current = 0; currentDirectionRef.current = 'center'; }
 
             let pool: FrameData[] = [];
-            
+
             if (isCloseupLocked) {
                 pool = closeupFrames;
             } else {
-                if (energyTrend > 0.1 && framesByEnergy.high.length > 0) {
+                if (energyTrend > 0.15 && framesByEnergy.high.length > 0) { // Raised threshold
                     pool = framesByEnergy.high;
                 } else {
-                    if (phase === 'WARMUP') pool = framesByEnergy.low; 
+                    if (phase === 'WARMUP') pool = framesByEnergy.low;
                     else if (phase === 'SWING_LEFT') {
                         const leftFrames = framesByEnergy.mid.filter(f => f.direction === 'left');
                         pool = leftFrames.length > 0 ? leftFrames : framesByEnergy.mid;
@@ -406,7 +411,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
             if (pool.length === 0) pool = framesByEnergy.mid;
             if (pool.length === 0) pool = framesByEnergy.low;
-            
+
             if (pool.length > 0) {
                 let nextFrame = pool[Math.floor(Math.random() * pool.length)];
                 let attempts = 0;
@@ -414,25 +419,27 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                     nextFrame = pool[Math.floor(Math.random() * pool.length)];
                     attempts++;
                 }
-                
-                let mode: InterpMode = 'CUT'; 
-                
+
+                // Default to smoother transitions, only CUT on DROP
+                let mode: InterpMode = 'SMOOTH'; // Changed default from CUT
+
                 if (isCloseupLocked || nextFrame.type === 'closeup') {
-                    mode = 'ZOOM_IN'; 
+                    mode = 'ZOOM_IN';
                 } else if (phase === 'SWING_LEFT' || phase === 'SWING_RIGHT') {
-                    if (high > 0.4) mode = 'SMOOTH';
-                    else mode = 'SLIDE';
+                    mode = 'SLIDE';
                 } else if (phase === 'DROP') {
-                    mode = 'CUT';
+                    mode = 'CUT'; // Only hard cuts on DROP
+                } else if (phase === 'CHAOS') {
+                    mode = Math.random() > 0.5 ? 'CUT' : 'MORPH'; // Mix on CHAOS
                 } else if (energyTrend < -0.1) {
                     mode = 'SMOOTH';
                 }
 
                 triggerTransition(nextFrame.pose, mode);
             }
-        } 
-        else if (bass < 0.3 && mid < 0.3) {
-             if (Math.random() < 0.02) {
+        }
+        else if (bass < 0.25 && mid < 0.25) { // Lowered thresholds for ambient
+             if (Math.random() < 0.015) { // Reduced from 0.02
                  const pool = framesByEnergy.low;
                  if (pool.length > 0) {
                      const next = pool[Math.floor(Math.random() * pool.length)];
@@ -443,12 +450,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
              }
         }
     }
-    
-    if (!isCloseupLocked && high > 0.6 && mid > 0.4 && bass < 0.5) {
-        if (closeupFrames.length > 0 && Math.random() < 0.5) {
+
+    // Closeup trigger - reduced sensitivity
+    if (!isCloseupLocked && high > 0.7 && mid > 0.5 && bass < 0.4) { // Raised thresholds
+        if (closeupFrames.length > 0 && Math.random() < 0.3) { // Reduced from 0.5
             const next = closeupFrames[Math.floor(Math.random() * closeupFrames.length)].pose;
-            triggerTransition(next, 'ZOOM_IN', 1.0); 
-            closeupLockTimeRef.current = now + 2500;
+            triggerTransition(next, 'ZOOM_IN', 1.0);
+            closeupLockTimeRef.current = now + 3000; // Longer lock (was 2500)
         }
     }
 
