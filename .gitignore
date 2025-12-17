@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 test-results/
+.env
+tests/output/*.png
+tests/output/*.txt
+tests/output/*.json
