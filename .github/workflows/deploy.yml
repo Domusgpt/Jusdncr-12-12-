@@ -4,12 +4,17 @@
 name: Deploy to GitHub Pages
 
 on:
-  # Deploy on push to main
+  # Deploy on push to main or feature branches
   push:
-    branches: ['main', 'master']
+    branches: ['main', 'master', 'claude/*']
 
   # Allow manual trigger from Actions tab
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: false
+        default: 'main'
 
 # Sets permissions of the GITHUB_TOKEN
 permissions:
@@ -40,9 +45,12 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: |
+          echo "Building with API key: ${GEMINI_API_KEY:0:10}..."
+          npm run build
         env:
           # Add your Gemini API key as a repository secret
+          # Go to Settings > Secrets > Actions > New repository secret
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Setup Pages
