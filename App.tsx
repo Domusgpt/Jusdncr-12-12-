@@ -16,7 +16,7 @@ const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(DEFAULT_STATE);
-  const [importRef] = useState<React.RefObject<HTMLInputElement>>(React.createRef());
+  const importRef = React.useRef<HTMLInputElement>(null);
 
   const handleImageUpload = async (file: File) => {
     try {
@@ -331,8 +331,8 @@ const App: React.FC = () => {
             )}
 
             {appState.step === AppStep.PREVIEW && (
-                <div className="animate-holo-reveal">
-                    <Step4Preview 
+                <div className="animate-holo-reveal h-[calc(100vh-10rem)] min-h-[600px]">
+                    <Step4Preview
                         state={appState}
                         onGenerateMore={handleGenerateClick}
                         onSpendCredit={handleSpendCredit}
