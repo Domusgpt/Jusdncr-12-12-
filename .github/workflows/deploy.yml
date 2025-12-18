@@ -1,4 +1,6 @@
-# GitHub Actions workflow for deploying jusDNCE to GitHub Pages
+# GitHub Actions workflow for deploying ALL versions of jusDNCE
+# Builds each branch into its own subfolder
+
 name: Deploy to GitHub Pages
 
 on:
@@ -19,25 +21,87 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout with full history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Create output directory
+        run: mkdir -p all-versions
 
-      - name: Build
+      # Build MAIN (current/enhanced)
+      - name: Build main branch
         run: |
-          echo "Building jusDNCE..."
+          echo "Building main..."
+          npm ci
           npm run build
-          cp -r public/* dist/ 2>/dev/null || true
+          mv dist all-versions/main
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Build enhanced-choreography branch
+      - name: Build enhanced-choreography branch
+        run: |
+          echo "Building enhanced-choreography..."
+          git checkout origin/claude/enhanced-choreography-engine-DcgEQ -- . 2>/dev/null || true
+          rm -rf node_modules
+          npm ci
+          npm run build
+          mv dist all-versions/enhanced
+          git checkout main -- .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Build audio-reactive branch
+      - name: Build audio-reactive branch
+        run: |
+          echo "Building audio-reactive..."
+          git checkout origin/claude/audio-reactive-architecture-uNqO9 -- . 2>/dev/null || true
+          rm -rf node_modules
+          npm ci
+          npm run build
+          mv dist all-versions/audio-reactive
+          git checkout main -- .
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Create landing page
+      - name: Create landing page
+        run: |
+          cat > all-versions/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>jusDNCE - All Versions</title>
+            <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:'Rajdhani',sans-serif;background:#0a0a0a;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
+              h1{font-size:3.5rem;margin-bottom:2rem;background:linear-gradient(90deg,#0ff,#8b5cf6,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+              .grid{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;padding:1rem}
+              a{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:2rem;text-decoration:none;color:#fff;min-width:200px;text-align:center;transition:all .3s}
+              a:hover{border-color:#8b5cf6;transform:translateY(-5px);box-shadow:0 20px 40px rgba(139,92,246,0.3)}
+              h2{font-size:1.3rem;margin-bottom:.5rem}
+              p{opacity:.6;font-size:.85rem}
+            </style>
+          </head>
+          <body>
+            <h1>jusDNCE</h1>
+            <div class="grid">
+              <a href="./main/"><h2>Main</h2><p>Latest stable</p></a>
+              <a href="./enhanced/"><h2>Enhanced</h2><p>Pre-analyzed choreography</p></a>
+              <a href="./audio-reactive/"><h2>Audio Reactive</h2><p>Tuned beat response</p></a>
+            </div>
+          </body>
+          </html>
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -45,7 +109,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './all-versions'
 
   deploy:
     environment:
