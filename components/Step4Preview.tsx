@@ -1,11 +1,13 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye } from 'lucide-react';
-import { AppState, EnergyLevel, MoveDirection, FrameType } from '../types';
+import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
 import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
+import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
+import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 
 interface Step4Props {
   state: AppState;
@@ -42,14 +44,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const audioElementRef = useRef<HTMLAudioElement>(null);
   
   // -- Audio Hook --
-  const { 
-    audioDestRef, 
-    isMicActive, 
-    connectFileAudio, 
-    connectMicAudio, 
-    disconnectMic, 
-    getFrequencyData 
+  const {
+    audioDestRef,
+    isMicActive,
+    connectFileAudio,
+    connectMicAudio,
+    disconnectMic,
+    getFrequencyData,
+    analyserRef
   } = useAudioAnalyzer();
+
+  // -- Enhanced Choreography Hook --
+  const {
+    processAudio,
+    updateFramePools,
+    selectFrame,
+    getBPM,
+    getBeatCount,
+    reset: resetChoreography
+  } = useEnhancedChoreography();
+
+  // Enhanced choreography state
+  const choreographyStateRef = useRef<ChoreographyState | null>(null);
+  const useEnhancedModeRef = useRef<boolean>(true); // Toggle for enhanced vs legacy mode
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -69,7 +86,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const lastBeatTimeRef = useRef<number>(0);
   const lastStutterTimeRef = useRef<number>(0);
   
-  const [brainState, setBrainState] = useState({ activePoseName: 'BASE', fps: 0 });
+  const [brainState, setBrainState] = useState({
+    activePoseName: 'BASE',
+    fps: 0,
+    effort: 'GLIDE' as LabanEffort,
+    danceStyle: 'HOUSE' as DanceStyle,
+    bpm: 120,
+    phraseSection: 'INTRO' as string
+  });
   const [hoveredFrame, setHoveredFrame] = useState<FrameData | null>(null); // For Tooltip
 
   // --- INTERPOLATION STATE ---
@@ -241,7 +265,17 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
        if (frame.energy === 'mid' && frame.type === 'body') images[frame.pose + '_vmid'] = img;
     });
     poseImagesRef.current = { ...poseImagesRef.current, ...images };
-  }, [state.generatedFrames, state.imagePreviewUrl]);
+
+    // Update enhanced choreography frame pools
+    const framesForPools: GeneratedFrame[] = framesToLoad.map(f => ({
+      url: f.url,
+      pose: f.pose,
+      energy: f.energy,
+      direction: f.direction || 'center',
+      type: f.type || 'body'
+    }));
+    updateFramePools(framesForPools);
+  }, [state.generatedFrames, state.imagePreviewUrl, updateFramePools]);
 
   const toggleMic = () => {
       if (isMicActive) {
@@ -279,15 +313,39 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     lastFrameTimeRef.current = time;
 
     requestRef.current = requestAnimationFrame(loop);
-    
+
     // --- TRANSITION UPDATE ---
     if (transitionProgressRef.current < 1.0) {
         transitionProgressRef.current += transitionSpeedRef.current * deltaTime;
         if (transitionProgressRef.current > 1.0) transitionProgressRef.current = 1.0;
     }
 
-    // Get Audio Data from Hook
-    const { bass, mid, high, energy } = getFrequencyData();
+    // Get Audio Data - use enhanced mode if available
+    let bass = 0, mid = 0, high = 0, energy = 0;
+    let choreoState: ChoreographyState | null = null;
+
+    if (useEnhancedModeRef.current && analyserRef.current) {
+        // Get raw frequency data for enhanced analyzer
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const frequencyData = new Uint8Array(bufferLength);
+        analyserRef.current.getByteFrequencyData(frequencyData);
+
+        // Process with enhanced choreography system
+        choreoState = processAudio(frequencyData, time);
+        choreographyStateRef.current = choreoState;
+
+        bass = choreoState.audio.bass;
+        mid = choreoState.audio.mid;
+        high = choreoState.audio.high;
+        energy = choreoState.audio.energy;
+    } else {
+        // Legacy mode
+        const audioData = getFrequencyData();
+        bass = audioData.bass;
+        mid = audioData.mid;
+        high = audioData.high;
+        energy = audioData.energy;
+    }
     
     // --- DYNAMIC CHOREOGRAPHY ANALYSIS ---
     energyHistoryRef.current.shift();
@@ -295,13 +353,24 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     const avgEnergy = energyHistoryRef.current.reduce((a, b) => a + b, 0) / energyHistoryRef.current.length;
     const energyTrend = energy - avgEnergy;
 
-    // --- PHYSICS ---
-    const stiffness = 140;
-    const damping = 8; 
-    
-    const targetRotX = bass * 35.0; 
-    const targetRotY = mid * 25.0 * Math.sin(time * 0.005); 
-    const targetRotZ = high * 15.0; 
+    // --- PHYSICS (Enhanced with Laban modifiers) ---
+    let stiffness = 140;
+    let damping = 8;
+    let maxRotation = 35;
+    let bounceIntensity = 1.0;
+
+    // Apply Laban-based physics modifiers when in enhanced mode
+    if (choreoState && useEnhancedModeRef.current) {
+        const physics = choreoState.physics;
+        stiffness = physics.stiffness;
+        damping = physics.damping;
+        maxRotation = physics.maxRotation;
+        bounceIntensity = physics.bounceIntensity;
+    }
+
+    const targetRotX = bass * maxRotation * bounceIntensity;
+    const targetRotY = mid * (maxRotation * 0.7) * Math.sin(time * 0.005);
+    const targetRotZ = high * (maxRotation * 0.4); 
 
     // Spring Solver
     masterVelXRef.current += ((targetRotX - masterRotXRef.current) * stiffness - (masterVelXRef.current * damping)) * deltaTime;
@@ -353,11 +422,48 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }
     }
 
-    // --- MAIN GROOVE ENGINE (Beat-focused) ---
+    // --- ENHANCED CHOREOGRAPHY MODE ---
+    // Use motion grammar and Laban effort for frame selection when enabled
+    if (choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
+        const currentPose = targetPoseRef.current;
+        const selection = selectFrame(choreoState, currentPose);
+
+        if (selection.frame && selection.frame.pose !== currentPose) {
+            // Use the transition mode from the motion grammar
+            const mode = selection.transitionMode;
+
+            // Apply physics boost from current move
+            if (choreoState.currentMove) {
+                const boost = choreoState.currentMove.physicsBoost;
+                if (boost > 0) {
+                    charSquashRef.current = 1.0 - (boost * 0.15);
+                    charBounceYRef.current = -30 * boost * bass;
+                    flashIntensityRef.current = boost * 0.2;
+                }
+            }
+
+            // Trigger transition with Laban-determined mode
+            triggerTransition(selection.frame.pose, mode as InterpMode);
+
+            // Update direction based on selection
+            currentDirectionRef.current = selection.direction;
+            if (selection.direction === 'left') targetTiltRef.current = -6;
+            else if (selection.direction === 'right') targetTiltRef.current = 6;
+            else targetTiltRef.current = 0;
+
+            // Update beat counter from enhanced system
+            beatCounterRef.current = getBeatCount() % 32;
+        }
+    }
+
+    // --- MAIN GROOVE ENGINE (Beat-focused, legacy fallback) ---
     const beatThreshold = 0.55; // Slightly higher threshold for cleaner beat detection
 
+    // Only use legacy groove engine if enhanced mode didn't trigger a transition
+    const useEnhancedTransition = choreoState && useEnhancedModeRef.current && choreoState.shouldTransition;
+
     // Increased cooldown from 300ms to 400ms - more deliberate timing
-    if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
+    if (!useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
             beatCounterRef.current = (beatCounterRef.current + 1) % 16;
@@ -631,10 +737,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     
     setBrainState({
         activePoseName: targetPoseRef.current,
-        fps: Math.round(1/deltaTime)
+        fps: Math.round(1/deltaTime),
+        effort: choreoState?.movementQualities.effort || 'GLIDE',
+        danceStyle: choreoState?.movementQualities.danceStyle || 'HOUSE',
+        bpm: choreoState?.audio.bpm || 120,
+        phraseSection: choreoState?.audio.phrase.phraseSection || 'INTRO'
     });
 
-  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording, getFrequencyData]);
+  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording, getFrequencyData, processAudio, selectFrame, getBeatCount, analyserRef]);
 
 
   useEffect(() => {
@@ -848,7 +958,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           <div className="flex justify-between items-start">
              <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
                  <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
-                 <div className="font-mono text-xs text-brand-300">FPS: {brainState.fps}<br/>POSE: {brainState.activePoseName}<br/>FRAMES: {frameCount}</div>
+                 <div className="font-mono text-xs text-brand-300">
+                   FPS: {brainState.fps} | BPM: {brainState.bpm}<br/>
+                   POSE: {brainState.activePoseName}<br/>
+                   EFFORT: {brainState.effort}<br/>
+                   STYLE: {brainState.danceStyle} | {brainState.phraseSection}
+                 </div>
              </div>
              <div className="flex gap-2 pointer-events-auto items-center">
                  {isRecording && <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse"><div className="w-2 h-2 bg-red-500 rounded-full" /><span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span></div>}

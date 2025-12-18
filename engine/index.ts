@@ -7,6 +7,9 @@
  * - MJ: Structural rigidity and hard cuts
  *
  * Enhanced with:
+ * - Laban Effort System for movement quality analysis
+ * - Enhanced Audio Analyzer with multi-band onset detection
+ * - Motion Grammar for procedural choreography
  * - Full song pre-analysis
  * - Frame manifest system
  * - Dual-mode choreography (pre-computed + real-time)
@@ -41,7 +44,52 @@ export {
 } from './KineticEngine';
 
 // =============================================================================
-// FRAME MANIFEST SYSTEM (New)
+// LABAN EFFORT SYSTEM
+// =============================================================================
+
+export {
+  type LabanEffort,
+  type DanceStyle,
+  type EffortFactors,
+  type MovementQualities,
+  type AudioSignature,
+  type PhysicsModifiers,
+  type FramePoolWeights,
+  audioToEffortFactors,
+  factorsToEffort,
+  effortToDanceStyle,
+  analyzeMovementQualities,
+  effortToTransitionMode,
+  effortToPhysics,
+  danceStyleToPoolWeights
+} from './LabanEffortSystem';
+
+// =============================================================================
+// ENHANCED AUDIO ANALYZER
+// =============================================================================
+
+export {
+  type MultiBandOnsets,
+  type SpectralFeatures,
+  type PhraseState,
+  type PhraseSection,
+  type EnhancedAudioFeatures,
+  EnhancedAudioAnalyzer
+} from './EnhancedAudioAnalyzer';
+
+// =============================================================================
+// MOTION GRAMMAR
+// =============================================================================
+
+export {
+  type MoveToken,
+  type MoveDescriptor,
+  MotionGrammar,
+  ChoreographySequencer
+} from './MotionGrammar';
+
+// =============================================================================
+// FRAME MANIFEST SYSTEM
 // =============================================================================
 
 export {
@@ -64,7 +112,7 @@ export {
 } from './FrameManifest';
 
 // =============================================================================
-// SONG ANALYZER (New)
+// SONG ANALYZER
 // =============================================================================
 
 export {
@@ -89,7 +137,7 @@ export {
 } from './SongAnalyzer';
 
 // =============================================================================
-// CHOREOGRAPHY PLANNER (New)
+// CHOREOGRAPHY PLANNER
 // =============================================================================
 
 export {
@@ -105,7 +153,7 @@ export {
 } from './ChoreographyPlanner';
 
 // =============================================================================
-// DUAL-MODE ENGINE (New - Main Entry Point)
+// DUAL-MODE ENGINE (Main Entry Point)
 // =============================================================================
 
 export {
@@ -124,7 +172,7 @@ export {
 } from './DualModeEngine';
 
 // =============================================================================
-// DIRECT VIDEO EXPORTER (New - No Real-Time Recording Needed)
+// DIRECT VIDEO EXPORTER (No Real-Time Recording Needed)
 // =============================================================================
 
 export {
