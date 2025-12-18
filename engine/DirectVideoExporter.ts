@@ -236,7 +236,11 @@ export class FrameRenderer {
       return this.canvas.convertToBlob({ type: 'image/jpeg', quality });
     } else {
       return new Promise((resolve) => {
-        this.canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', quality);
+        (this.canvas as HTMLCanvasElement).toBlob(
+          (blob) => resolve(blob!),
+          'image/jpeg',
+          quality
+        );
       });
     }
   }
