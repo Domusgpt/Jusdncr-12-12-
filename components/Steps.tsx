@@ -225,7 +225,7 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeCategory, setActiveCategory] = useState<StyleCategory>('Cinematic');
   
-  const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic'];
+  const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic', 'Abstract'];
 
   const filteredStyles = useMemo(() => {
     return STYLE_PRESETS.filter(s => s.category === activeCategory);

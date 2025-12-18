@@ -7,7 +7,7 @@ export enum AppStep {
   PREVIEW = 3,
 }
 
-export type StyleCategory = 'Cinematic' | 'Anime/2D' | 'Digital/Glitch' | 'Artistic';
+export type StyleCategory = 'Cinematic' | 'Anime/2D' | 'Digital/Glitch' | 'Artistic' | 'Abstract';
 export type SubjectCategory = 'CHARACTER' | 'TEXT' | 'SYMBOL';
 export type FrameType = 'body' | 'closeup'; // Distinguish full body from facial frames
 export type SheetRole = 'base' | 'alt' | 'flourish' | 'smooth'; // Added 'smooth'

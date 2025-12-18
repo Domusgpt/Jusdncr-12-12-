@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain } from 'lucide-react';
+import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2 } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -79,9 +79,49 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
+  const [showEffects, setShowEffects] = useState(false); // Effects Panel Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
-  
+
+  // User-controlled effects state
+  const [userEffects, setUserEffects] = useState({
+    rgbSplit: false,
+    strobe: false,
+    ghost: false,
+    invert: false,
+    bw: false,
+    scanlines: false,
+    glitch: false,
+    shake: false,
+    zoom: false
+  });
+  const userEffectsRef = useRef(userEffects);
+
+  // Keep userEffects ref in sync
+  useEffect(() => {
+    userEffectsRef.current = userEffects;
+  }, [userEffects]);
+
+  // Toggle an effect
+  const toggleEffect = (effect: keyof typeof userEffects) => {
+    setUserEffects(prev => ({ ...prev, [effect]: !prev[effect] }));
+  };
+
+  // File input ref for track change
+  const trackInputRef = useRef<HTMLInputElement>(null);
+  const handleTrackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUploadAudio(file);
+      setIsPlaying(false);
+      // Reset audio element
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.currentTime = 0;
+      }
+    }
+  };
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordCanvasRef = useRef<HTMLCanvasElement>(null); 
@@ -602,10 +642,33 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         const cx = w/2;
         const cy = h/2;
         ctx.clearRect(0, 0, w, h);
-        
-        if (activeFXModeRef.current === 'INVERT') ctx.filter = 'invert(1)';
-        else if (activeFXModeRef.current === 'BW') ctx.filter = 'grayscale(1)';
-        else ctx.filter = 'none';
+
+        // Apply user-controlled effects first
+        const ue = userEffectsRef.current;
+
+        // Build filter string
+        let filterStr = '';
+        if (ue.invert || activeFXModeRef.current === 'INVERT') filterStr += 'invert(1) ';
+        if (ue.bw || activeFXModeRef.current === 'BW') filterStr += 'grayscale(1) ';
+        ctx.filter = filterStr.trim() || 'none';
+
+        // Apply user RGB split
+        if (ue.rgbSplit) rgbSplitRef.current = Math.max(rgbSplitRef.current, 0.5);
+
+        // Apply user zoom pulse
+        if (ue.zoom) camZoomRef.current = BASE_ZOOM + 0.3 * Math.sin(time * 0.008);
+
+        // Apply user shake
+        if (ue.shake) {
+            masterRotZRef.current += (Math.random() - 0.5) * 3;
+            camPanXRef.current += (Math.random() - 0.5) * 10;
+        }
+
+        // Apply user glitch
+        if (ue.glitch && Math.random() < 0.1) {
+            charSkewRef.current = (Math.random() - 0.5) * 1.5;
+            rgbSplitRef.current = Math.random() * 0.8;
+        }
 
         const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
@@ -707,18 +770,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             }
         }
             
-        if (mid > 0.4) {
+        // Scanlines effect (audio-reactive OR user-controlled)
+        if (mid > 0.4 || ue.scanlines) {
             ctx.save();
-            ctx.fillStyle = `rgba(0,0,0, ${mid * 0.3})`;
+            const scanIntensity = ue.scanlines ? 0.4 : mid * 0.3;
+            ctx.fillStyle = `rgba(0,0,0, ${scanIntensity})`;
             for(let y=0; y<h; y+=6) {
                  ctx.fillRect(0, y, w, 2);
             }
             ctx.restore();
         }
-        
-        if (flashIntensityRef.current > 0.01) {
-            ctx.fillStyle = `rgba(255,255,255, ${flashIntensityRef.current})`;
+
+        // Strobe effect (audio-reactive OR user-controlled)
+        const strobeActive = ue.strobe && Math.sin(time * 0.05) > 0.7;
+        if (flashIntensityRef.current > 0.01 || strobeActive) {
+            const flashAmount = strobeActive ? 0.5 : flashIntensityRef.current;
+            ctx.fillStyle = `rgba(255,255,255, ${flashAmount})`;
             ctx.fillRect(0,0,w,h);
+        }
+
+        // Ghost/trail effect (user-controlled)
+        if (ue.ghost) {
+            ctx.globalAlpha = 0.15;
+            ctx.globalCompositeOperation = 'lighter';
         }
     };
 
@@ -927,6 +1001,69 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           <audio ref={audioElementRef} src={state.audioPreviewUrl} loop crossOrigin="anonymous" onEnded={() => setIsPlaying(false)} />
       )}
 
+      {/* Hidden file input for track change */}
+      <input
+        ref={trackInputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={handleTrackChange}
+      />
+
+      {/* EFFECTS PANEL */}
+      {showEffects && (
+        <div className="absolute top-20 right-6 z-50 animate-slide-in-right pointer-events-auto">
+          <div className="bg-black/90 backdrop-blur-xl border border-brand-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(139,92,246,0.3)] w-64">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-white tracking-widest flex items-center gap-2">
+                <Wand2 size={14} className="text-brand-400" /> EFFECTS
+              </h3>
+              <button onClick={() => setShowEffects(false)} className="text-gray-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'rgbSplit', label: 'RGB', icon: Layers },
+                { key: 'strobe', label: 'STROBE', icon: Zap },
+                { key: 'ghost', label: 'GHOST', icon: Ghost },
+                { key: 'invert', label: 'INVERT', icon: Contrast },
+                { key: 'bw', label: 'B&W', icon: CircleDot },
+                { key: 'scanlines', label: 'SCAN', icon: ScanLine },
+                { key: 'glitch', label: 'GLITCH', icon: Activity },
+                { key: 'zoom', label: 'ZOOM', icon: Move3D },
+                { key: 'shake', label: 'SHAKE', icon: Radio }
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => toggleEffect(key as keyof typeof userEffects)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all ${
+                    userEffects[key as keyof typeof userEffects]
+                      ? 'bg-brand-500/30 border-brand-500 text-brand-300'
+                      : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="text-[9px] font-bold">{label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <button
+                onClick={() => setUserEffects({
+                  rgbSplit: false, strobe: false, ghost: false,
+                  invert: false, bw: false, scanlines: false,
+                  glitch: false, shake: false, zoom: false
+                })}
+                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-white transition-colors"
+              >
+                RESET ALL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NEURAL DECK / FRAME INSPECTOR */}
       {showDeck && (
          <div className="absolute bottom-24 left-0 right-0 z-40 p-4 animate-slide-in-right">
@@ -986,9 +1123,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                        <button onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-brand-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.4)]' : 'bg-white/10 text-white hover:bg-white/20'}`}>{isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}</button>
                    ) : <div className="px-4 text-[10px] text-gray-400 font-mono">NO TRACK LOADED</div>}
                    <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => trackInputRef.current?.click()} className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border border-transparent text-gray-400 hover:text-white hover:bg-white/10"><Music2 size={16} /> CHANGE TRACK</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={toggleMic} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${isMicActive ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'border-transparent text-gray-400 hover:text-white'}`}>{isMicActive ? <Mic size={16} /> : <MicOff size={16} />} LIVE INPUT</button>
                    <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> SUPER CAM</button>
+                   <button onClick={() => setShowEffects(!showEffects)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showEffects ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Wand2 size={16} /> FX</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> CAM</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
                    <div className="h-8 w-[1px] bg-white/10" />
