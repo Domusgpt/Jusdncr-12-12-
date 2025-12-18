@@ -113,12 +113,12 @@ export const generatePlayerHTML = (
     
     <div id="loader">
         <div class="spinner"></div>
-        <div style="color: #888; font-size: 14px; letter-spacing: 4px; font-weight: 700;">INITIALIZING NEURAL RIG...</div>
+        <div style="color: #888; font-size: 14px; letter-spacing: 4px; font-weight: 700;">INITIALIZING NEURAL GOLEMZ...</div>
     </div>
     
     <div id="dropOverlay">
         <div class="drop-title">DROP FILE</div>
-        <div style="font-size: 1.2em; color: rgba(255,255,255,0.8); letter-spacing: 2px;">IMPORT .JUSDNCE RIG OR AUDIO FILE</div>
+        <div style="font-size: 1.2em; color: rgba(255,255,255,0.8); letter-spacing: 2px;">IMPORT .JUSDNCE GOLEMZ OR AUDIO FILE</div>
     </div>
     
     <div id="info">
@@ -701,7 +701,7 @@ export const generatePlayerHTML = (
                     try {
                         const proj = JSON.parse(ev.target.result);
                         if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
-                    } catch(e) { alert("Invalid Rig File"); }
+                    } catch(e) { alert("Invalid Golemz File"); }
                 };
                 reader.readAsText(file);
             } else if(file.type.startsWith('audio/')) {

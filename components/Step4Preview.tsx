@@ -775,7 +775,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `jusdnce_rig_${Date.now()}.html`;
+      a.download = `jusdnce_golemz_${Date.now()}.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -896,7 +896,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       {!imagesReady && !state.isGenerating && (
          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50 backdrop-blur-md">
              <Loader2 size={48} className="text-brand-500 animate-spin mb-4" />
-             <p className="text-white font-mono tracking-widest animate-pulse">NEURAL RIG INITIALIZING...</p>
+             <p className="text-white font-mono tracking-widest animate-pulse">NEURAL GOLEMZ INITIALIZING...</p>
              <p className="text-gray-500 text-xs mt-2">Loading {frameCount} frames</p>
          </div>
       )}
@@ -986,7 +986,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
               </div>
               <div className="flex gap-3">
                   <button onClick={onGenerateMore} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Package size={14} /> NEW VARIATIONS</button>
-                  <button onClick={onSaveProject} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Download size={14} /> SAVE RIG</button>
+                  <button onClick={onSaveProject} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Download size={14} /> SAVE GOLEMZ</button>
               </div>
           </div>
       </div>

@@ -160,7 +160,7 @@ const App: React.FC = () => {
 
       const project: SavedProject = {
           id: crypto.randomUUID(),
-          name: `Rig_${Date.now()}`,
+          name: `Golemz_${Date.now()}`,
           createdAt: Date.now(),
           frames: appState.generatedFrames,
           styleId: appState.selectedStyleId,
@@ -273,7 +273,7 @@ const App: React.FC = () => {
                     onClick={() => importRef.current?.click()}
                     className="glass-button px-4 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 border border-white/10 hover:border-brand-400/50"
                 >
-                    <FileJson size={14} className="text-brand-300" /> IMPORT RIG
+                    <FileJson size={14} className="text-brand-300" /> IMPORT GOLEMZ
                 </button>
                 <input ref={importRef} type="file" accept=".jusdnce" onChange={loadProject} className="hidden" />
 
