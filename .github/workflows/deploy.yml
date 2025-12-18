@@ -1,34 +1,21 @@
 # GitHub Actions workflow for deploying jusDNCE to GitHub Pages
-# Triggers on pushes to main branch or manual dispatch
-
 name: Deploy to GitHub Pages
 
 on:
-  # Deploy on push to main or feature branches
   push:
-    branches: ['main', 'master', 'claude/*']
-
-  # Allow manual trigger from Actions tab
+    branches: ['main']
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to deploy'
-        required: false
-        default: 'main'
 
-# Sets permissions of the GITHUB_TOKEN
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: 'pages'
   cancel-in-progress: true
 
 jobs:
-  # Build job
   build:
     runs-on: ubuntu-latest
     steps:
@@ -46,14 +33,10 @@ jobs:
 
       - name: Build
         run: |
-          echo "Building with API key: ${GEMINI_API_KEY:0:10}..."
+          echo "Building jusDNCE..."
           npm run build
           cp -r public/* dist/ 2>/dev/null || true
-          echo "Build complete. Contents of dist:"
-          ls -la dist/
         env:
-          # Add your Gemini API key as a repository secret
-          # Go to Settings > Secrets > Actions > New repository secret
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Setup Pages
@@ -64,7 +47,6 @@ jobs:
         with:
           path: './dist'
 
-  # Deployment job
   deploy:
     environment:
       name: github-pages
