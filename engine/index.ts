@@ -7,6 +7,9 @@
  * - MJ: Structural rigidity and hard cuts
  *
  * Enhanced with:
+ * - Laban Effort System (real-time movement quality analysis)
+ * - Enhanced Audio Analyzer (multi-band onset detection)
+ * - Motion Grammar (procedural choreography)
  * - Full song pre-analysis
  * - Frame manifest system
  * - Dual-mode choreography (pre-computed + real-time)
@@ -39,6 +42,51 @@ export {
   // Factory
   createKineticEngine
 } from './KineticEngine';
+
+// =============================================================================
+// LABAN EFFORT SYSTEM (Real-time movement quality)
+// =============================================================================
+
+export {
+  type LabanEffort,
+  type DanceStyle,
+  type EffortFactors,
+  type MovementQualities,
+  type AudioSignature,
+  type PhysicsModifiers,
+  type FramePoolWeights,
+  audioToEffortFactors,
+  factorsToEffort,
+  effortToDanceStyle,
+  analyzeMovementQualities,
+  effortToTransitionMode,
+  effortToPhysics,
+  danceStyleToPoolWeights
+} from './LabanEffortSystem';
+
+// =============================================================================
+// ENHANCED AUDIO ANALYZER (Multi-band onset detection)
+// =============================================================================
+
+export {
+  type MultiBandOnsets,
+  type SpectralFeatures,
+  type PhraseState,
+  type PhraseSection,
+  type EnhancedAudioFeatures,
+  EnhancedAudioAnalyzer
+} from './EnhancedAudioAnalyzer';
+
+// =============================================================================
+// MOTION GRAMMAR (Procedural choreography)
+// =============================================================================
+
+export {
+  type MoveToken,
+  type MoveDescriptor,
+  MotionGrammar,
+  ChoreographySequencer
+} from './MotionGrammar';
 
 // =============================================================================
 // FRAME MANIFEST SYSTEM (New)
