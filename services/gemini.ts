@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import { GeneratedFrame, PoseType, EnergyLevel, SubjectCategory, FrameType, SheetRole, MoveDirection } from "../types";
+import { removeBackground } from './backgroundRemoval';
 
 // Strict API Key usage as per guidelines
 const API_KEY = process.env.API_KEY;
@@ -228,9 +229,10 @@ const generateSingleSheet = async (
     stylePrompt: string,
     motionPrompt: string,
     category: SubjectCategory,
-    seed: number, 
+    seed: number,
     contextImageBase64?: string,
-    useFallbackPrompt: boolean = false
+    useFallbackPrompt: boolean = false,
+    cutoutMode: boolean = false
 ): Promise<{ frames: GeneratedFrame[], rawSheetBase64?: string }> => {
     
     const rows = 4;
@@ -238,6 +240,11 @@ const generateSingleSheet = async (
     const isTextOrSymbol = category === 'TEXT' || category === 'SYMBOL';
     
     const danceStyle = motionPrompt ? `Specific Dance Style: ${motionPrompt}.` : "Style: Rhythmic, energetic dance loop.";
+
+    // CUTOUT MODE: Request solid green background for easy removal
+    const backgroundInstruction = cutoutMode
+        ? "CRITICAL: Place the character on a SOLID BRIGHT GREEN BACKGROUND (#00FF00). The background must be completely uniform green with NO patterns, gradients, or shadows. This is essential for character cutout."
+        : "";
 
     let systemPrompt = "";
 
@@ -248,20 +255,23 @@ const generateSingleSheet = async (
         Center the character in each cell.
         Style: ${stylePrompt}.
         ${danceStyle}
+        ${backgroundInstruction}
         Ensure consistent character identity.`;
     } else {
         // MECHANICAL PROMPT: STRICT GRID & CENTERING (Standard)
         systemPrompt = `TASK: Generate a strict 4x4 Grid Sprite Sheet (16 frames).
-        
+
         MECHANICAL RULES:
         1. GRID: Exactly 4 columns, 4 rows.
         2. SPACING: Use the FULL CELL for each frame.
         3. CENTERING: The character must be centered in the MIDDLE of each grid cell.
         4. PADDING: Leave a small gap between the character and the cell edge to prevent clipping.
         5. IDENTITY: Maintain exact character consistency from Input Image.
-        
+        ${cutoutMode ? '6. BACKGROUND: Solid bright green (#00FF00) background in EVERY cell.' : ''}
+
         Visual Style: ${stylePrompt}
         ${danceStyle}
+        ${backgroundInstruction}
         `;
 
         if (isTextOrSymbol) {
@@ -361,7 +371,28 @@ const generateSingleSheet = async (
         }
         
         const dataUri = `data:${mimeType};base64,${spriteSheetBase64}`;
-        const rawFrames = await sliceSpriteSheet(dataUri, rows, cols);
+        let rawFrames = await sliceSpriteSheet(dataUri, rows, cols);
+
+        // CUTOUT MODE: Remove backgrounds from frames
+        if (cutoutMode) {
+            console.log(`[Gemini] Applying background removal to ${rawFrames.length} frames...`);
+            const processedFrames: string[] = [];
+            for (let i = 0; i < rawFrames.length; i++) {
+                try {
+                    const transparent = await removeBackground(rawFrames[i], {
+                        autoDetect: true,
+                        tolerance: 55,
+                        edgeSoftness: 0.25
+                    });
+                    processedFrames.push(transparent);
+                } catch (e) {
+                    console.warn(`Background removal failed for frame ${i}, using original`);
+                    processedFrames.push(rawFrames[i]);
+                }
+            }
+            rawFrames = processedFrames;
+        }
+
         const finalFrames: GeneratedFrame[] = [];
 
         for (let i = 0; i < rawFrames.length; i++) {
@@ -431,7 +462,8 @@ export const generateDanceFrames = async (
   motionPrompt: string,
   useTurbo: boolean,
   superMode: boolean,
-  onFrameUpdate: (frames: GeneratedFrame[]) => void 
+  onFrameUpdate: (frames: GeneratedFrame[]) => void,
+  cutoutMode: boolean = false
 ): Promise<{ frames: GeneratedFrame[], category: SubjectCategory }> => {
 
   if (!API_KEY) {
@@ -453,12 +485,12 @@ export const generateDanceFrames = async (
   // Implemented simple retry logic with fallback prompt
   let baseResult;
   try {
-      baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed);
+      baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed, undefined, false, cutoutMode);
   } catch (e) {
       console.warn("Base generation failed with strict prompt. Retrying with fallback...");
       try {
           // Retry with fallback (simpler prompt)
-          baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed, undefined, true);
+          baseResult = await generateSingleSheet(ai, 'base', imageBase64, stylePrompt, motionPrompt, category, masterSeed, undefined, true, cutoutMode);
       } catch (e2) {
           throw new Error("Base generation failed after retry. Please try a different image.");
       }
@@ -478,7 +510,7 @@ export const generateDanceFrames = async (
        if (!useTurbo || superMode) {
             try {
                 // Remove artificial delay to optimize speed as requested
-                const result = await generateSingleSheet(ai, 'alt', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
+                const result = await generateSingleSheet(ai, 'alt', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64, false, cutoutMode);
                 if(result.frames.length > 0) {
                     allFrames = [...allFrames, ...result.frames];
                     onFrameUpdate(allFrames);
@@ -489,7 +521,7 @@ export const generateDanceFrames = async (
 
   const generateFlourish = async () => {
       try {
-          const result = await generateSingleSheet(ai, 'flourish', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
+          const result = await generateSingleSheet(ai, 'flourish', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64, false, cutoutMode);
           if(result.frames.length > 0) {
               allFrames = [...allFrames, ...result.frames];
               onFrameUpdate(allFrames);
@@ -501,7 +533,7 @@ export const generateDanceFrames = async (
       if (superMode) {
           try {
               // Remove delay
-              const result = await generateSingleSheet(ai, 'smooth', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64);
+              const result = await generateSingleSheet(ai, 'smooth', imageBase64, stylePrompt, motionPrompt, category, masterSeed, baseSheetBase64, false, cutoutMode);
               if(result.frames.length > 0) {
                   allFrames = [...allFrames, ...result.frames];
                   onFrameUpdate(allFrames);
