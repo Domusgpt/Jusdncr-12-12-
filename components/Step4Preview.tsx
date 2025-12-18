@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye } from 'lucide-react';
+import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -67,6 +67,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   // Enhanced choreography state
   const choreographyStateRef = useRef<ChoreographyState | null>(null);
   const useEnhancedModeRef = useRef<boolean>(true); // Toggle for enhanced vs legacy mode
+  const [choreoMode, setChoreoMode] = useState<'LABAN' | 'LEGACY'>('LABAN');
+
+  // Sync state with ref
+  const toggleChoreoMode = () => {
+    const newMode = choreoMode === 'LABAN' ? 'LEGACY' : 'LABAN';
+    setChoreoMode(newMode);
+    useEnhancedModeRef.current = newMode === 'LABAN';
+  };
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -960,8 +968,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                  <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
                  <div className="font-mono text-xs text-brand-300">
                    FPS: {brainState.fps} | BPM: {brainState.bpm}<br/>
-                   POSE: {brainState.activePoseName}<br/>
-                   EFFORT: {brainState.effort}<br/>
+                   MODE: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span><br/>
+                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort}<br/></>}
                    STYLE: {brainState.danceStyle} | {brainState.phraseSection}
                  </div>
              </div>
@@ -983,6 +991,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                    <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> SUPER CAM</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={toggleChoreoMode} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${choreoMode === 'LABAN' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-orange-500/20 border-orange-500 text-orange-400'}`}>
+                     {choreoMode === 'LABAN' ? <Brain size={16} /> : <Zap size={16} />}
+                     {choreoMode}
+                   </button>
               </div>
               <div className="flex gap-3">
                   <button onClick={onGenerateMore} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Package size={14} /> NEW VARIATIONS</button>
