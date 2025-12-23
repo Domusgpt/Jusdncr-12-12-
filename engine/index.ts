@@ -145,3 +145,38 @@ export {
   exportVideo,
   exportAndDownload
 } from './DirectVideoExporter';
+
+// =============================================================================
+// LIVE MIXER (VJ-Style Hot-Swap System)
+// =============================================================================
+
+export {
+  // Types
+  type AudioData as MixerAudioData,
+  type ChoreographyOutput,
+  type TransitionMode as MixerTransitionMode,
+  type PhysicsState,
+  type EffectsState,
+  type PatternType,
+  type EngineType,
+  type IChoreographyEngine,
+  type EffectsRackState,
+  type DeckState,
+  type LiveMixerState,
+  type MixedOutput,
+
+  // Engine Implementations
+  ReactiveEngine,
+  ChaosEngine,
+  MinimalEngine,
+  FlowEngine,
+
+  // Classes
+  EffectsRack,
+  Deck,
+  LiveMixer,
+
+  // Factory
+  createLiveMixer,
+  createEngine
+} from './LiveMixer';
