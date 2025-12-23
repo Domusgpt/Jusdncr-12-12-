@@ -43,6 +43,7 @@ jobs:
           mv dist all-versions/main
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_BASE_PATH: /Jusdncr-12-12-/main/
 
       # Build enhanced-choreography branch
       - name: Build enhanced-choreography branch
@@ -56,6 +57,7 @@ jobs:
           git checkout main -- .
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_BASE_PATH: /Jusdncr-12-12-/enhanced/
 
       # Build audio-reactive branch
       - name: Build audio-reactive branch
@@ -69,6 +71,7 @@ jobs:
           git checkout main -- .
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_BASE_PATH: /Jusdncr-12-12-/audio-reactive/
 
       # Create landing page
       - name: Create landing page
