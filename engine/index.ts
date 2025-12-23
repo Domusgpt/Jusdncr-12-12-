@@ -170,6 +170,12 @@ export {
   ChaosEngine,
   MinimalEngine,
   FlowEngine,
+  FluidEngine,
+  SequenceEngine,
+  PatternEngine,
+
+  // Additional types
+  type StutterStyle,
 
   // Classes
   EffectsRack,

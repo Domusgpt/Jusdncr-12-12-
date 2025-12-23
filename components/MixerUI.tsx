@@ -40,7 +40,10 @@ const ENGINE_LABELS: Record<EngineType, string> = {
   KINETIC: '🎯 Kinetic',
   CHAOS: '🌀 Chaos',
   MINIMAL: '◻️ Minimal',
-  FLOW: '🌊 Flow'
+  FLOW: '🌊 Flow',
+  FLUID: '💧 Fluid',
+  SEQUENCE: '🎬 Sequence',
+  PATTERN: '🔄 Pattern'
 };
 
 const PATTERN_LABELS: Record<PatternType, string> = {
@@ -50,7 +53,16 @@ const PATTERN_LABELS: Record<PatternType, string> = {
   VOGUE: '💃 Vogue',
   FLOW: '🌊 Flow',
   CHAOS: '🎲 Chaos',
-  MINIMAL: '⬜ Minimal'
+  MINIMAL: '⬜ Minimal',
+  // New patterns from other repos
+  ABAB: '🔁 A-B-A-B',
+  AABB: '🔂 A-A-B-B',
+  ABAC: '🎯 A-B-A-C',
+  SNARE_ROLL: '🥁 Snare Roll',
+  GROOVE: '🎵 Groove',
+  EMOTE: '😎 Emote',
+  FOOTWORK: '👟 Footwork',
+  IMPACT: '💥 Impact'
 };
 
 export const MixerUI: React.FC<MixerUIProps> = ({

@@ -644,21 +644,50 @@ export const generatePlayerHTML = (
         const fileInput = document.getElementById('fileInput');
 
         btnMic.onclick = async () => {
+            // Check for secure context (HTTPS required for mic)
+            if (!window.isSecureContext) {
+                alert("🔒 Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
+                return;
+            }
+
+            // Check for getUserMedia support
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert("❌ Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
+                return;
+            }
+
             audioCtx.resume();
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
                 btnMic.classList.remove('red', 'active');
+                btnMic.innerHTML = '🎙️ MIC INPUT';
                 if(sourceNode) { sourceNode.disconnect(); sourceNode=null; }
             } else {
                 try {
-                    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+                    micStream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false
+                        }
+                    });
                     const micNode = audioCtx.createMediaStreamSource(micStream);
                     if(sourceNode) sourceNode.disconnect();
                     sourceNode = micNode;
                     sourceNode.connect(analyser);
                     if(audioEl) audioEl.pause();
                     btnMic.classList.add('red', 'active');
-                } catch(e) { alert("Mic access denied"); }
+                    btnMic.innerHTML = '🔴 LIVE';
+                } catch(e) {
+                    console.error("Mic error:", e);
+                    if (e.name === 'NotAllowedError') {
+                        alert("🎙️ Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
+                    } else if (e.name === 'NotFoundError') {
+                        alert("🎙️ No microphone found.\\n\\nPlease connect a microphone and try again.");
+                    } else {
+                        alert("🎙️ Could not access microphone: " + e.message);
+                    }
+                }
             }
         };
         

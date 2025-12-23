@@ -57,7 +57,19 @@ export type PatternType =
   | 'VOGUE'         // High-frequency poses
   | 'FLOW'          // Smooth transitions only
   | 'CHAOS'         // Random everything
-  | 'MINIMAL';      // Just beats, no flourishes
+  | 'MINIMAL'       // Just beats, no flourishes
+  // New patterns from other repos
+  | 'ABAB'          // Standard alternating A-B-A-B
+  | 'AABB'          // Paired frames A-A-B-B
+  | 'ABAC'          // Third frame for breaks A-B-A-C
+  | 'SNARE_ROLL'    // Repeat single frame on snares
+  | 'GROOVE'        // Mid-energy directional alternating
+  | 'EMOTE'         // Closeup/zoom focused
+  | 'FOOTWORK'      // Lower body focus with pan
+  | 'IMPACT';       // High energy mandalas/hands
+
+/** Stutter burst styles */
+export type StutterStyle = 'SHIVER' | 'JUMP' | 'SMASH' | 'SLICE';
 
 /** Engine types available */
 export type EngineType =
@@ -65,7 +77,11 @@ export type EngineType =
   | 'KINETIC'       // State machine with 11 nodes
   | 'CHAOS'         // Random, high stutter
   | 'MINIMAL'       // Simple beat cuts
-  | 'FLOW';         // Smooth, ambient
+  | 'FLOW'          // Smooth, ambient
+  // New engines from other repos
+  | 'FLUID'         // Optical flow transitions (Fluid-jusdnce)
+  | 'SEQUENCE'      // GROOVE/EMOTE/FOOTWORK/IMPACT state machine
+  | 'PATTERN';      // ABAB/AABB/ABAC pattern cycling
 
 // =============================================================================
 // CHOREOGRAPHY ENGINE INTERFACE
@@ -458,6 +474,339 @@ export class FlowEngine extends BaseEngine {
 }
 
 // =============================================================================
+// FLUID ENGINE - Optical flow transitions (from Fluid-jusdnce)
+// =============================================================================
+
+export class FluidEngine extends BaseEngine {
+  readonly name = 'Fluid';
+  readonly type: EngineType = 'FLUID';
+
+  private lastDirection: 'left' | 'right' = 'left';
+  private burstMode: boolean = false;
+  private burstEndTime: number = 0;
+  private stutterStyle: StutterStyle = 'SHIVER';
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'SMOOTH';
+    let transitionSpeed = 240;
+
+    // Check burst mode (snare-triggered stutter)
+    if (mid > 0.6 && high > 0.6 && !this.burstMode) {
+      this.burstMode = true;
+      this.burstEndTime = time + 400;
+      this.stutterStyle = this.selectRandom(['SHIVER', 'JUMP', 'SMASH', 'SLICE'] as StutterStyle[]);
+    }
+
+    if (time > this.burstEndTime) {
+      this.burstMode = false;
+    }
+
+    // Beat detection with pattern (0-3 cycle)
+    if (beatDetected && (time - this.lastBeatTime) > (this.burstMode ? 60 : 150)) {
+      this.lastBeatTime = time;
+      this.beatCounter = (this.beatCounter + 1) % 4;
+
+      // Beats 0-1: CUT, Beats 2-3: FLOW
+      const isCutBeat = this.beatCounter < 2;
+
+      // Directional ping-pong with 30% repeat chance
+      if (Math.random() > 0.3) {
+        this.lastDirection = this.lastDirection === 'left' ? 'right' : 'left';
+      }
+
+      // Select frame pool
+      let pool: GeneratedFrame[];
+      if (mid > 0.6 && this.closeupFrames.length > 0) {
+        pool = this.closeupFrames;
+      } else if (bass > 0.7) {
+        pool = this.highEnergyFrames;
+      } else {
+        pool = this.lastDirection === 'left' ? this.leftFrames : this.rightFrames;
+        if (pool.length === 0) pool = this.midEnergyFrames;
+      }
+
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.id;
+        frameId = newFrame.id;
+      }
+
+      // Transition mode
+      if (isCutBeat || bass > 0.8) {
+        transitionMode = 'CUT';
+        transitionSpeed = 50;
+        physics.zoom = 1.15;
+        physics.tilt = 15 * (Math.random() - 0.5);
+      } else {
+        transitionMode = 'SLIDE';
+        transitionSpeed = 240;
+        physics.pan.x = this.lastDirection === 'left' ? -0.1 : 0.1;
+      }
+
+      // Beat physics
+      physics.squash = 0.85;
+      physics.bounce = -25 * bass;
+    }
+
+    // Burst mode effects
+    if (this.burstMode) {
+      switch (this.stutterStyle) {
+        case 'SHIVER':
+          physics.pan.x = (Math.random() - 0.5) * 0.15;
+          break;
+        case 'JUMP':
+          physics.bounce = -50 * Math.random();
+          break;
+        case 'SMASH':
+          physics.zoom = Math.random() > 0.5 ? 1.3 : 0.9;
+          break;
+        case 'SLICE':
+          effects.glitch = 0.8;
+          break;
+      }
+      effects.rgbSplit = 0.4;
+    }
+
+    // Continuous physics
+    physics.rotation.x = bass * 20;
+    physics.rotation.y = mid * 15 * Math.sin(time * 0.002);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// SEQUENCE ENGINE - GROOVE/EMOTE/FOOTWORK/IMPACT state machine (from FrequencyGolemz)
+// =============================================================================
+
+type SequenceMode = 'GROOVE' | 'EMOTE' | 'FOOTWORK' | 'IMPACT';
+
+export class SequenceEngine extends BaseEngine {
+  readonly name = 'Sequence';
+  readonly type: EngineType = 'SEQUENCE';
+
+  private sequenceMode: SequenceMode = 'GROOVE';
+  private phraseCounter: number = 0;
+  private barCounter: number = 0;
+
+  // Extended frame pools
+  private feetFrames: GeneratedFrame[] = [];
+  private handFrames: GeneratedFrame[] = [];
+
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void {
+    super.initialize(frames, category);
+    // Try to identify feet/hand frames by pose keywords
+    this.feetFrames = frames.filter(f =>
+      f.pose?.toLowerCase().includes('foot') ||
+      f.pose?.toLowerCase().includes('leg') ||
+      f.energy === 'low'
+    );
+    this.handFrames = frames.filter(f =>
+      f.pose?.toLowerCase().includes('hand') ||
+      f.pose?.toLowerCase().includes('arm') ||
+      f.energy === 'high'
+    );
+    if (this.feetFrames.length === 0) this.feetFrames = this.lowEnergyFrames;
+    if (this.handFrames.length === 0) this.handFrames = this.highEnergyFrames;
+  }
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'CUT';
+    let transitionSpeed = 100;
+
+    // Classify beat type
+    const isDrop = bass > 0.8;
+    const isPeak = high > 0.7;
+    const isFill = this.phraseCounter === 7;
+
+    // Beat detection
+    if (beatDetected && (time - this.lastBeatTime) > 300) {
+      this.lastBeatTime = time;
+      this.phraseCounter = (this.phraseCounter + 1) % 8;
+      this.barCounter = (this.barCounter + 1) % 16;
+
+      // Determine sequence mode
+      if (isPeak && this.closeupFrames.length > 0) {
+        this.sequenceMode = 'EMOTE';
+      } else if (isDrop && this.handFrames.length > 0) {
+        this.sequenceMode = 'IMPACT';
+      } else if (this.barCounter >= 12 && this.feetFrames.length > 0) {
+        this.sequenceMode = 'FOOTWORK';
+      } else if (isFill) {
+        this.sequenceMode = 'IMPACT';
+      } else {
+        this.sequenceMode = 'GROOVE';
+      }
+
+      // Select frame based on mode
+      let pool: GeneratedFrame[];
+      switch (this.sequenceMode) {
+        case 'EMOTE':
+          pool = this.closeupFrames.length > 0 ? this.closeupFrames : this.highEnergyFrames;
+          transitionMode = 'MORPH';
+          transitionSpeed = 150;
+          physics.zoom = 1.5;
+          break;
+        case 'FOOTWORK':
+          pool = this.feetFrames;
+          transitionMode = 'CUT';
+          physics.pan.y = -0.15;
+          break;
+        case 'IMPACT':
+          pool = this.handFrames.length > 0 ? this.handFrames : this.highEnergyFrames;
+          transitionMode = 'CUT';
+          transitionSpeed = 50;
+          effects.rgbSplit = 0.4;
+          effects.flash = 0.3;
+          break;
+        case 'GROOVE':
+        default:
+          // Alternate L/R
+          this.phase = this.phase === 'LEFT' ? 'RIGHT' : 'LEFT';
+          pool = this.phase === 'LEFT' ? this.leftFrames : this.rightFrames;
+          if (pool.length === 0) pool = this.midEnergyFrames;
+          physics.bounce = -20 * bass;
+          break;
+      }
+
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.id;
+        frameId = newFrame.id;
+      }
+    }
+
+    // Continuous physics modulation
+    physics.rotation.x = bass * 25;
+    physics.rotation.y = mid * 15;
+    physics.squash = 1 - (bass * 0.15);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// PATTERN ENGINE - ABAB/AABB/ABAC cycling (from JusDNCE-core2)
+// =============================================================================
+
+type PatternSequence = 'ABAB' | 'AABB' | 'ABAC' | 'SNARE_ROLL' | 'CHAOS_SEQ';
+
+export class PatternEngine extends BaseEngine {
+  readonly name = 'Pattern';
+  readonly type: EngineType = 'PATTERN';
+
+  private currentPattern: PatternSequence = 'ABAB';
+  private patternPosition: number = 0;
+  private barCount: number = 0;
+  private frameA: GeneratedFrame | null = null;
+  private frameB: GeneratedFrame | null = null;
+  private frameC: GeneratedFrame | null = null;
+
+  private selectPatternFrames(): void {
+    // Select three distinct frames for pattern cycling
+    const pool = this.midEnergyFrames.length > 0 ? this.midEnergyFrames : this.frames;
+    if (pool.length >= 3) {
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      this.frameA = shuffled[0];
+      this.frameB = shuffled[1];
+      this.frameC = shuffled[2];
+    } else if (pool.length > 0) {
+      this.frameA = pool[0];
+      this.frameB = pool[pool.length > 1 ? 1 : 0];
+      this.frameC = pool[pool.length > 2 ? 2 : 0];
+    }
+  }
+
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void {
+    super.initialize(frames, category);
+    this.selectPatternFrames();
+  }
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'CUT';
+    let transitionSpeed = 100;
+
+    if (beatDetected && (time - this.lastBeatTime) > 200) {
+      this.lastBeatTime = time;
+      this.patternPosition = (this.patternPosition + 1) % 4;
+
+      // Every 4 bars, potentially change pattern
+      if (this.patternPosition === 0) {
+        this.barCount++;
+        if (this.barCount % 4 === 0) {
+          // Rotate pattern and select new frames
+          const patterns: PatternSequence[] = ['ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'CHAOS_SEQ'];
+          this.currentPattern = patterns[(patterns.indexOf(this.currentPattern) + 1) % patterns.length];
+          this.selectPatternFrames();
+        }
+      }
+
+      // Get frame based on pattern
+      let targetFrame: GeneratedFrame | null = null;
+      const sequences: Record<PatternSequence, string[]> = {
+        'ABAB': ['A', 'B', 'A', 'B'],
+        'AABB': ['A', 'A', 'B', 'B'],
+        'ABAC': ['A', 'B', 'A', 'C'],
+        'SNARE_ROLL': ['B', 'B', 'B', 'B'],
+        'CHAOS_SEQ': ['A', 'C', 'B', 'C']
+      };
+
+      const seq = sequences[this.currentPattern];
+      const frameKey = seq[this.patternPosition];
+
+      switch (frameKey) {
+        case 'A': targetFrame = this.frameA; break;
+        case 'B': targetFrame = this.frameB; break;
+        case 'C': targetFrame = this.frameC; break;
+      }
+
+      if (targetFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = targetFrame.id;
+        frameId = targetFrame.id;
+      }
+
+      // Transition based on position
+      if (this.patternPosition < 2 || bass > 0.7) {
+        transitionMode = 'CUT';
+        transitionSpeed = 50;
+        physics.zoom = 1.1 + bass * 0.1;
+      } else {
+        transitionMode = 'SLIDE';
+        transitionSpeed = 150;
+      }
+
+      // Beat physics
+      physics.squash = 0.9;
+      physics.bounce = -20 * bass;
+    }
+
+    // Continuous modulation
+    physics.rotation.x = bass * 20;
+    physics.rotation.z = high * 10 * Math.sin(time * 0.003);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
 // EFFECTS RACK - Stackable effects modifiers
 // =============================================================================
 
@@ -646,7 +995,11 @@ export class LiveMixer {
       ['REACTIVE', () => new ReactiveEngine()],
       ['CHAOS', () => new ChaosEngine()],
       ['MINIMAL', () => new MinimalEngine()],
-      ['FLOW', () => new FlowEngine()]
+      ['FLOW', () => new FlowEngine()],
+      // New engines from other repos
+      ['FLUID', () => new FluidEngine()],
+      ['SEQUENCE', () => new SequenceEngine()],
+      ['PATTERN', () => new PatternEngine()]
     ]);
   }
 
@@ -789,7 +1142,11 @@ export class LiveMixer {
 
   // Get available patterns
   getAvailablePatterns(): PatternType[] {
-    return ['PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL'];
+    return [
+      'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
+      // New patterns from other repos
+      'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
+    ];
   }
 }
 
@@ -807,6 +1164,9 @@ export function createEngine(type: EngineType): IChoreographyEngine {
     case 'CHAOS': return new ChaosEngine();
     case 'MINIMAL': return new MinimalEngine();
     case 'FLOW': return new FlowEngine();
+    case 'FLUID': return new FluidEngine();
+    case 'SEQUENCE': return new SequenceEngine();
+    case 'PATTERN': return new PatternEngine();
     default: return new ReactiveEngine();
   }
 }
