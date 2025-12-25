@@ -101,9 +101,53 @@ export const generatePlayerHTML = (
         .frame-thumb img { width: 100%; height: 100%; object-fit: contain; }
         .frame-thumb:hover { transform: scale(1.1); border-color: #a78bfa; background: rgba(139,92,246,0.2); }
         .frame-thumb .badge {
-            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7); 
+            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7);
             color: white; font-size: 8px; padding: 2px 4px; border-top-left-radius: 4px;
         }
+
+        /* LIVE MIXER PANEL */
+        #mixerPanel {
+            position: absolute; bottom: 100px; right: 20px; z-index: 100;
+            width: 340px; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
+            padding: 16px; font-family: 'Rajdhani', sans-serif;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.1);
+            display: none;
+        }
+        #mixerPanel.visible { display: block; }
+        #mixerPanel h3 {
+            margin: 0 0 12px 0; font-size: 14px; font-weight: 700;
+            background: linear-gradient(90deg, #00ffff, #a78bfa);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+        .mixer-section { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+        .mixer-section-title { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 8px; letter-spacing: 1px; }
+        .mixer-row { display: flex; gap: 8px; margin-bottom: 8px; }
+        .mixer-select {
+            flex: 1; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 8px; border-radius: 8px; font-size: 11px;
+            font-family: 'Rajdhani', sans-serif; cursor: pointer;
+        }
+        .mixer-select:focus { border-color: #a78bfa; outline: none; }
+        .mixer-slider-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+        .mixer-slider-label { font-size: 10px; color: rgba(255,255,255,0.6); width: 60px; }
+        .mixer-slider {
+            flex: 1; -webkit-appearance: none; height: 6px; border-radius: 3px;
+            background: linear-gradient(90deg, rgba(0,255,255,0.3), rgba(168,85,247,0.3));
+        }
+        .mixer-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+            background: #a78bfa; cursor: pointer; border: 2px solid white;
+        }
+        .pattern-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+        .pattern-btn {
+            padding: 6px 4px; font-size: 9px; border-radius: 6px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.15s;
+        }
+        .pattern-btn:hover { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); }
+        .pattern-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
     </style>
 </head>
 <body>
@@ -129,11 +173,63 @@ export const generatePlayerHTML = (
 
     <div id="deck"></div>
 
+    <!-- LIVE MIXER PANEL -->
+    <div id="mixerPanel">
+        <h3>🎛️ LIVE MIXER</h3>
+
+        <div class="mixer-section">
+            <div class="mixer-section-title">ENGINE</div>
+            <select id="engineSelect" class="mixer-select" style="width: 100%;">
+                <option value="REACTIVE">⚡ Reactive</option>
+                <option value="CHAOS">🌀 Chaos</option>
+                <option value="MINIMAL">◻️ Minimal</option>
+                <option value="FLOW">🌊 Flow</option>
+                <option value="FLUID">💧 Fluid</option>
+                <option value="SEQUENCE">🎬 Sequence</option>
+                <option value="PATTERN">🔄 Pattern</option>
+            </select>
+        </div>
+
+        <div class="mixer-section">
+            <div class="mixer-section-title">PATTERN</div>
+            <div class="pattern-grid" id="patternGrid">
+                <button class="pattern-btn active" data-pattern="PING_PONG">↔️ PING</button>
+                <button class="pattern-btn" data-pattern="BUILD_DROP">📈 DROP</button>
+                <button class="pattern-btn" data-pattern="STUTTER">⚡ STUT</button>
+                <button class="pattern-btn" data-pattern="VOGUE">💃 VOGUE</button>
+                <button class="pattern-btn" data-pattern="FLOW">🌊 FLOW</button>
+                <button class="pattern-btn" data-pattern="CHAOS">🎲 CHAOS</button>
+                <button class="pattern-btn" data-pattern="ABAB">🔁 ABAB</button>
+                <button class="pattern-btn" data-pattern="AABB">🔂 AABB</button>
+                <button class="pattern-btn" data-pattern="ABAC">🎯 ABAC</button>
+                <button class="pattern-btn" data-pattern="SNARE_ROLL">🥁 SNARE</button>
+                <button class="pattern-btn" data-pattern="GROOVE">🎵 GROOVE</button>
+                <button class="pattern-btn" data-pattern="EMOTE">😎 EMOTE</button>
+                <button class="pattern-btn" data-pattern="FOOTWORK">👟 FOOT</button>
+                <button class="pattern-btn" data-pattern="IMPACT">💥 IMPACT</button>
+                <button class="pattern-btn" data-pattern="MINIMAL">⬜ MIN</button>
+            </div>
+        </div>
+
+        <div class="mixer-section">
+            <div class="mixer-section-title">INTENSITY</div>
+            <div class="mixer-slider-row">
+                <span class="mixer-slider-label">Energy</span>
+                <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+            </div>
+            <div class="mixer-slider-row">
+                <span class="mixer-slider-label">Stutter</span>
+                <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+            </div>
+        </div>
+    </div>
+
     <div id="ui">
         <button id="btnPlay">⏯️ PLAY</button>
         <button id="btnMic">🎙️ MIC INPUT</button>
         <div class="separator"></div>
         <button id="btnCam" class="active">🎥 DYNAMIC CAM</button>
+        <button id="btnMixer">🎛️ MIXER</button>
         <button id="btnDeck">👁️ DECK</button>
         <div class="separator"></div>
         <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 LOAD</button>
@@ -277,7 +373,12 @@ export const generatePlayerHTML = (
             closeupLockTime: 0,
             flashIntensity: 0.0,
             dynamicCam: true,
-            filterMode: 'NORMAL' // NORMAL, INVERT, BW
+            filterMode: 'NORMAL', // NORMAL, INVERT, BW
+            // Mixer state
+            engine: 'REACTIVE',
+            pattern: 'PING_PONG',
+            energyMultiplier: 1.0,
+            stutterChance: 0.3
         };
 
         // --- 5. INITIALIZATION LOGIC ---
@@ -456,9 +557,10 @@ export const generatePlayerHTML = (
             const isCloseupLocked = now < STATE.closeupLockTime;
             const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
             
-            // Stutter Logic
-            if (isStuttering && Math.random() < 0.1) {
-                if (Math.random() < 0.35) {
+            // Stutter Logic - Modified by mixer settings
+            const stutterThreshold = STATE.stutterChance * 0.3;
+            if (isStuttering && Math.random() < stutterThreshold) {
+                if (Math.random() < 0.35 || STATE.pattern === 'STUTTER') {
                      // Reverse
                      const swap = STATE.targetPose;
                      triggerTransition(STATE.sourcePose, 'CUT');
@@ -492,10 +594,20 @@ export const generatePlayerHTML = (
                 else if(phase === 'SWING_RIGHT') { STATE.targetTilt = 8; STATE.direction = 'right'; }
                 else { STATE.targetTilt = 0; STATE.direction = 'center'; }
                 
+                // Pool selection based on mixer pattern
                 let pool = [];
+                const pattern = STATE.pattern;
+
                 if(isCloseupLocked) pool = CLOSEUPS;
+                else if(pattern === 'EMOTE' && CLOSEUPS.length > 0) pool = CLOSEUPS;
+                else if(pattern === 'CHAOS') pool = [...FRAMES_BY_ENERGY.low, ...FRAMES_BY_ENERGY.mid, ...FRAMES_BY_ENERGY.high];
+                else if(pattern === 'MINIMAL') pool = FRAMES_BY_ENERGY.low;
+                else if(pattern === 'IMPACT' || pattern === 'BUILD_DROP') pool = FRAMES_BY_ENERGY.high;
+                else if(pattern === 'GROOVE' || pattern === 'FLOW') pool = FRAMES_BY_ENERGY.mid;
+                else if(pattern === 'FOOTWORK') pool = FRAMES_BY_ENERGY.mid.filter(f => f.direction === 'left' || f.direction === 'right');
                 else {
-                    if (energyTrend > 0.1 && FRAMES_BY_ENERGY.high.length > 0) pool = FRAMES_BY_ENERGY.high;
+                    // Original logic for PING_PONG, ABAB, AABB, etc.
+                    if (energyTrend > 0.1 * STATE.energyMultiplier && FRAMES_BY_ENERGY.high.length > 0) pool = FRAMES_BY_ENERGY.high;
                     else {
                         if(phase === 'WARMUP') pool = FRAMES_BY_ENERGY.low;
                         else if(phase === 'SWING_LEFT') pool = FRAMES_BY_ENERGY.mid.filter(f=>f.direction==='left');
@@ -709,6 +821,41 @@ export const generatePlayerHTML = (
         btnDeck.onclick = () => {
             deck.classList.toggle('visible');
             btnDeck.classList.toggle('active');
+        };
+
+        // --- MIXER HANDLERS ---
+        const btnMixer = document.getElementById('btnMixer');
+        const mixerPanel = document.getElementById('mixerPanel');
+        const engineSelect = document.getElementById('engineSelect');
+        const patternGrid = document.getElementById('patternGrid');
+        const energySlider = document.getElementById('energySlider');
+        const stutterSlider = document.getElementById('stutterSlider');
+
+        btnMixer.onclick = () => {
+            mixerPanel.classList.toggle('visible');
+            btnMixer.classList.toggle('active');
+        };
+
+        engineSelect.onchange = (e) => {
+            STATE.engine = e.target.value;
+            console.log('Engine changed to:', STATE.engine);
+        };
+
+        patternGrid.querySelectorAll('.pattern-btn').forEach(btn => {
+            btn.onclick = () => {
+                patternGrid.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.pattern = btn.dataset.pattern;
+                console.log('Pattern changed to:', STATE.pattern);
+            };
+        });
+
+        energySlider.oninput = (e) => {
+            STATE.energyMultiplier = e.target.value / 50; // 0-2 range
+        };
+
+        stutterSlider.oninput = (e) => {
+            STATE.stutterChance = e.target.value / 100; // 0-1 range
         };
 
         // --- 9. DRAG AND DROP ---
