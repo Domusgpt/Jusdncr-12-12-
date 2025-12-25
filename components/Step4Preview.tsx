@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2 } from 'lucide-react';
+import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2, Disc3 } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -8,6 +8,8 @@ import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
+import { MixerUI } from './MixerUI';
+import { EngineType, PatternType, EffectsRackState } from '../engine/LiveMixer';
 
 interface Step4Props {
   state: AppState;
@@ -80,7 +82,33 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
   const [showEffects, setShowEffects] = useState(false); // Effects Panel Visibility
+  const [showMixer, setShowMixer] = useState(false); // LiveMixer Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
+
+  // LiveMixer State
+  const [mixerState, setMixerState] = useState({
+    deckAEngine: 'REACTIVE' as EngineType,
+    deckAPattern: 'PING_PONG' as PatternType,
+    deckBEngine: 'FLOW' as EngineType,
+    deckBPattern: 'FLOW' as PatternType,
+    crossfader: 0,
+    effects: {
+      rgbSplit: 0,
+      flash: 0,
+      glitch: 0,
+      zoomPulse: 0,
+      invert: false,
+      grayscale: false,
+      mirror: false,
+      strobe: false
+    } as EffectsRackState
+  });
+
+  const availableEngines: EngineType[] = ['REACTIVE', 'CHAOS', 'MINIMAL', 'FLOW', 'FLUID', 'SEQUENCE', 'PATTERN'];
+  const availablePatterns: PatternType[] = [
+    'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
+    'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
+  ];
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
 
   // User-controlled effects state
@@ -1099,6 +1127,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           </div>
       )}
 
+      {/* LIVE MIXER PANEL */}
+      <MixerUI
+        deckAEngine={mixerState.deckAEngine}
+        deckAPattern={mixerState.deckAPattern}
+        onDeckAEngineChange={(engine) => setMixerState(s => ({ ...s, deckAEngine: engine }))}
+        onDeckAPatternChange={(pattern) => setMixerState(s => ({ ...s, deckAPattern: pattern }))}
+        deckBEngine={mixerState.deckBEngine}
+        deckBPattern={mixerState.deckBPattern}
+        onDeckBEngineChange={(engine) => setMixerState(s => ({ ...s, deckBEngine: engine }))}
+        onDeckBPatternChange={(pattern) => setMixerState(s => ({ ...s, deckBPattern: pattern }))}
+        crossfader={mixerState.crossfader}
+        onCrossfaderChange={(value) => setMixerState(s => ({ ...s, crossfader: value }))}
+        effects={mixerState.effects}
+        onEffectChange={(effect, value) => setMixerState(s => ({
+          ...s,
+          effects: { ...s.effects, [effect]: value }
+        }))}
+        availableEngines={availableEngines}
+        availablePatterns={availablePatterns}
+        isOpen={showMixer}
+        onToggle={() => setShowMixer(!showMixer)}
+      />
+
       <div className="absolute inset-0 pointer-events-none z-30 p-6 flex flex-col justify-between">
           <div className="flex justify-between items-start">
              <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
@@ -1130,6 +1181,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                    <button onClick={() => setShowEffects(!showEffects)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showEffects ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Wand2 size={16} /> FX</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> CAM</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => setShowMixer(!showMixer)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showMixer ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Disc3 size={16} /> MIXER</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
                    <div className="h-8 w-[1px] bg-white/10" />
