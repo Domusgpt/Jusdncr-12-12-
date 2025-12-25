@@ -1,11 +1,11 @@
-# GitHub Actions workflow for deploying ALL versions of jusDNCE
-# Builds each branch into its own subfolder
+# GitHub Actions workflow for deploying ALL branches for comparison
+# Auto-detects and builds all claude/* branches without requiring merge
 
-name: Deploy to GitHub Pages
+name: Deploy All Branches
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'claude/*']
   workflow_dispatch:
 
 permissions:
@@ -34,7 +34,7 @@ jobs:
       - name: Create output directory
         run: mkdir -p all-versions
 
-      # Build MAIN (current/enhanced)
+      # Build current branch (main)
       - name: Build main branch
         run: |
           echo "Building main..."
@@ -45,38 +45,44 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VITE_BASE_PATH: /Jusdncr-12-12-/main/
 
-      # Build enhanced-choreography branch
-      - name: Build enhanced-choreography branch
+      # Dynamically build all claude/* branches
+      - name: Build all claude branches
         run: |
-          echo "Building enhanced-choreography..."
-          git checkout origin/claude/enhanced-choreography-engine-DcgEQ -- . 2>/dev/null || true
-          rm -rf node_modules
-          npm ci
-          npm run build
-          mv dist all-versions/enhanced
-          git checkout main -- .
+          # Get all remote claude/* branches
+          BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///' | tr -d ' ')
+
+          for BRANCH in $BRANCHES; do
+            # Create safe folder name (replace / with -)
+            FOLDER=$(echo "$BRANCH" | sed 's/claude\///' | sed 's/\//-/g' | cut -c1-30)
+            echo "========================================"
+            echo "Building branch: $BRANCH -> $FOLDER"
+            echo "========================================"
+
+            # Checkout branch files
+            git checkout "origin/$BRANCH" -- . 2>/dev/null || continue
+
+            # Clean and rebuild
+            rm -rf node_modules dist
+            npm ci
+            VITE_BASE_PATH="/Jusdncr-12-12-/$FOLDER/" npm run build || continue
+
+            # Move to output
+            mv dist "all-versions/$FOLDER"
+
+            # Reset to main
+            git checkout main -- .
+            git clean -fd
+          done
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VITE_BASE_PATH: /Jusdncr-12-12-/enhanced/
 
-      # Build audio-reactive branch
-      - name: Build audio-reactive branch
-        run: |
-          echo "Building audio-reactive..."
-          git checkout origin/claude/audio-reactive-architecture-uNqO9 -- . 2>/dev/null || true
-          rm -rf node_modules
-          npm ci
-          npm run build
-          mv dist all-versions/audio-reactive
-          git checkout main -- .
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VITE_BASE_PATH: /Jusdncr-12-12-/audio-reactive/
-
-      # Create landing page
+      # Create landing page with all versions
       - name: Create landing page
         run: |
-          cat > all-versions/index.html << 'EOF'
+          # Get list of built versions
+          VERSIONS=$(ls -1 all-versions | grep -v index.html || echo "main")
+
+          cat > all-versions/index.html << 'HTMLEOF'
           <!DOCTYPE html>
           <html lang="en">
           <head>
@@ -86,25 +92,59 @@ jobs:
             <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
             <style>
               *{margin:0;padding:0;box-sizing:border-box}
-              body{font-family:'Rajdhani',sans-serif;background:#0a0a0a;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff}
-              h1{font-size:3.5rem;margin-bottom:2rem;background:linear-gradient(90deg,#0ff,#8b5cf6,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-              .grid{display:flex;gap:1.5rem;flex-wrap:wrap;justify-content:center;padding:1rem}
-              a{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:2rem;text-decoration:none;color:#fff;min-width:200px;text-align:center;transition:all .3s}
-              a:hover{border-color:#8b5cf6;transform:translateY(-5px);box-shadow:0 20px 40px rgba(139,92,246,0.3)}
-              h2{font-size:1.3rem;margin-bottom:.5rem}
-              p{opacity:.6;font-size:.85rem}
+              body{font-family:'Rajdhani',sans-serif;background:linear-gradient(135deg,#0a0a0a,#1a1a2e);min-height:100vh;color:#fff;padding:40px 20px}
+              .container{max-width:1200px;margin:0 auto}
+              h1{font-size:3rem;text-align:center;margin-bottom:1rem;background:linear-gradient(90deg,#0ff,#8b5cf6,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+              .subtitle{text-align:center;color:rgba(255,255,255,0.5);margin-bottom:3rem;font-size:1.1rem}
+              .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+              .card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.5rem;text-decoration:none;color:#fff;transition:all .3s}
+              .card:hover{border-color:#8b5cf6;transform:translateY(-5px);box-shadow:0 20px 40px rgba(139,92,246,0.2)}
+              .card h2{font-size:1.2rem;margin-bottom:.5rem;color:#fff}
+              .card p{opacity:.5;font-size:.85rem;word-break:break-all}
+              .card .tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.7rem;margin-top:.5rem}
+              .tag.main{background:rgba(0,255,255,0.2);color:#0ff}
+              .tag.feature{background:rgba(139,92,246,0.2);color:#a78bfa}
+              .refresh{position:fixed;bottom:20px;right:20px;background:#8b5cf6;color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:700}
             </style>
           </head>
           <body>
-            <h1>jusDNCE</h1>
-            <div class="grid">
-              <a href="./main/"><h2>Main</h2><p>Latest stable</p></a>
-              <a href="./enhanced/"><h2>Enhanced</h2><p>Pre-analyzed choreography</p></a>
-              <a href="./audio-reactive/"><h2>Audio Reactive</h2><p>Tuned beat response</p></a>
+            <div class="container">
+              <h1>jusDNCE</h1>
+              <p class="subtitle">All deployed versions for comparison</p>
+              <div class="grid" id="grid"></div>
             </div>
+            <button class="refresh" onclick="location.reload()">Refresh</button>
+            <script>
+              // Auto-generate cards for each version folder
+              const versions = [
+          HTMLEOF
+
+          # Add each version to the JS array
+          for dir in all-versions/*/; do
+            name=$(basename "$dir")
+            echo "        { name: '$name', path: './$name/' }," >> all-versions/index.html
+          done
+
+          cat >> all-versions/index.html << 'HTMLEOF'
+              ];
+
+              const grid = document.getElementById('grid');
+              versions.forEach(v => {
+                const isMain = v.name === 'main';
+                const card = document.createElement('a');
+                card.href = v.path;
+                card.className = 'card';
+                card.innerHTML = `
+                  <h2>${isMain ? '🏠 Main' : '🔀 ' + v.name}</h2>
+                  <p>${v.path}</p>
+                  <span class="tag ${isMain ? 'main' : 'feature'}">${isMain ? 'STABLE' : 'FEATURE'}</span>
+                `;
+                grid.appendChild(card);
+              });
+            </script>
           </body>
           </html>
-          EOF
+          HTMLEOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
