@@ -69,8 +69,8 @@ jobs:
             # Move to output
             mv dist "all-versions/$FOLDER"
 
-            # Reset to main
-            git checkout main -- .
+            # Reset to main (use origin/main since we're in detached state)
+            git checkout origin/main -- . 2>/dev/null || git checkout HEAD -- .
             git clean -fd
           done
         env:
