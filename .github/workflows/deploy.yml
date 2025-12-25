@@ -71,7 +71,8 @@ jobs:
 
             # Reset to main (use origin/main since we're in detached state)
             git checkout origin/main -- . 2>/dev/null || git checkout HEAD -- .
-            git clean -fd
+            # Clean but exclude all-versions directory
+            git clean -fd -e all-versions
           done
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
