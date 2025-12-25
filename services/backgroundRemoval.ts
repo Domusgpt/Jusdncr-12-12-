@@ -22,10 +22,22 @@ export interface ChromaKeyOptions {
 
 const DEFAULT_OPTIONS: ChromaKeyOptions = {
   targetColor: { r: 0, g: 255, b: 0 }, // Green screen default
-  tolerance: 60,
-  edgeSoftness: 0.3,
+  tolerance: 80, // Increased for better coverage
+  edgeSoftness: 0.2, // Tighter edges
   autoDetect: true
 };
+
+// Common background colors to try if auto-detect fails
+const FALLBACK_COLORS = [
+  { r: 0, g: 255, b: 0 },     // Bright green
+  { r: 0, g: 200, b: 0 },     // Dark green
+  { r: 255, g: 255, b: 255 }, // White
+  { r: 240, g: 240, b: 240 }, // Light gray
+  { r: 200, g: 200, b: 200 }, // Medium gray
+  { r: 128, g: 128, b: 128 }, // Gray
+  { r: 0, g: 0, b: 255 },     // Blue
+  { r: 0, g: 128, b: 255 },   // Light blue
+];
 
 /**
  * Detect the most common edge color (likely background)
@@ -85,7 +97,75 @@ function colorDistance(c1: { r: number; g: number; b: number }, c2: { r: number;
 }
 
 /**
- * Remove background from an image using chroma key
+ * Apply chroma key removal to image data
+ */
+function applyChromaKey(
+  imageData: ImageData,
+  targetColor: { r: number; g: number; b: number },
+  tolerance: number,
+  edgeSoftness: number
+): number {
+  const { data } = imageData;
+  const maxDistance = tolerance * 3;
+  let removedPixels = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const pixelColor = {
+      r: data[i],
+      g: data[i + 1],
+      b: data[i + 2]
+    };
+
+    const distance = colorDistance(pixelColor, targetColor);
+
+    if (distance < maxDistance) {
+      const normalizedDistance = distance / maxDistance;
+
+      if (normalizedDistance < (1 - edgeSoftness)) {
+        data[i + 3] = 0;
+        removedPixels++;
+      } else {
+        const edgeAlpha = (normalizedDistance - (1 - edgeSoftness)) / edgeSoftness;
+        const newAlpha = Math.floor(255 * edgeAlpha);
+        if (newAlpha < data[i + 3]) {
+          data[i + 3] = newAlpha;
+          removedPixels++;
+        }
+      }
+    }
+  }
+
+  return removedPixels;
+}
+
+/**
+ * Check if a color is likely a background (not skin tone, not too saturated)
+ */
+function isLikelyBackground(color: { r: number; g: number; b: number }): boolean {
+  const { r, g, b } = color;
+
+  // Skip skin tones
+  if (r > 150 && g > 100 && g < 180 && b > 50 && b < 150) {
+    return false;
+  }
+
+  // Accept very uniform colors (gray, white, solid colors)
+  const variance = Math.abs(r - g) + Math.abs(g - b) + Math.abs(r - b);
+
+  // Accept greens specifically
+  if (g > r && g > b && g > 100) return true;
+
+  // Accept whites/grays
+  if (variance < 60 && (r + g + b) / 3 > 100) return true;
+
+  // Accept blues
+  if (b > r && b > g && b > 100) return true;
+
+  return variance < 80;
+}
+
+/**
+ * Remove background from an image using chroma key with multiple fallback strategies
  */
 export async function removeBackground(
   imageUrl: string,
@@ -111,49 +191,81 @@ export async function removeBackground(
 
         // Draw image
         ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const { data } = imageData;
+        const originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-        // Auto-detect background color if enabled
-        let targetColor = opts.targetColor!;
+        // Calculate total edge pixels for threshold
+        const totalPixels = canvas.width * canvas.height;
+        const minRemovalThreshold = totalPixels * 0.15; // At least 15% should be removed for valid BG
+
+        let bestResult: ImageData | null = null;
+        let bestRemovedCount = 0;
+        let bestColor: { r: number; g: number; b: number } | null = null;
+
+        // Strategy 1: Auto-detect from edges
         if (opts.autoDetect) {
-          targetColor = detectBackgroundColor(imageData);
-          console.log('[BG Removal] Auto-detected background color:', targetColor);
-        }
+          const detectedColor = detectBackgroundColor(originalData);
 
-        const tolerance = opts.tolerance!;
-        const maxDistance = tolerance * 3; // Max possible weighted distance for tolerance
+          if (isLikelyBackground(detectedColor)) {
+            const testData = new ImageData(
+              new Uint8ClampedArray(originalData.data),
+              originalData.width,
+              originalData.height
+            );
 
-        // Process each pixel
-        for (let i = 0; i < data.length; i += 4) {
-          const pixelColor = {
-            r: data[i],
-            g: data[i + 1],
-            b: data[i + 2]
-          };
+            const removed = applyChromaKey(testData, detectedColor, opts.tolerance!, opts.edgeSoftness!);
 
-          const distance = colorDistance(pixelColor, targetColor);
-
-          if (distance < maxDistance) {
-            // Calculate alpha based on distance (soft edge)
-            const normalizedDistance = distance / maxDistance;
-            const softness = opts.edgeSoftness!;
-
-            if (normalizedDistance < (1 - softness)) {
-              // Fully transparent
-              data[i + 3] = 0;
-            } else {
-              // Partial transparency for soft edges
-              const edgeAlpha = (normalizedDistance - (1 - softness)) / softness;
-              data[i + 3] = Math.floor(255 * edgeAlpha);
+            if (removed > bestRemovedCount && removed > minRemovalThreshold) {
+              bestRemovedCount = removed;
+              bestResult = testData;
+              bestColor = detectedColor;
             }
           }
-          // Otherwise keep original alpha (fully opaque)
         }
 
-        ctx.putImageData(imageData, 0, 0);
+        // Strategy 2: Try common fallback colors
+        for (const fallbackColor of FALLBACK_COLORS) {
+          const testData = new ImageData(
+            new Uint8ClampedArray(originalData.data),
+            originalData.width,
+            originalData.height
+          );
 
-        // Return as PNG to preserve transparency
+          const removed = applyChromaKey(testData, fallbackColor, opts.tolerance!, opts.edgeSoftness!);
+
+          if (removed > bestRemovedCount && removed > minRemovalThreshold) {
+            bestRemovedCount = removed;
+            bestResult = testData;
+            bestColor = fallbackColor;
+          }
+        }
+
+        // Strategy 3: Try with higher tolerance if nothing worked well
+        if (bestRemovedCount < minRemovalThreshold) {
+          const detectedColor = detectBackgroundColor(originalData);
+          const testData = new ImageData(
+            new Uint8ClampedArray(originalData.data),
+            originalData.width,
+            originalData.height
+          );
+
+          // Try with much higher tolerance
+          const removed = applyChromaKey(testData, detectedColor, 120, 0.15);
+
+          if (removed > bestRemovedCount) {
+            bestRemovedCount = removed;
+            bestResult = testData;
+            bestColor = detectedColor;
+          }
+        }
+
+        // Apply best result or return original if nothing worked
+        if (bestResult && bestRemovedCount > minRemovalThreshold * 0.5) {
+          ctx.putImageData(bestResult, 0, 0);
+          console.log(`[BG Removal] Removed ${bestRemovedCount} pixels using color:`, bestColor);
+        } else {
+          console.log('[BG Removal] Could not find suitable background to remove');
+        }
+
         resolve(canvas.toDataURL('image/png'));
 
       } catch (e) {
