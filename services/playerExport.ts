@@ -247,6 +247,49 @@ export const generatePlayerHTML = (
         }
         .fx-toggle:hover { background: rgba(139,92,246,0.2); }
         .fx-toggle.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+
+        /* INTERACTIVE ENHANCEMENTS */
+        /* Keyboard hints */
+        .key-hint {
+            font-size: 8px; color: rgba(255,255,255,0.3); font-weight: 600;
+            display: block; margin-top: 2px;
+        }
+        /* Audio-reactive glow on mixer panel */
+        #mixerPanel.pulse { box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 60px rgba(139,92,246,0.3); }
+        /* Beat flash on BPM display */
+        .bpm-value.beat { text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; }
+        /* Trigger pad ripple effect */
+        .trigger-pad.ripple::after {
+            content: ''; position: absolute; inset: 0; border-radius: 8px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            animation: ripple 0.3s ease-out; pointer-events: none;
+        }
+        @keyframes ripple {
+            from { transform: scale(0); opacity: 1; }
+            to { transform: scale(2); opacity: 0; }
+        }
+        .trigger-pad { position: relative; overflow: hidden; }
+        /* Pattern shuffle button */
+        .shuffle-btn {
+            padding: 4px 10px; font-size: 9px; font-weight: 600;
+            background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3);
+            color: #00ff88; cursor: pointer; border-radius: 6px; margin-left: auto;
+            transition: all 0.15s;
+        }
+        .shuffle-btn:hover { background: rgba(0,255,136,0.2); }
+        .shuffle-btn.active { background: #00ff88; color: black; animation: pulse 0.5s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+        /* Help overlay */
+        #helpOverlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 500; background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 16px;
+            padding: 24px 32px; min-width: 360px; display: none;
+        }
+        #helpOverlay h3 { color: #00ffff; margin: 0 0 16px 0; font-size: 16px; }
+        #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace; }
+        #helpOverlay .desc { color: rgba(255,255,255,0.6); }
     </style>
 </head>
 <body>
@@ -356,12 +399,12 @@ export const generatePlayerHTML = (
             </div>
 
             <div class="mixer-section">
-                <div class="mixer-section-title">TRIGGER PADS</div>
+                <div class="mixer-section-title">TRIGGER PADS (hold to activate)</div>
                 <div class="trigger-pads">
-                    <button class="trigger-pad" data-trigger="stutter">STUTTER</button>
-                    <button class="trigger-pad" data-trigger="reverse">REVERSE</button>
-                    <button class="trigger-pad" data-trigger="glitch">GLITCH</button>
-                    <button class="trigger-pad" data-trigger="burst">BURST</button>
+                    <button class="trigger-pad" data-trigger="stutter" data-key="q">STUTTER<span class="key-hint">[Q]</span></button>
+                    <button class="trigger-pad" data-trigger="reverse" data-key="w">REVERSE<span class="key-hint">[W]</span></button>
+                    <button class="trigger-pad" data-trigger="glitch" data-key="e">GLITCH<span class="key-hint">[E]</span></button>
+                    <button class="trigger-pad" data-trigger="burst" data-key="r">BURST<span class="key-hint">[R]</span></button>
                 </div>
             </div>
         </div>
@@ -413,18 +456,21 @@ export const generatePlayerHTML = (
             </div>
 
             <div class="mixer-section">
-                <div class="mixer-section-title">PATTERNS</div>
+                <div style="display:flex; align-items:center; margin-bottom:8px;">
+                    <div class="mixer-section-title" style="margin:0;">PATTERNS [1-0]</div>
+                    <button id="shuffleBtn" class="shuffle-btn">SHUFFLE</button>
+                </div>
                 <div class="pattern-grid" id="patternGrid">
-                    <button class="pattern-btn active" data-pattern="PING_PONG">PING</button>
-                    <button class="pattern-btn" data-pattern="BUILD_DROP">DROP</button>
-                    <button class="pattern-btn" data-pattern="STUTTER">STUT</button>
-                    <button class="pattern-btn" data-pattern="VOGUE">VOGUE</button>
-                    <button class="pattern-btn" data-pattern="FLOW">FLOW</button>
-                    <button class="pattern-btn" data-pattern="CHAOS">CHAOS</button>
-                    <button class="pattern-btn" data-pattern="ABAB">ABAB</button>
-                    <button class="pattern-btn" data-pattern="AABB">AABB</button>
-                    <button class="pattern-btn" data-pattern="ABAC">ABAC</button>
-                    <button class="pattern-btn" data-pattern="SNARE_ROLL">SNARE</button>
+                    <button class="pattern-btn active" data-pattern="PING_PONG" data-key="1">PING</button>
+                    <button class="pattern-btn" data-pattern="BUILD_DROP" data-key="2">DROP</button>
+                    <button class="pattern-btn" data-pattern="STUTTER" data-key="3">STUT</button>
+                    <button class="pattern-btn" data-pattern="VOGUE" data-key="4">VOGUE</button>
+                    <button class="pattern-btn" data-pattern="FLOW" data-key="5">FLOW</button>
+                    <button class="pattern-btn" data-pattern="CHAOS" data-key="6">CHAOS</button>
+                    <button class="pattern-btn" data-pattern="ABAB" data-key="7">ABAB</button>
+                    <button class="pattern-btn" data-pattern="AABB" data-key="8">AABB</button>
+                    <button class="pattern-btn" data-pattern="ABAC" data-key="9">ABAC</button>
+                    <button class="pattern-btn" data-pattern="SNARE_ROLL" data-key="0">SNARE</button>
                     <button class="pattern-btn" data-pattern="GROOVE">GROOVE</button>
                     <button class="pattern-btn" data-pattern="EMOTE">EMOTE</button>
                     <button class="pattern-btn" data-pattern="FOOTWORK">FOOT</button>
@@ -500,6 +546,22 @@ export const generatePlayerHTML = (
         </div>
     </div>
 
+    <!-- Help Overlay -->
+    <div id="helpOverlay">
+        <h3>KEYBOARD SHORTCUTS</h3>
+        <div class="hotkey-row"><span class="key">SPACE</span><span class="desc">Play/Pause audio</span></div>
+        <div class="hotkey-row"><span class="key">M</span><span class="desc">Toggle mixer panel</span></div>
+        <div class="hotkey-row"><span class="key">D</span><span class="desc">Toggle frame deck</span></div>
+        <div class="hotkey-row"><span class="key">C</span><span class="desc">Toggle dynamic camera</span></div>
+        <div class="hotkey-row"><span class="key">Q W E R</span><span class="desc">Trigger pads (hold)</span></div>
+        <div class="hotkey-row"><span class="key">1-0</span><span class="desc">Select patterns 1-10</span></div>
+        <div class="hotkey-row"><span class="key">L</span><span class="desc">Toggle LEGACY/LABAN</span></div>
+        <div class="hotkey-row"><span class="key">K</span><span class="desc">Toggle PATTERN/KINETIC</span></div>
+        <div class="hotkey-row"><span class="key">S</span><span class="desc">Toggle pattern shuffle</span></div>
+        <div class="hotkey-row"><span class="key">?</span><span class="desc">Show/hide this help</span></div>
+        <div style="margin-top:16px; text-align:center; color:rgba(255,255,255,0.4); font-size:10px;">Press ? to close</div>
+    </div>
+
     <div id="ui">
         <button id="btnPlay">PLAY</button>
         <button id="btnMic">MIC</button>
@@ -509,6 +571,7 @@ export const generatePlayerHTML = (
         <button id="btnDeck">DECK</button>
         <div class="separator"></div>
         <button id="btnLoad" onclick="document.getElementById('fileInput').click()">LOAD</button>
+        <button id="btnHelp">?</button>
         <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
     </div>
 
@@ -670,6 +733,10 @@ export const generatePlayerHTML = (
             beatIntervals: [],
             // Trigger states
             triggers: { stutter: false, reverse: false, glitch: false, burst: false },
+            // Interactive mode state
+            shuffleMode: false,
+            shuffleInterval: null,
+            helpVisible: false,
             // FX state
             fx: {
                 rgb: 0, flash: 0, glitch: 0, zoom: 0,
@@ -1416,6 +1483,145 @@ export const generatePlayerHTML = (
                 btnPlay.classList.add('active');
             }
         }
+
+        // --- 10. INTERACTIVE FEATURES ---
+        const helpOverlay = document.getElementById('helpOverlay');
+        const btnHelp = document.getElementById('btnHelp');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const PATTERNS = ['PING_PONG','BUILD_DROP','STUTTER','VOGUE','FLOW','CHAOS','ABAB','AABB','ABAC','SNARE_ROLL','GROOVE','EMOTE','FOOTWORK','IMPACT','MINIMAL'];
+
+        // Help button and overlay
+        function toggleHelp() {
+            STATE.helpVisible = !STATE.helpVisible;
+            helpOverlay.style.display = STATE.helpVisible ? 'block' : 'none';
+        }
+        btnHelp.onclick = toggleHelp;
+
+        // Shuffle mode
+        function toggleShuffle() {
+            STATE.shuffleMode = !STATE.shuffleMode;
+            shuffleBtn.classList.toggle('active', STATE.shuffleMode);
+            if (STATE.shuffleMode) {
+                STATE.shuffleInterval = setInterval(() => {
+                    const newPattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+                    STATE.pattern = newPattern;
+                    patternGrid.querySelectorAll('.pattern-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.pattern === newPattern);
+                    });
+                }, 4000);
+            } else if (STATE.shuffleInterval) {
+                clearInterval(STATE.shuffleInterval);
+                STATE.shuffleInterval = null;
+            }
+        }
+        shuffleBtn.onclick = toggleShuffle;
+
+        // Keyboard shortcuts
+        const triggerKeyMap = { q: 'stutter', w: 'reverse', e: 'glitch', r: 'burst' };
+        const patternKeyMap = { '1': 'PING_PONG', '2': 'BUILD_DROP', '3': 'STUTTER', '4': 'VOGUE', '5': 'FLOW',
+                                '6': 'CHAOS', '7': 'ABAB', '8': 'AABB', '9': 'ABAC', '0': 'SNARE_ROLL' };
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+
+            // Don't capture if typing in input
+            if (e.target.tagName === 'INPUT') return;
+
+            // Trigger pads (hold)
+            if (triggerKeyMap[key] && !e.repeat) {
+                const trigger = triggerKeyMap[key];
+                STATE.triggers[trigger] = true;
+                document.querySelector(\`[data-trigger="\${trigger}"]\`)?.classList.add('active', 'ripple');
+            }
+
+            // Pattern selection
+            if (patternKeyMap[key]) {
+                STATE.pattern = patternKeyMap[key];
+                patternGrid.querySelectorAll('.pattern-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.pattern === patternKeyMap[key]);
+                });
+            }
+
+            // Space = play/pause
+            if (key === ' ') {
+                e.preventDefault();
+                btnPlay.click();
+            }
+
+            // M = toggle mixer
+            if (key === 'm') {
+                btnMixer.click();
+            }
+
+            // D = toggle deck
+            if (key === 'd') {
+                btnDeck.click();
+            }
+
+            // C = toggle camera
+            if (key === 'c') {
+                btnCam.click();
+            }
+
+            // L = toggle LEGACY/LABAN
+            if (key === 'l') {
+                STATE.physicsStyle = STATE.physicsStyle === 'LEGACY' ? 'LABAN' : 'LEGACY';
+                document.querySelectorAll('.physics-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.physics === STATE.physicsStyle);
+                });
+                if (labanDisplay) {
+                    labanDisplay.style.display = STATE.physicsStyle === 'LABAN' ? 'block' : 'none';
+                }
+            }
+
+            // K = toggle PATTERN/KINETIC
+            if (key === 'k') {
+                STATE.engineMode = STATE.engineMode === 'PATTERN' ? 'KINETIC' : 'PATTERN';
+                document.querySelectorAll('.engine-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.mode === STATE.engineMode);
+                });
+            }
+
+            // S = toggle shuffle
+            if (key === 's') {
+                toggleShuffle();
+            }
+
+            // ? = toggle help
+            if (key === '?' || (e.shiftKey && key === '/')) {
+                toggleHelp();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            // Release trigger pads
+            if (triggerKeyMap[key]) {
+                const trigger = triggerKeyMap[key];
+                STATE.triggers[trigger] = false;
+                const pad = document.querySelector(\`[data-trigger="\${trigger}"]\`);
+                if (pad) {
+                    pad.classList.remove('active');
+                    setTimeout(() => pad.classList.remove('ripple'), 300);
+                }
+            }
+        });
+
+        // Beat flash on BPM value
+        const bpmValueEl = document.getElementById('bpmValue');
+        setInterval(() => {
+            if (bpmValueEl && STATE.bpm > 0) {
+                const beatInterval = 60000 / STATE.bpm;
+                const timeSinceBeat = Date.now() - STATE.lastBeatTime;
+                if (timeSinceBeat < 100) {
+                    bpmValueEl.classList.add('beat');
+                    mixerPanel.classList.add('pulse');
+                } else {
+                    bpmValueEl.classList.remove('beat');
+                    mixerPanel.classList.remove('pulse');
+                }
+            }
+        }, 50);
     </script>
 </body>
 </html>`;
