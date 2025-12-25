@@ -264,3 +264,25 @@ export {
   // Factory
   createGolemMixer
 } from './GolemMixer';
+
+// =============================================================================
+// UNIFIED CHOREOGRAPHER (New - Combines LEGACY/LABAN + KINETIC/PATTERN)
+// =============================================================================
+
+export {
+  // Types
+  type PhysicsStyle,
+  type EngineMode as UnifiedEngineMode,
+  type SequenceMode as UnifiedSequenceMode,
+  type PatternType as UnifiedPatternType,
+  type AudioData as UnifiedAudioData,
+  type ChoreographerConfig,
+  type ChoreographerState,
+  type ChoreographerOutput,
+
+  // Classes
+  UnifiedChoreographer,
+
+  // Factory
+  createUnifiedChoreographer
+} from './UnifiedChoreographer';

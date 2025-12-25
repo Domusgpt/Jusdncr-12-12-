@@ -169,14 +169,15 @@ export const generatePlayerHTML = (
         .deck-indicator.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
         /* Engine Mode Toggle */
         .engine-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
-        .engine-btn {
+        .engine-btn, .physics-btn {
             flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700;
             background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
             color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
             transition: all 0.15s; text-align: center;
         }
-        .engine-btn:hover { background: rgba(139,92,246,0.2); }
+        .engine-btn:hover, .physics-btn:hover { background: rgba(139,92,246,0.2); }
         .engine-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        .physics-btn.active { background: #00ffff; border-color: #00ffff; color: black; }
         /* Sequence Mode Indicators */
         .seq-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
         .seq-mode {
@@ -368,10 +369,36 @@ export const generatePlayerHTML = (
         <!-- ENGINE TAB -->
         <div id="tabEngine" class="tab-content" style="display:none;">
             <div class="mixer-section">
-                <div class="mixer-section-title">ENGINE MODE</div>
-                <div class="engine-toggle">
+                <div class="mixer-section-title">PHYSICS STYLE (how frames move)</div>
+                <div class="engine-toggle" id="physicsToggle">
+                    <button class="physics-btn active" data-physics="LEGACY">LEGACY</button>
+                    <button class="physics-btn" data-physics="LABAN">LABAN</button>
+                </div>
+                <div class="mixer-section-title" style="margin-top:8px;">ENGINE MODE (which frame selected)</div>
+                <div class="engine-toggle" id="engineToggle">
                     <button class="engine-btn active" data-mode="PATTERN">PATTERN</button>
                     <button class="engine-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
+                <!-- LABAN Effort Display (shows when LABAN active) -->
+                <div id="labanDisplay" style="display:none; margin-top:8px; padding:8px; background:rgba(0,255,255,0.1); border-radius:6px; border:1px solid rgba(0,255,255,0.2);">
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:4px; font-size:9px;">
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">WEIGHT</div>
+                            <div id="effortWeight" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">SPACE</div>
+                            <div id="effortSpace" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">TIME</div>
+                            <div id="effortTime" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">FLOW</div>
+                            <div id="effortFlow" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -624,11 +651,14 @@ export const generatePlayerHTML = (
             dynamicCam: true,
             filterMode: 'NORMAL', // NORMAL, INVERT, BW
             // Golem Mixer state
-            engineMode: 'PATTERN', // PATTERN or KINETIC
+            physicsStyle: 'LEGACY', // LEGACY or LABAN (how frames move)
+            engineMode: 'PATTERN', // PATTERN or KINETIC (which frame selected)
             pattern: 'PING_PONG',
             sequenceMode: 'GROOVE', // GROOVE, EMOTE, IMPACT, FOOTWORK
             energyMultiplier: 1.0,
             stutterChance: 0.3,
+            // LABAN effort state (calculated from audio)
+            labanEffort: { weight: 0.5, space: 0.5, time: 0.5, flow: 0.5 },
             // 4-channel deck modes
             deckModes: ['sequencer', 'off', 'off', 'off'],
             activeDeck: 0,
@@ -798,22 +828,55 @@ export const generatePlayerHTML = (
             const energyTrend = energy - avgEnergy;
 
             // Physics Update (Spring Solver)
+            // LABAN mode: Calculate effort factors from audio
+            if (STATE.physicsStyle === 'LABAN') {
+                // Weight: bass = strong, low bass = light
+                STATE.labanEffort.weight = bass;
+                // Space: high freq = direct, low = indirect
+                STATE.labanEffort.space = high;
+                // Time: energy volatility = sudden, stable = sustained
+                const energyVariance = Math.abs(energyTrend);
+                STATE.labanEffort.time = Math.min(1, energyVariance * 5);
+                // Flow: mid stability = bound, variable = free
+                STATE.labanEffort.flow = 1 - mid;
+            }
+
             if(STATE.dynamicCam) {
-                const stiffness = 140;
-                const damping = 8;
-                
-                const tRotX = bass * 35.0;
-                const tRotY = mid * 25.0 * Math.sin(now * 0.005);
-                const tRotZ = high * 15.0;
-                
+                let stiffness = 140;
+                let damping = 8;
+                let rotScale = 1.0;
+                let squashMod = 1.0;
+                let bounceMod = 1.0;
+
+                // Apply LABAN effort modifiers
+                if (STATE.physicsStyle === 'LABAN') {
+                    const e = STATE.labanEffort;
+                    rotScale = 0.5 + e.space * 1.5;     // Direct space = more rotation
+                    squashMod = 0.5 + e.weight * 1.0;  // Strong weight = more squash
+                    bounceMod = 0.5 + e.time * 1.5;    // Sudden time = more bounce
+                    // Bound flow = sharper transitions (higher stiffness)
+                    stiffness = 100 + e.flow * 80;
+                    damping = 5 + (1 - e.flow) * 6;
+                }
+
+                const tRotX = bass * 35.0 * rotScale;
+                const tRotY = mid * 25.0 * Math.sin(now * 0.005) * rotScale;
+                const tRotZ = high * 15.0 * rotScale;
+
                 STATE.masterVel.x += ((tRotX - STATE.masterRot.x) * stiffness - STATE.masterVel.x * damping) * dt;
                 STATE.masterRot.x += STATE.masterVel.x * dt;
-                
+
                 STATE.masterVel.y += ((tRotY - STATE.masterRot.y) * stiffness*0.5 - STATE.masterVel.y * damping*0.8) * dt;
                 STATE.masterRot.y += STATE.masterVel.y * dt;
-                
+
                 STATE.masterVel.z += ((tRotZ - STATE.masterRot.z) * stiffness - STATE.masterVel.z * damping) * dt;
                 STATE.masterRot.z += STATE.masterVel.z * dt;
+
+                // Apply LABAN squash/bounce modifiers
+                if (STATE.physicsStyle === 'LABAN') {
+                    STATE.charSquash = 1 - (STATE.labanEffort.weight * 0.3 * squashMod);
+                    STATE.charBounceY = -STATE.labanEffort.time * 60 * bounceMod * bass;
+                }
             } else {
                 STATE.masterRot = {x:0, y:0, z:0};
             }
@@ -1050,6 +1113,19 @@ export const generatePlayerHTML = (
             
             document.getElementById('fps').innerText = Math.round(1/dt) + ' FPS';
             document.getElementById('poseDisplay').innerText = STATE.targetPose.toUpperCase();
+
+            // Update LABAN effort display (if visible)
+            if (STATE.physicsStyle === 'LABAN') {
+                const e = STATE.labanEffort;
+                const weightEl = document.getElementById('effortWeight');
+                const spaceEl = document.getElementById('effortSpace');
+                const timeEl = document.getElementById('effortTime');
+                const flowEl = document.getElementById('effortFlow');
+                if (weightEl) weightEl.innerText = e.weight.toFixed(2);
+                if (spaceEl) spaceEl.innerText = e.space.toFixed(2);
+                if (timeEl) timeEl.innerText = e.time.toFixed(2);
+                if (flowEl) flowEl.innerText = e.flow.toFixed(2);
+            }
         }
 
         loadRig();
@@ -1171,7 +1247,21 @@ export const generatePlayerHTML = (
             });
         }
 
-        // Engine Mode Toggle
+        // Physics Style Toggle (LEGACY vs LABAN)
+        const labanDisplay = document.getElementById('labanDisplay');
+        document.querySelectorAll('.physics-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.physics-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.physicsStyle = btn.dataset.physics;
+                // Show/hide LABAN effort display
+                if (labanDisplay) {
+                    labanDisplay.style.display = btn.dataset.physics === 'LABAN' ? 'block' : 'none';
+                }
+            };
+        });
+
+        // Engine Mode Toggle (PATTERN vs KINETIC)
         document.querySelectorAll('.engine-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
