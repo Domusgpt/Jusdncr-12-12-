@@ -7,7 +7,7 @@ export enum AppStep {
   PREVIEW = 3,
 }
 
-export type StyleCategory = 'Cinematic' | 'Anime/2D' | 'Digital/Glitch' | 'Artistic';
+export type StyleCategory = 'Cinematic' | 'Anime/2D' | 'Digital/Glitch' | 'Artistic' | 'Abstract';
 export type SubjectCategory = 'CHARACTER' | 'TEXT' | 'SYMBOL';
 export type FrameType = 'body' | 'closeup'; // Distinguish full body from facial frames
 export type SheetRole = 'base' | 'alt' | 'flourish' | 'smooth'; // Added 'smooth'
@@ -61,13 +61,14 @@ export interface AppState {
   user: AuthUser | null; // Auth state
   showAuthModal: boolean;
   showPaymentModal: boolean;
-  
+
   userTier: UserTier;
   imageFile: File | null;
   imagePreviewUrl: string | null;
   audioFile: File | null;
   audioPreviewUrl: string | null;
   selectedStyleId: string;
+  cutoutMode: boolean; // NEW: Remove background for character cutout over visualizer
   
   // Advanced / Morphing State
   secondaryStyleId: string; // Target style to morph into
@@ -100,8 +101,9 @@ export const DEFAULT_STATE: AppState = {
   imagePreviewUrl: null,
   audioFile: null,
   audioPreviewUrl: null,
-  selectedStyleId: 'natural', 
-  
+  selectedStyleId: 'natural',
+  cutoutMode: false, // NEW: Off by default
+
   secondaryStyleId: '',
   morphIntensity: 0,
   reactivity: 80,
