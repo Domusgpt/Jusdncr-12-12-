@@ -105,14 +105,14 @@ export const generatePlayerHTML = (
             color: white; font-size: 8px; padding: 2px 4px; border-top-left-radius: 4px;
         }
 
-        /* LIVE MIXER PANEL */
+        /* GOLEM MIXER PANEL */
         #mixerPanel {
             position: absolute; bottom: 100px; right: 20px; z-index: 100;
-            width: 340px; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            width: 380px; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
             border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
             padding: 16px; font-family: 'Rajdhani', sans-serif;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.1);
-            display: none;
+            display: none; max-height: 80vh; overflow-y: auto;
         }
         #mixerPanel.visible { display: block; }
         #mixerPanel h3 {
@@ -121,6 +121,15 @@ export const generatePlayerHTML = (
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             letter-spacing: 2px;
         }
+        .mixer-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+        .mixer-tab {
+            flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 8px;
+            transition: all 0.15s; text-align: center;
+        }
+        .mixer-tab:hover { background: rgba(139,92,246,0.2); }
+        .mixer-tab.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
         .mixer-section { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
         .mixer-section-title { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 8px; letter-spacing: 1px; }
         .mixer-row { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -140,6 +149,48 @@ export const generatePlayerHTML = (
             -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
             background: #a78bfa; cursor: pointer; border: 2px solid white;
         }
+        /* 4-Channel Deck Grid */
+        .deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+        .deck-channel {
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; padding: 8px; text-align: center;
+        }
+        .deck-channel.active { border-color: #a78bfa; background: rgba(139,92,246,0.1); }
+        .deck-label { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+        .deck-mode-select {
+            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 4px; border-radius: 4px; font-size: 9px;
+            font-family: 'Rajdhani', sans-serif; cursor: pointer;
+        }
+        .deck-indicator {
+            width: 8px; height: 8px; border-radius: 50%; margin: 4px auto 0;
+            background: rgba(255,255,255,0.2); transition: all 0.2s;
+        }
+        .deck-indicator.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        /* Engine Mode Toggle */
+        .engine-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+        .engine-btn {
+            flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
+            transition: all 0.15s; text-align: center;
+        }
+        .engine-btn:hover { background: rgba(139,92,246,0.2); }
+        .engine-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        /* Sequence Mode Indicators */
+        .seq-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+        .seq-mode {
+            padding: 6px 4px; font-size: 9px; font-weight: 600;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.5); border-radius: 6px; text-align: center;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .seq-mode:hover { background: rgba(139,92,246,0.15); }
+        .seq-mode.active {
+            background: rgba(0,255,136,0.2); border-color: #00ff88; color: #00ff88;
+            box-shadow: 0 0 8px rgba(0,255,136,0.3);
+        }
+        /* Pattern Grid */
         .pattern-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
         .pattern-btn {
             padding: 6px 4px; font-size: 9px; border-radius: 6px;
@@ -148,6 +199,53 @@ export const generatePlayerHTML = (
         }
         .pattern-btn:hover { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); }
         .pattern-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        /* BPM Display */
+        .bpm-display {
+            display: flex; align-items: center; gap: 12px; padding: 8px;
+            background: rgba(0,0,0,0.3); border-radius: 8px; margin-bottom: 8px;
+        }
+        .bpm-value { font-size: 24px; font-weight: 900; color: #00ffff; min-width: 60px; }
+        .bpm-label { font-size: 10px; color: rgba(255,255,255,0.5); }
+        .bar-counter {
+            display: flex; gap: 2px; flex: 1;
+        }
+        .bar-beat {
+            width: 8px; height: 16px; background: rgba(255,255,255,0.1);
+            border-radius: 2px; transition: all 0.1s;
+        }
+        .bar-beat.active { background: #a78bfa; }
+        .bar-beat.downbeat { background: #00ffff; }
+        /* Trigger Pads */
+        .trigger-pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .trigger-pad {
+            padding: 12px 4px; font-size: 10px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7); cursor: pointer; border-radius: 8px;
+            transition: all 0.1s; text-align: center; user-select: none;
+        }
+        .trigger-pad:hover { background: rgba(139,92,246,0.2); }
+        .trigger-pad:active, .trigger-pad.active {
+            background: #ef4444; border-color: #f87171; color: white;
+            transform: scale(0.95); box-shadow: 0 0 12px rgba(239,68,68,0.5);
+        }
+        /* FX Grid */
+        .fx-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .fx-slider-container { text-align: center; }
+        .fx-slider {
+            width: 100%; height: 60px; -webkit-appearance: slider-vertical;
+            writing-mode: vertical-lr; direction: rtl;
+            background: transparent;
+        }
+        .fx-label { font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .fx-toggles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+        .fx-toggle {
+            padding: 6px 10px; font-size: 9px; font-weight: 600;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .fx-toggle:hover { background: rgba(139,92,246,0.2); }
+        .fx-toggle.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
     </style>
 </head>
 <body>
@@ -173,66 +271,217 @@ export const generatePlayerHTML = (
 
     <div id="deck"></div>
 
-    <!-- LIVE MIXER PANEL -->
+    <!-- GOLEM MIXER PANEL -->
     <div id="mixerPanel">
-        <h3>🎛️ LIVE MIXER</h3>
+        <h3>GOLEM MIXER</h3>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">ENGINE</div>
-            <select id="engineSelect" class="mixer-select" style="width: 100%;">
-                <option value="REACTIVE">⚡ Reactive</option>
-                <option value="CHAOS">🌀 Chaos</option>
-                <option value="MINIMAL">◻️ Minimal</option>
-                <option value="FLOW">🌊 Flow</option>
-                <option value="FLUID">💧 Fluid</option>
-                <option value="SEQUENCE">🎬 Sequence</option>
-                <option value="PATTERN">🔄 Pattern</option>
-            </select>
+        <!-- Tab Navigation -->
+        <div class="mixer-tabs">
+            <button class="mixer-tab active" data-tab="decks">DECKS</button>
+            <button class="mixer-tab" data-tab="engine">ENGINE</button>
+            <button class="mixer-tab" data-tab="fx">FX</button>
         </div>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">PATTERN</div>
-            <div class="pattern-grid" id="patternGrid">
-                <button class="pattern-btn active" data-pattern="PING_PONG">↔️ PING</button>
-                <button class="pattern-btn" data-pattern="BUILD_DROP">📈 DROP</button>
-                <button class="pattern-btn" data-pattern="STUTTER">⚡ STUT</button>
-                <button class="pattern-btn" data-pattern="VOGUE">💃 VOGUE</button>
-                <button class="pattern-btn" data-pattern="FLOW">🌊 FLOW</button>
-                <button class="pattern-btn" data-pattern="CHAOS">🎲 CHAOS</button>
-                <button class="pattern-btn" data-pattern="ABAB">🔁 ABAB</button>
-                <button class="pattern-btn" data-pattern="AABB">🔂 AABB</button>
-                <button class="pattern-btn" data-pattern="ABAC">🎯 ABAC</button>
-                <button class="pattern-btn" data-pattern="SNARE_ROLL">🥁 SNARE</button>
-                <button class="pattern-btn" data-pattern="GROOVE">🎵 GROOVE</button>
-                <button class="pattern-btn" data-pattern="EMOTE">😎 EMOTE</button>
-                <button class="pattern-btn" data-pattern="FOOTWORK">👟 FOOT</button>
-                <button class="pattern-btn" data-pattern="IMPACT">💥 IMPACT</button>
-                <button class="pattern-btn" data-pattern="MINIMAL">⬜ MIN</button>
+        <!-- DECKS TAB -->
+        <div id="tabDecks" class="tab-content">
+            <div class="mixer-section">
+                <div class="mixer-section-title">4-CHANNEL DECK SYSTEM</div>
+                <div class="deck-grid">
+                    <div class="deck-channel active" data-deck="1">
+                        <div class="deck-label">CH 1</div>
+                        <select class="deck-mode-select" data-deck="1">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off">OFF</option>
+                        </select>
+                        <div class="deck-indicator active"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="2">
+                        <div class="deck-label">CH 2</div>
+                        <select class="deck-mode-select" data-deck="2">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="3">
+                        <div class="deck-label">CH 3</div>
+                        <select class="deck-mode-select" data-deck="3">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="4">
+                        <div class="deck-label">CH 4</div>
+                        <select class="deck-mode-select" data-deck="4">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">BPM / BAR</div>
+                <div class="bpm-display">
+                    <div>
+                        <div class="bpm-value" id="bpmValue">120</div>
+                        <div class="bpm-label">BPM</div>
+                    </div>
+                    <div class="bar-counter" id="barCounter">
+                        <div class="bar-beat downbeat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">TRIGGER PADS</div>
+                <div class="trigger-pads">
+                    <button class="trigger-pad" data-trigger="stutter">STUTTER</button>
+                    <button class="trigger-pad" data-trigger="reverse">REVERSE</button>
+                    <button class="trigger-pad" data-trigger="glitch">GLITCH</button>
+                    <button class="trigger-pad" data-trigger="burst">BURST</button>
+                </div>
             </div>
         </div>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">INTENSITY</div>
-            <div class="mixer-slider-row">
-                <span class="mixer-slider-label">Energy</span>
-                <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+        <!-- ENGINE TAB -->
+        <div id="tabEngine" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">ENGINE MODE</div>
+                <div class="engine-toggle">
+                    <button class="engine-btn active" data-mode="PATTERN">PATTERN</button>
+                    <button class="engine-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
             </div>
-            <div class="mixer-slider-row">
-                <span class="mixer-slider-label">Stutter</span>
-                <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">SEQUENCE MODE</div>
+                <div class="seq-modes" id="seqModes">
+                    <button class="seq-mode active" data-seq="GROOVE">GROOVE</button>
+                    <button class="seq-mode" data-seq="EMOTE">EMOTE</button>
+                    <button class="seq-mode" data-seq="IMPACT">IMPACT</button>
+                    <button class="seq-mode" data-seq="FOOTWORK">FOOTWRK</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">PATTERNS</div>
+                <div class="pattern-grid" id="patternGrid">
+                    <button class="pattern-btn active" data-pattern="PING_PONG">PING</button>
+                    <button class="pattern-btn" data-pattern="BUILD_DROP">DROP</button>
+                    <button class="pattern-btn" data-pattern="STUTTER">STUT</button>
+                    <button class="pattern-btn" data-pattern="VOGUE">VOGUE</button>
+                    <button class="pattern-btn" data-pattern="FLOW">FLOW</button>
+                    <button class="pattern-btn" data-pattern="CHAOS">CHAOS</button>
+                    <button class="pattern-btn" data-pattern="ABAB">ABAB</button>
+                    <button class="pattern-btn" data-pattern="AABB">AABB</button>
+                    <button class="pattern-btn" data-pattern="ABAC">ABAC</button>
+                    <button class="pattern-btn" data-pattern="SNARE_ROLL">SNARE</button>
+                    <button class="pattern-btn" data-pattern="GROOVE">GROOVE</button>
+                    <button class="pattern-btn" data-pattern="EMOTE">EMOTE</button>
+                    <button class="pattern-btn" data-pattern="FOOTWORK">FOOT</button>
+                    <button class="pattern-btn" data-pattern="IMPACT">IMPACT</button>
+                    <button class="pattern-btn" data-pattern="MINIMAL">MIN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">INTENSITY</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Energy</span>
+                    <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Stutter</span>
+                    <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+                </div>
+            </div>
+        </div>
+
+        <!-- FX TAB -->
+        <div id="tabFx" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX SLIDERS</div>
+                <div class="fx-grid">
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxRgb" min="0" max="100" value="0">
+                        <div class="fx-label">RGB</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxFlash" min="0" max="100" value="0">
+                        <div class="fx-label">FLASH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxGlitch" min="0" max="100" value="0">
+                        <div class="fx-label">GLITCH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxZoom" min="0" max="100" value="0">
+                        <div class="fx-label">ZOOM</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX TOGGLES</div>
+                <div class="fx-toggles">
+                    <button class="fx-toggle" data-fx="invert">INVERT</button>
+                    <button class="fx-toggle" data-fx="grayscale">B+W</button>
+                    <button class="fx-toggle" data-fx="mirror">MIRROR</button>
+                    <button class="fx-toggle" data-fx="strobe">STROBE</button>
+                    <button class="fx-toggle" data-fx="pixelate">PIXEL</button>
+                    <button class="fx-toggle" data-fx="scanlines">SCAN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FILTER</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Hue</span>
+                    <input type="range" id="fxHue" class="mixer-slider" min="0" max="360" value="0">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Saturation</span>
+                    <input type="range" id="fxSaturation" class="mixer-slider" min="0" max="200" value="100">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Contrast</span>
+                    <input type="range" id="fxContrast" class="mixer-slider" min="50" max="150" value="100">
+                </div>
             </div>
         </div>
     </div>
 
     <div id="ui">
-        <button id="btnPlay">⏯️ PLAY</button>
-        <button id="btnMic">🎙️ MIC INPUT</button>
+        <button id="btnPlay">PLAY</button>
+        <button id="btnMic">MIC</button>
         <div class="separator"></div>
-        <button id="btnCam" class="active">🎥 DYNAMIC CAM</button>
-        <button id="btnMixer">🎛️ MIXER</button>
-        <button id="btnDeck">👁️ DECK</button>
+        <button id="btnCam" class="active">CAM</button>
+        <button id="btnMixer">MIXER</button>
+        <button id="btnDeck">DECK</button>
         <div class="separator"></div>
-        <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 LOAD</button>
+        <button id="btnLoad" onclick="document.getElementById('fileInput').click()">LOAD</button>
         <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
     </div>
 
@@ -374,11 +623,30 @@ export const generatePlayerHTML = (
             flashIntensity: 0.0,
             dynamicCam: true,
             filterMode: 'NORMAL', // NORMAL, INVERT, BW
-            // Mixer state
-            engine: 'REACTIVE',
+            // Golem Mixer state
+            engineMode: 'PATTERN', // PATTERN or KINETIC
             pattern: 'PING_PONG',
+            sequenceMode: 'GROOVE', // GROOVE, EMOTE, IMPACT, FOOTWORK
             energyMultiplier: 1.0,
-            stutterChance: 0.3
+            stutterChance: 0.3,
+            // 4-channel deck modes
+            deckModes: ['sequencer', 'off', 'off', 'off'],
+            activeDeck: 0,
+            // BPM tracking
+            bpm: 120,
+            beatInBar: 0,
+            barCount: 0,
+            lastBeatTime: 0,
+            beatIntervals: [],
+            // Trigger states
+            triggers: { stutter: false, reverse: false, glitch: false, burst: false },
+            // FX state
+            fx: {
+                rgb: 0, flash: 0, glitch: 0, zoom: 0,
+                invert: false, grayscale: false, mirror: false, strobe: false,
+                pixelate: false, scanlines: false,
+                hue: 0, saturation: 100, contrast: 100
+            }
         };
 
         // --- 5. INITIALIZATION LOGIC ---
@@ -519,7 +787,10 @@ export const generatePlayerHTML = (
             const mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
             const high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
             const energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
-            
+
+            // Update BPM detection (function defined in mixer handlers)
+            if (typeof updateBPM === 'function') updateBPM(bass, now);
+
             // Trend Analysis
             energyHistory.shift();
             energyHistory.push(energy);
@@ -556,11 +827,14 @@ export const generatePlayerHTML = (
             // The Brain (Choreography)
             const isCloseupLocked = now < STATE.closeupLockTime;
             const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
-            
-            // Stutter Logic - Modified by mixer settings
+
+            // Trigger Pad: Stutter (force stutter when held)
+            const stutterActive = STATE.triggers.stutter || isStuttering;
+
+            // Stutter Logic - Modified by mixer settings and trigger pads
             const stutterThreshold = STATE.stutterChance * 0.3;
-            if (isStuttering && Math.random() < stutterThreshold) {
-                if (Math.random() < 0.35 || STATE.pattern === 'STUTTER') {
+            if ((stutterActive && Math.random() < stutterThreshold) || STATE.triggers.stutter) {
+                if (Math.random() < 0.35 || STATE.pattern === 'STUTTER' || STATE.triggers.stutter) {
                      // Reverse
                      const swap = STATE.targetPose;
                      triggerTransition(STATE.sourcePose, 'CUT');
@@ -568,6 +842,18 @@ export const generatePlayerHTML = (
                      STATE.charSkew = (Math.random() - 0.5) * 2.0;
                      STATE.masterRot.z += (Math.random() - 0.5) * 10;
                 }
+            }
+
+            // Trigger Pad: Reverse (swap poses when held)
+            if (STATE.triggers.reverse && Math.random() < 0.15) {
+                const swap = STATE.targetPose;
+                triggerTransition(STATE.sourcePose, 'CUT');
+                STATE.sourcePose = swap;
+            }
+
+            // Strobe effect
+            if (STATE.fx.strobe && now % 100 < 50) {
+                STATE.flashIntensity = 0.9;
             }
 
             // Rhythm Logic
@@ -674,14 +960,35 @@ export const generatePlayerHTML = (
             if(charC.width !== w || charC.height !== h) { charC.width=w; charC.height=h; }
             const cx = w/2; const cy = h/2;
             ctx.clearRect(0,0,w,h);
-            
-            if(STATE.filterMode === 'INVERT') ctx.filter = 'invert(1)';
-            else if(STATE.filterMode === 'BW') ctx.filter = 'grayscale(1)';
-            else ctx.filter = 'none';
-            
-            if(STATE.flashIntensity > 0.01) {
-                ctx.fillStyle = \`rgba(255,255,255,\${STATE.flashIntensity})\`;
+
+            // Build filter string from FX state
+            let filters = [];
+            if(STATE.fx.invert) filters.push('invert(1)');
+            if(STATE.fx.grayscale) filters.push('grayscale(1)');
+            if(STATE.fx.hue !== 0) filters.push(\`hue-rotate(\${STATE.fx.hue}deg)\`);
+            if(STATE.fx.saturation !== 100) filters.push(\`saturate(\${STATE.fx.saturation}%)\`);
+            if(STATE.fx.contrast !== 100) filters.push(\`contrast(\${STATE.fx.contrast}%)\`);
+            // Legacy filter mode support
+            if(STATE.filterMode === 'INVERT' && !STATE.fx.invert) filters.push('invert(1)');
+            if(STATE.filterMode === 'BW' && !STATE.fx.grayscale) filters.push('grayscale(1)');
+            ctx.filter = filters.length > 0 ? filters.join(' ') : 'none';
+
+            // Flash from FX or trigger
+            const flashAmount = Math.max(STATE.flashIntensity, STATE.fx.flash, STATE.triggers.burst ? 0.8 : 0);
+            if(flashAmount > 0.01) {
+                ctx.fillStyle = \`rgba(255,255,255,\${flashAmount})\`;
                 ctx.fillRect(0,0,w,h);
+            }
+
+            // Glitch effect from FX
+            if(STATE.fx.glitch > 0 || STATE.triggers.glitch) {
+                const glitchAmount = Math.max(STATE.fx.glitch, STATE.triggers.glitch ? 0.8 : 0);
+                if(Math.random() < glitchAmount * 0.3) {
+                    const sliceH = Math.random() * h * 0.1;
+                    const sliceY = Math.random() * h;
+                    const offset = (Math.random() - 0.5) * w * glitchAmount * 0.1;
+                    ctx.drawImage(charC, 0, sliceY, w, sliceH, offset, sliceY, w, sliceH);
+                }
             }
 
             const drawLayer = (pose, opacity, blur, skew, extraScale) => {
@@ -758,13 +1065,13 @@ export const generatePlayerHTML = (
         btnMic.onclick = async () => {
             // Check for secure context (HTTPS required for mic)
             if (!window.isSecureContext) {
-                alert("🔒 Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
+                alert("Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
                 return;
             }
 
             // Check for getUserMedia support
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("❌ Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
+                alert("Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
                 return;
             }
 
@@ -789,15 +1096,15 @@ export const generatePlayerHTML = (
                     sourceNode.connect(analyser);
                     if(audioEl) audioEl.pause();
                     btnMic.classList.add('red', 'active');
-                    btnMic.innerHTML = '🔴 LIVE';
+                    btnMic.innerHTML = 'LIVE';
                 } catch(e) {
                     console.error("Mic error:", e);
                     if (e.name === 'NotAllowedError') {
-                        alert("🎙️ Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
+                        alert("Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
                     } else if (e.name === 'NotFoundError') {
-                        alert("🎙️ No microphone found.\\n\\nPlease connect a microphone and try again.");
+                        alert("No microphone found.\\n\\nPlease connect a microphone and try again.");
                     } else {
-                        alert("🎙️ Could not access microphone: " + e.message);
+                        alert("Could not access microphone: " + e.message);
                     }
                 }
             }
@@ -823,10 +1130,9 @@ export const generatePlayerHTML = (
             btnDeck.classList.toggle('active');
         };
 
-        // --- MIXER HANDLERS ---
+        // --- GOLEM MIXER HANDLERS ---
         const btnMixer = document.getElementById('btnMixer');
         const mixerPanel = document.getElementById('mixerPanel');
-        const engineSelect = document.getElementById('engineSelect');
         const patternGrid = document.getElementById('patternGrid');
         const energySlider = document.getElementById('energySlider');
         const stutterSlider = document.getElementById('stutterSlider');
@@ -836,27 +1142,159 @@ export const generatePlayerHTML = (
             btnMixer.classList.toggle('active');
         };
 
-        engineSelect.onchange = (e) => {
-            STATE.engine = e.target.value;
-            console.log('Engine changed to:', STATE.engine);
-        };
+        // Tab Navigation
+        document.querySelectorAll('.mixer-tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.mixer-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+                tab.classList.add('active');
+                const tabId = 'tab' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+                document.getElementById(tabId).style.display = 'block';
+            };
+        });
 
+        // Deck Mode Selects
+        document.querySelectorAll('.deck-mode-select').forEach(select => {
+            select.onchange = (e) => {
+                const deckId = parseInt(e.target.dataset.deck) - 1;
+                STATE.deckModes[deckId] = e.target.value;
+                updateDeckIndicators();
+            };
+        });
+
+        function updateDeckIndicators() {
+            document.querySelectorAll('.deck-channel').forEach((ch, i) => {
+                const indicator = ch.querySelector('.deck-indicator');
+                const isActive = STATE.deckModes[i] !== 'off';
+                indicator.classList.toggle('active', isActive);
+                ch.classList.toggle('active', i === STATE.activeDeck && isActive);
+            });
+        }
+
+        // Engine Mode Toggle
+        document.querySelectorAll('.engine-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.engineMode = btn.dataset.mode;
+            };
+        });
+
+        // Sequence Mode
+        document.querySelectorAll('.seq-mode').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.seq-mode').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.sequenceMode = btn.dataset.seq;
+            };
+        });
+
+        // Pattern Grid
         patternGrid.querySelectorAll('.pattern-btn').forEach(btn => {
             btn.onclick = () => {
                 patternGrid.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 STATE.pattern = btn.dataset.pattern;
-                console.log('Pattern changed to:', STATE.pattern);
             };
         });
 
+        // Intensity Sliders
         energySlider.oninput = (e) => {
-            STATE.energyMultiplier = e.target.value / 50; // 0-2 range
+            STATE.energyMultiplier = e.target.value / 50;
         };
 
         stutterSlider.oninput = (e) => {
-            STATE.stutterChance = e.target.value / 100; // 0-1 range
+            STATE.stutterChance = e.target.value / 100;
         };
+
+        // Trigger Pads (mousedown/mouseup for hold behavior)
+        document.querySelectorAll('.trigger-pad').forEach(pad => {
+            const trigger = pad.dataset.trigger;
+            pad.onmousedown = () => { STATE.triggers[trigger] = true; pad.classList.add('active'); };
+            pad.onmouseup = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+            pad.onmouseleave = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+            // Touch support
+            pad.ontouchstart = (e) => { e.preventDefault(); STATE.triggers[trigger] = true; pad.classList.add('active'); };
+            pad.ontouchend = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+        });
+
+        // FX Sliders
+        ['Rgb', 'Flash', 'Glitch', 'Zoom'].forEach(fx => {
+            const slider = document.getElementById('fx' + fx);
+            if (slider) {
+                slider.oninput = (e) => {
+                    STATE.fx[fx.toLowerCase()] = e.target.value / 100;
+                };
+            }
+        });
+
+        // FX Toggles
+        document.querySelectorAll('.fx-toggle').forEach(toggle => {
+            toggle.onclick = () => {
+                const fx = toggle.dataset.fx;
+                STATE.fx[fx] = !STATE.fx[fx];
+                toggle.classList.toggle('active', STATE.fx[fx]);
+            };
+        });
+
+        // Filter Sliders
+        ['Hue', 'Saturation', 'Contrast'].forEach(filter => {
+            const slider = document.getElementById('fx' + filter);
+            if (slider) {
+                slider.oninput = (e) => {
+                    STATE.fx[filter.toLowerCase()] = parseFloat(e.target.value);
+                };
+            }
+        });
+
+        // BPM Detection (simple onset detection)
+        function updateBPM(bass, now) {
+            if (bass > 0.5 && (now - STATE.lastBeatTime) > 200) {
+                const interval = now - STATE.lastBeatTime;
+                STATE.lastBeatTime = now;
+
+                if (interval < 2000 && interval > 200) {
+                    STATE.beatIntervals.push(interval);
+                    if (STATE.beatIntervals.length > 8) STATE.beatIntervals.shift();
+
+                    if (STATE.beatIntervals.length >= 4) {
+                        const avgInterval = STATE.beatIntervals.reduce((a,b) => a+b, 0) / STATE.beatIntervals.length;
+                        STATE.bpm = Math.round(60000 / avgInterval);
+                        STATE.bpm = Math.max(60, Math.min(200, STATE.bpm));
+                        document.getElementById('bpmValue').innerText = STATE.bpm;
+                    }
+                }
+
+                // Update bar counter
+                STATE.beatInBar = (STATE.beatInBar + 1) % 16;
+                if (STATE.beatInBar === 0) STATE.barCount++;
+
+                const beats = document.querySelectorAll('.bar-beat');
+                beats.forEach((b, i) => {
+                    b.classList.remove('active', 'downbeat');
+                    if (i === STATE.beatInBar) {
+                        b.classList.add(i % 4 === 0 ? 'downbeat' : 'active');
+                    }
+                });
+
+                // Auto-update sequence mode based on energy
+                if (STATE.engineMode === 'KINETIC') {
+                    const avgEnergy = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length;
+                    let newSeqMode = STATE.sequenceMode;
+                    if (avgEnergy > 0.6) newSeqMode = 'IMPACT';
+                    else if (avgEnergy > 0.4) newSeqMode = 'GROOVE';
+                    else if (avgEnergy > 0.2) newSeqMode = 'FOOTWORK';
+                    else newSeqMode = 'EMOTE';
+
+                    if (newSeqMode !== STATE.sequenceMode) {
+                        STATE.sequenceMode = newSeqMode;
+                        document.querySelectorAll('.seq-mode').forEach(b => {
+                            b.classList.toggle('active', b.dataset.seq === newSeqMode);
+                        });
+                    }
+                }
+            }
+        }
 
         // --- 9. DRAG AND DROP ---
         document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-active'); });
