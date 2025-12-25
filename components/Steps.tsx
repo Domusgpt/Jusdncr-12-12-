@@ -216,7 +216,7 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
 /* -------------------------------------------------------------------------- */
 
 interface Step2Props {
-  config: Pick<AppState, 'selectedStyleId' | 'intensity' | 'duration' | 'motionPrompt' | 'credits' | 'motionPreset' | 'useTurbo' | 'secondaryStyleId' | 'morphIntensity' | 'reactivity' | 'superMode'>;
+  config: Pick<AppState, 'selectedStyleId' | 'intensity' | 'duration' | 'motionPrompt' | 'credits' | 'motionPreset' | 'useTurbo' | 'secondaryStyleId' | 'morphIntensity' | 'reactivity' | 'superMode' | 'cutoutMode'>;
   onUpdate: (key: string, value: any) => void;
   onBuyCredits: () => void;
 }
@@ -225,7 +225,7 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [activeCategory, setActiveCategory] = useState<StyleCategory>('Cinematic');
   
-  const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic'];
+  const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic', 'Abstract'];
 
   const filteredStyles = useMemo(() => {
     return STYLE_PRESETS.filter(s => s.category === activeCategory);
@@ -293,13 +293,28 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
                 onMouseEnter={() => triggerImpulse('hover', 0.2)}
                 className={`
                     px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
-                    ${config.superMode 
-                        ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]' 
+                    ${config.superMode
+                        ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]'
                         : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
                 `}
             >
-                <Star size={12} fill={config.superMode ? "white" : "none"} /> 
+                <Star size={12} fill={config.superMode ? "white" : "none"} />
                 {config.superMode ? "SUPER MODE ACTIVE (15 FRAMES + LIP SYNC)" : "ENABLE SUPER MODE (PAID)"}
+            </button>
+
+            {/* CUTOUT MODE TOGGLE */}
+            <button
+                onClick={() => onUpdate('cutoutMode', !config.cutoutMode)}
+                onMouseEnter={() => triggerImpulse('hover', 0.2)}
+                className={`
+                    px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
+                    ${config.cutoutMode
+                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
+                        : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
+                `}
+            >
+                <Layers size={12} />
+                {config.cutoutMode ? "CUTOUT MODE: Character over Visualizer" : "CUTOUT MODE (Remove Background)"}
             </button>
         </div>
       </div>
