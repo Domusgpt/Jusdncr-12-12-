@@ -137,7 +137,7 @@ abstract class BaseEngine implements IChoreographyEngine {
     this.category = category;
     this.categorizeFrames();
     if (frames.length > 0) {
-      this.currentFrameId = frames[0].id;
+      this.currentFrameId = frames[0].url;
     }
   }
 
@@ -173,7 +173,7 @@ abstract class BaseEngine implements IChoreographyEngine {
     this.lastBeatTime = 0;
     this.phase = 'CENTER';
     if (this.frames.length > 0) {
-      this.currentFrameId = this.frames[0].id;
+      this.currentFrameId = this.frames[0].url;
     }
   }
 
@@ -243,8 +243,8 @@ export class ReactiveEngine extends BaseEngine {
 
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
 
       // Determine transition mode
@@ -284,8 +284,8 @@ export class ReactiveEngine extends BaseEngine {
       if (this.closeupFrames.length > 0 && Math.random() < 0.3) {
         const closeup = this.selectRandom(this.closeupFrames);
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = closeup.id;
-        frameId = closeup.id;
+        this.currentFrameId = closeup.url;
+        frameId = closeup.url;
         transitionMode = 'ZOOM_IN';
         this.closeupLockUntil = time + 3000;
       }
@@ -353,8 +353,8 @@ export class ChaosEngine extends BaseEngine {
       const newFrame = this.selectRandom(this.frames);
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
 
       // Random transition
@@ -410,8 +410,8 @@ export class MinimalEngine extends BaseEngine {
       const newFrame = this.selectRandom(pool);
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
 
       transitionMode = 'CUT';
@@ -452,8 +452,8 @@ export class FlowEngine extends BaseEngine {
       const newFrame = this.selectRandom(pool);
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
     }
 
@@ -533,8 +533,8 @@ export class FluidEngine extends BaseEngine {
       const newFrame = this.selectRandom(pool);
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
 
       // Transition mode
@@ -683,8 +683,8 @@ export class SequenceEngine extends BaseEngine {
       const newFrame = this.selectRandom(pool);
       if (newFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = newFrame.id;
-        frameId = newFrame.id;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
       }
     }
 
@@ -779,8 +779,8 @@ export class PatternEngine extends BaseEngine {
 
       if (targetFrame) {
         this.previousFrameId = this.currentFrameId;
-        this.currentFrameId = targetFrame.id;
-        frameId = targetFrame.id;
+        this.currentFrameId = targetFrame.url;
+        frameId = targetFrame.url;
       }
 
       // Transition based on position
@@ -937,7 +937,7 @@ export class Deck {
   }
 
   getFrame(frameId: string): GeneratedFrame | undefined {
-    return this.frames.find(f => f.id === frameId);
+    return this.frames.find(f => f.url === frameId);
   }
 
   getState(): DeckState {
@@ -990,16 +990,16 @@ export class LiveMixer {
     this.deckB = new Deck('B');
     this.effectsRack = new EffectsRack();
 
-    // Engine factory
-    this.engines = new Map([
-      ['REACTIVE', () => new ReactiveEngine()],
-      ['CHAOS', () => new ChaosEngine()],
-      ['MINIMAL', () => new MinimalEngine()],
-      ['FLOW', () => new FlowEngine()],
+    // Engine factory - explicit typing to satisfy TypeScript
+    this.engines = new Map<EngineType, () => IChoreographyEngine>([
+      ['REACTIVE', () => new ReactiveEngine() as IChoreographyEngine],
+      ['CHAOS', () => new ChaosEngine() as IChoreographyEngine],
+      ['MINIMAL', () => new MinimalEngine() as IChoreographyEngine],
+      ['FLOW', () => new FlowEngine() as IChoreographyEngine],
       // New engines from other repos
-      ['FLUID', () => new FluidEngine()],
-      ['SEQUENCE', () => new SequenceEngine()],
-      ['PATTERN', () => new PatternEngine()]
+      ['FLUID', () => new FluidEngine() as IChoreographyEngine],
+      ['SEQUENCE', () => new SequenceEngine() as IChoreographyEngine],
+      ['PATTERN', () => new PatternEngine() as IChoreographyEngine]
     ]);
   }
 
