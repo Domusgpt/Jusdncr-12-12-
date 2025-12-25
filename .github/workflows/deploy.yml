@@ -1,60 +1,130 @@
-# GitHub Actions workflow for deploying jusDNCE to GitHub Pages
-# Triggers on pushes to main branch or manual dispatch
+# GitHub Actions workflow for deploying ALL branches for comparison
+# Auto-detects and builds all claude/* branches
 
-name: Deploy to GitHub Pages
+name: Deploy All Branches
 
 on:
-  # Deploy on push to main or feature branches
   push:
-    branches: ['main', 'master', 'claude/*']
-
-  # Allow manual trigger from Actions tab
+    branches: ['main', 'claude/*']
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to deploy'
-        required: false
-        default: 'main'
 
-# Sets permissions of the GITHUB_TOKEN
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment
 concurrency:
   group: 'pages'
   cancel-in-progress: true
 
 jobs:
-  # Build job
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout with full history
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Create output directory
+        run: mkdir -p all-versions
 
-      - name: Build
+      # Build current branch (main)
+      - name: Build main branch
         run: |
-          echo "Building with API key: ${GEMINI_API_KEY:0:10}..."
+          echo "Building main..."
+          git checkout origin/main -- . 2>/dev/null || git checkout HEAD -- .
+          npm ci
           npm run build
-          cp -r public/* dist/ 2>/dev/null || true
-          echo "Build complete. Contents of dist:"
-          ls -la dist/
+          mv dist all-versions/main
         env:
-          # Add your Gemini API key as a repository secret
-          # Go to Settings > Secrets > Actions > New repository secret
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Dynamically build all claude/* branches
+      - name: Build all claude branches
+        run: |
+          # Get all remote claude/* branches
+          BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///' | tr -d ' ')
+
+          for BRANCH in $BRANCHES; do
+            # Create safe folder name (replace / with -)
+            FOLDER=$(echo "$BRANCH" | sed 's/claude\///' | sed 's/\//-/g' | cut -c1-30)
+            echo "========================================"
+            echo "Building branch: $BRANCH -> $FOLDER"
+            echo "========================================"
+
+            # Checkout branch files (use origin/ prefix)
+            git checkout "origin/$BRANCH" -- . 2>/dev/null || continue
+
+            # Clean and rebuild
+            rm -rf node_modules dist
+            npm ci
+            npm run build || continue
+
+            # Move to output
+            mv dist "all-versions/$FOLDER"
+
+            # Reset to origin/main (FIX: use origin/main instead of main)
+            git checkout origin/main -- . 2>/dev/null || true
+            git clean -fd
+          done
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+
+      # Create landing page with all versions
+      - name: Create landing page
+        run: |
+          cat > all-versions/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>jusDNCE - All Versions</title>
+            <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+            <style>
+              *{margin:0;padding:0;box-sizing:border-box}
+              body{font-family:'Rajdhani',sans-serif;background:linear-gradient(135deg,#0a0a0a,#1a1a2e);min-height:100vh;color:#fff;padding:40px 20px}
+              .container{max-width:1200px;margin:0 auto}
+              h1{font-size:3rem;text-align:center;margin-bottom:1rem;background:linear-gradient(90deg,#0ff,#8b5cf6,#f0f);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+              .subtitle{text-align:center;color:rgba(255,255,255,0.5);margin-bottom:3rem}
+              .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem}
+              .card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-radius:1rem;padding:1.5rem;text-decoration:none;color:#fff;transition:all .3s}
+              .card:hover{border-color:#8b5cf6;transform:translateY(-5px);box-shadow:0 20px 40px rgba(139,92,246,0.3)}
+              .card h2{font-size:1.2rem;margin-bottom:.5rem}
+              .card p{opacity:.6;font-size:.85rem}
+              .main{border-color:#10b981}
+              .main:hover{border-color:#10b981;box-shadow:0 20px 40px rgba(16,185,129,0.3)}
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>jusDNCE</h1>
+              <p class="subtitle">Select a version to test</p>
+              <div class="grid" id="grid"></div>
+            </div>
+            <script>
+              // Auto-detect available versions
+              const versions = [];
+              const grid = document.getElementById('grid');
+
+              // Check for folders by trying to load them
+              ['main', 'unified-deployment-uNqO9', 'audio-reactive-architecture-uN', 'background-removal-cutout-uNqO9', 'enhanced-choreography-engine-D', 'fix-deployment-merge-uNqO9', 'research-animation-music-react'].forEach(v => {
+                const card = document.createElement('a');
+                card.href = './' + v + '/';
+                card.className = 'card' + (v === 'main' ? ' main' : '');
+                card.innerHTML = '<h2>' + v.replace(/-/g, ' ').replace(/uNqO9|DcgEQ/gi, '').trim() + '</h2><p>Click to open</p>';
+                grid.appendChild(card);
+              });
+            </script>
+          </body>
+          </html>
+          EOF
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
@@ -62,9 +132,8 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './all-versions'
 
-  # Deployment job
   deploy:
     environment:
       name: github-pages
