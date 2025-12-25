@@ -25,7 +25,7 @@
  */
 
 import { ProcessedFrame, FramePools, getPoolForSequenceMode, getPhysicsForStyle, getTransitionMode, TransitionMode, PhysicsModifiers } from '../services/frameProcessor';
-import { LabanEffort, audioToEffortFactors, factorsToEffort } from './LabanEffortSystem';
+import { LabanEffort, EffortFactors, audioToEffortFactors, factorsToEffort, AudioSignature } from './LabanEffortSystem';
 
 // =============================================================================
 // TYPES
@@ -90,7 +90,8 @@ export interface ChoreographerState {
   activeSequenceMode: SequenceMode;
 
   // LABAN state (if using LABAN physics)
-  labanEffort?: LabanEffort;
+  labanEffort?: EffortFactors;
+  labanEffortName?: LabanEffort;
 }
 
 export interface ChoreographerOutput {
@@ -555,21 +556,35 @@ export class UnifiedChoreographer {
     const energy = audio.energy * this.config.energyMultiplier;
 
     // Get base physics from style
-    let labanEffort: LabanEffort | undefined;
+    let factors: EffortFactors | undefined;
     if (this.config.physicsStyle === 'LABAN') {
-      const factors = audioToEffortFactors(audio.bass, audio.mid, audio.high, energy);
-      labanEffort = factorsToEffort(factors);
-      this.state.labanEffort = labanEffort;
+      // Create AudioSignature from our simpler AudioData
+      const audioSig: AudioSignature = {
+        bass: audio.bass,
+        mid: audio.mid,
+        high: audio.high,
+        energy: audio.energy,
+        bassOnset: audio.bass > 0.5 ? 1 : 0,
+        snareOnset: audio.mid > 0.5 ? 0.8 : 0,
+        hihatOnset: audio.high > 0.5 ? 0.6 : 0,
+        spectralCentroid: (audio.mid + audio.high) / 2,
+        spectralFlux: Math.abs(audio.energy - (this.state.physics.bounceIntensity || 0)),
+        rmsEnergy: audio.energy
+      };
+      factors = audioToEffortFactors(audioSig);
+      const effortName = factorsToEffort(factors);
+      this.state.labanEffort = factors;
+      this.state.labanEffortName = effortName;
     }
 
     const modifiers = getPhysicsForStyle(
       this.config.physicsStyle,
       energy,
-      labanEffort ? {
-        weight: labanEffort.weight === 'light' ? 0.2 : labanEffort.weight === 'strong' ? 0.8 : 0.5,
-        space: labanEffort.space === 'indirect' ? 0.2 : labanEffort.space === 'direct' ? 0.8 : 0.5,
-        time: labanEffort.time === 'sustained' ? 0.2 : labanEffort.time === 'sudden' ? 0.8 : 0.5,
-        flow: labanEffort.flow === 'free' ? 0.2 : labanEffort.flow === 'bound' ? 0.8 : 0.5
+      factors ? {
+        weight: factors.weight,
+        space: factors.space,
+        time: factors.time,
+        flow: 0.5 // EffortFactors doesn't have flow, use default
       } : undefined
     );
 

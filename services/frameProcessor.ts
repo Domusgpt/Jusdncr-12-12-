@@ -13,8 +13,9 @@ import { GeneratedFrame, EnergyLevel, MoveDirection, SubjectCategory } from '../
 // Extended frame type for all systems
 export type ExtendedFrameType = 'body' | 'closeup' | 'hands' | 'feet' | 'mandala' | 'acrobatic';
 
-export interface ProcessedFrame extends GeneratedFrame {
-  // Required fields
+// ProcessedFrame uses Omit to override the type field properly
+export interface ProcessedFrame extends Omit<GeneratedFrame, 'type' | 'direction'> {
+  // Required fields (overridden from optional)
   type: ExtendedFrameType;
   direction: MoveDirection;
 
