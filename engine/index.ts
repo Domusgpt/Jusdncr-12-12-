@@ -234,3 +234,33 @@ export {
   createLiveMixer,
   createEngine
 } from './LiveMixer';
+
+// =============================================================================
+// GOLEM MIXER (4-Channel System with Kinetic Engine)
+// =============================================================================
+
+export {
+  // Types
+  type EnergyLevel as GolemEnergyLevel,
+  type MoveDirection as GolemMoveDirection,
+  type FrameType as GolemFrameType,
+  type MixMode,
+  type SequenceMode,
+  type PatternType as GolemPatternType,
+  type EngineMode as GolemEngineMode,
+  type TransitionMode as GolemTransitionMode,
+  type AudioData as GolemAudioData,
+  type DeckFrame,
+  type GolemDeck,
+  type KineticState as GolemKineticState,
+  type PhysicsState as GolemPhysicsState,
+  type EffectsState as GolemEffectsState,
+  type MixerOutput,
+  type MixerTelemetry,
+
+  // Classes
+  GolemMixer,
+
+  // Factory
+  createGolemMixer
+} from './GolemMixer';
