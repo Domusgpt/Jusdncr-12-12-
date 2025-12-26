@@ -85,7 +85,64 @@ function colorDistance(c1: { r: number; g: number; b: number }, c2: { r: number;
 }
 
 /**
- * Remove background from an image using chroma key
+ * Flood-fill from edges to mark connected background pixels
+ * This prevents removing similar-colored pixels inside the character
+ */
+function floodFillFromEdges(
+  imageData: ImageData,
+  targetColor: { r: number; g: number; b: number },
+  maxDistance: number
+): Uint8Array {
+  const { data, width, height } = imageData;
+  const visited = new Uint8Array(width * height);
+  const isBackground = new Uint8Array(width * height);
+
+  // Helper to check if pixel matches background color
+  const matchesBackground = (index: number): boolean => {
+    const i = index * 4;
+    const pixelColor = { r: data[i], g: data[i + 1], b: data[i + 2] };
+    return colorDistance(pixelColor, targetColor) < maxDistance;
+  };
+
+  // BFS flood fill from a starting point
+  const floodFill = (startX: number, startY: number) => {
+    const queue: [number, number][] = [[startX, startY]];
+
+    while (queue.length > 0) {
+      const [x, y] = queue.shift()!;
+
+      if (x < 0 || x >= width || y < 0 || y >= height) continue;
+
+      const idx = y * width + x;
+      if (visited[idx]) continue;
+
+      visited[idx] = 1;
+
+      if (!matchesBackground(idx)) continue;
+
+      isBackground[idx] = 1;
+
+      // Add neighbors (4-connected for speed, can use 8-connected for better results)
+      queue.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+  };
+
+  // Start flood fill from all edge pixels
+  for (let x = 0; x < width; x++) {
+    if (matchesBackground(x)) floodFill(x, 0); // Top edge
+    if (matchesBackground((height - 1) * width + x)) floodFill(x, height - 1); // Bottom edge
+  }
+  for (let y = 0; y < height; y++) {
+    if (matchesBackground(y * width)) floodFill(0, y); // Left edge
+    if (matchesBackground(y * width + width - 1)) floodFill(width - 1, y); // Right edge
+  }
+
+  return isBackground;
+}
+
+/**
+ * Remove background from an image using chroma key with flood-fill
+ * This prevents green screen artifacts inside characters
  */
 export async function removeBackground(
   imageUrl: string,
@@ -112,7 +169,7 @@ export async function removeBackground(
         // Draw image
         ctx.drawImage(img, 0, 0);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const { data } = imageData;
+        const { data, width, height } = imageData;
 
         // Auto-detect background color if enabled
         let targetColor = opts.targetColor!;
@@ -122,33 +179,38 @@ export async function removeBackground(
         }
 
         const tolerance = opts.tolerance!;
-        const maxDistance = tolerance * 3; // Max possible weighted distance for tolerance
+        const maxDistance = tolerance * 3;
 
-        // Process each pixel
-        for (let i = 0; i < data.length; i += 4) {
-          const pixelColor = {
-            r: data[i],
-            g: data[i + 1],
-            b: data[i + 2]
-          };
+        // Use flood-fill to find connected background regions from edges
+        const isBackground = floodFillFromEdges(imageData, targetColor, maxDistance);
 
-          const distance = colorDistance(pixelColor, targetColor);
+        // Process each pixel - only remove pixels marked as background
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const i = idx * 4;
 
-          if (distance < maxDistance) {
-            // Calculate alpha based on distance (soft edge)
-            const normalizedDistance = distance / maxDistance;
-            const softness = opts.edgeSoftness!;
+            if (isBackground[idx]) {
+              const pixelColor = {
+                r: data[i],
+                g: data[i + 1],
+                b: data[i + 2]
+              };
 
-            if (normalizedDistance < (1 - softness)) {
-              // Fully transparent
-              data[i + 3] = 0;
-            } else {
-              // Partial transparency for soft edges
-              const edgeAlpha = (normalizedDistance - (1 - softness)) / softness;
-              data[i + 3] = Math.floor(255 * edgeAlpha);
+              const distance = colorDistance(pixelColor, targetColor);
+              const normalizedDistance = distance / maxDistance;
+              const softness = opts.edgeSoftness!;
+
+              if (normalizedDistance < (1 - softness)) {
+                data[i + 3] = 0; // Fully transparent
+              } else {
+                // Partial transparency for soft edges
+                const edgeAlpha = (normalizedDistance - (1 - softness)) / softness;
+                data[i + 3] = Math.floor(255 * edgeAlpha);
+              }
             }
+            // Pixels not connected to edges keep their original alpha
           }
-          // Otherwise keep original alpha (fully opaque)
         }
 
         ctx.putImageData(imageData, 0, 0);
