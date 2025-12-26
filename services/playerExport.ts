@@ -2,6 +2,10 @@
 import { GeneratedFrame, SubjectCategory } from "../types";
 import { VERTEX_SHADER, FRAGMENT_SHADER, HolographicParams } from "../components/Visualizer/HolographicVisualizer";
 
+/**
+ * Generates standalone HTML player with unified choreography system
+ * Features: LEGACY/LABAN physics, PATTERN/KINETIC engines, keyboard shortcuts
+ */
 export const generatePlayerHTML = (
     frames: GeneratedFrame[],
     hologramParams: HolographicParams,
