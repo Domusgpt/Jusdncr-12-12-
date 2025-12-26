@@ -87,19 +87,20 @@ export const MixerUI: React.FC<MixerUIProps> = ({
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-black/60 backdrop-blur-xl
-                   border border-white/20 rounded-lg text-white font-rajdhani
+        className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 px-3 py-2 bg-black/60 backdrop-blur-xl
+                   border border-white/20 rounded-lg text-white font-rajdhani text-sm
                    hover:border-brand-500/50 transition-all"
       >
-        🎛️ MIXER
+        🎛️ <span className="hidden sm:inline">MIXER</span>
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[380px] bg-black/80 backdrop-blur-xl
-                    border border-white/20 rounded-xl p-4 font-rajdhani text-white
-                    shadow-2xl shadow-brand-500/20">
+    <div className="fixed bottom-20 sm:bottom-4 left-2 right-2 sm:left-auto sm:right-4 z-50
+                    w-auto sm:w-[380px] max-w-[calc(100vw-16px)] bg-black/90 backdrop-blur-xl
+                    border border-white/20 rounded-xl p-3 sm:p-4 font-rajdhani text-white
+                    shadow-2xl shadow-brand-500/20 max-h-[70vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-500
