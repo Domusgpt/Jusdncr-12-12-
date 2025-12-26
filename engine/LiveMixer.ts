@@ -1,0 +1,1172 @@
+/**
+ * LiveMixer - VJ-style live mixing system for hot-swapping choreography engines,
+ * patterns, and effects during playback
+ */
+
+import type { GeneratedFrame, SubjectCategory } from '../types';
+
+// =============================================================================
+// TYPES
+// =============================================================================
+
+/** Audio analysis data passed to engines */
+export interface AudioData {
+  bass: number;      // 0-1, low frequencies
+  mid: number;       // 0-1, mid frequencies
+  high: number;      // 0-1, high frequencies
+  energy: number;    // 0-1, overall energy
+  beatDetected: boolean;
+  bpm: number;
+  time: number;      // Current playback time in ms
+}
+
+/** Output from a choreography engine */
+export interface ChoreographyOutput {
+  frameId: string;
+  transitionMode: TransitionMode;
+  transitionSpeed: number;  // ms
+  physics: PhysicsState;
+  effects: EffectsState;
+}
+
+export type TransitionMode = 'CUT' | 'SLIDE' | 'MORPH' | 'SMOOTH' | 'ZOOM_IN';
+
+export interface PhysicsState {
+  rotation: { x: number; y: number; z: number };
+  squash: number;      // 0.8-1.2
+  bounce: number;      // -50 to 50
+  tilt: number;        // degrees
+  zoom: number;        // 1.0-2.0
+  pan: { x: number; y: number };
+}
+
+export interface EffectsState {
+  rgbSplit: number;    // 0-1
+  flash: number;       // 0-1
+  invert: boolean;
+  grayscale: boolean;
+  glitch: number;      // 0-1
+  mirror: boolean;
+}
+
+/** Pattern that modifies engine behavior */
+export type PatternType =
+  | 'PING_PONG'     // Left-right alternating
+  | 'BUILD_DROP'    // Gradual intensity → release
+  | 'STUTTER'       // Rapid cuts
+  | 'VOGUE'         // High-frequency poses
+  | 'FLOW'          // Smooth transitions only
+  | 'CHAOS'         // Random everything
+  | 'MINIMAL'       // Just beats, no flourishes
+  // New patterns from other repos
+  | 'ABAB'          // Standard alternating A-B-A-B
+  | 'AABB'          // Paired frames A-A-B-B
+  | 'ABAC'          // Third frame for breaks A-B-A-C
+  | 'SNARE_ROLL'    // Repeat single frame on snares
+  | 'GROOVE'        // Mid-energy directional alternating
+  | 'EMOTE'         // Closeup/zoom focused
+  | 'FOOTWORK'      // Lower body focus with pan
+  | 'IMPACT';       // High energy mandalas/hands
+
+/** Stutter burst styles */
+export type StutterStyle = 'SHIVER' | 'JUMP' | 'SMASH' | 'SLICE';
+
+/** Engine types available */
+export type EngineType =
+  | 'REACTIVE'      // Beat-reactive, energy-driven (Step4Preview style)
+  | 'KINETIC'       // State machine with 11 nodes
+  | 'CHAOS'         // Random, high stutter
+  | 'MINIMAL'       // Simple beat cuts
+  | 'FLOW'          // Smooth, ambient
+  // New engines from other repos
+  | 'FLUID'         // Optical flow transitions (Fluid-jusdnce)
+  | 'SEQUENCE'      // GROOVE/EMOTE/FOOTWORK/IMPACT state machine
+  | 'PATTERN';      // ABAB/AABB/ABAC pattern cycling
+
+// =============================================================================
+// CHOREOGRAPHY ENGINE INTERFACE
+// =============================================================================
+
+export interface IChoreographyEngine {
+  readonly name: string;
+  readonly type: EngineType;
+
+  /** Initialize with frames */
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void;
+
+  /** Process audio and return choreography decision */
+  update(audio: AudioData): ChoreographyOutput;
+
+  /** Force transition to specific frame */
+  forceFrame(frameId: string): void;
+
+  /** Apply pattern modifier */
+  setPattern(pattern: PatternType): void;
+
+  /** Reset engine state */
+  reset(): void;
+}
+
+// =============================================================================
+// BASE ENGINE CLASS
+// =============================================================================
+
+abstract class BaseEngine implements IChoreographyEngine {
+  abstract readonly name: string;
+  abstract readonly type: EngineType;
+
+  protected frames: GeneratedFrame[] = [];
+  protected category: SubjectCategory = 'CHARACTER';
+  protected currentFrameId: string = '';
+  protected previousFrameId: string = '';
+  protected pattern: PatternType = 'PING_PONG';
+  protected beatCounter: number = 0;
+  protected lastBeatTime: number = 0;
+  protected phase: 'LEFT' | 'RIGHT' | 'CENTER' | 'DROP' | 'CHAOS' = 'CENTER';
+
+  // Frame pools by energy/direction
+  protected lowEnergyFrames: GeneratedFrame[] = [];
+  protected midEnergyFrames: GeneratedFrame[] = [];
+  protected highEnergyFrames: GeneratedFrame[] = [];
+  protected leftFrames: GeneratedFrame[] = [];
+  protected rightFrames: GeneratedFrame[] = [];
+  protected closeupFrames: GeneratedFrame[] = [];
+
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void {
+    this.frames = frames;
+    this.category = category;
+    this.categorizeFrames();
+    if (frames.length > 0) {
+      this.currentFrameId = frames[0].url;
+    }
+  }
+
+  protected categorizeFrames(): void {
+    this.lowEnergyFrames = this.frames.filter(f => f.energy === 'low');
+    this.midEnergyFrames = this.frames.filter(f => f.energy === 'mid');
+    this.highEnergyFrames = this.frames.filter(f => f.energy === 'high');
+    this.leftFrames = this.frames.filter(f => f.direction === 'left');
+    this.rightFrames = this.frames.filter(f => f.direction === 'right');
+    this.closeupFrames = this.frames.filter(f => f.type === 'closeup');
+
+    // Ensure pools aren't empty
+    if (this.lowEnergyFrames.length === 0) this.lowEnergyFrames = this.frames;
+    if (this.midEnergyFrames.length === 0) this.midEnergyFrames = this.frames;
+    if (this.highEnergyFrames.length === 0) this.highEnergyFrames = this.frames;
+    if (this.leftFrames.length === 0) this.leftFrames = this.frames;
+    if (this.rightFrames.length === 0) this.rightFrames = this.frames;
+  }
+
+  abstract update(audio: AudioData): ChoreographyOutput;
+
+  forceFrame(frameId: string): void {
+    this.previousFrameId = this.currentFrameId;
+    this.currentFrameId = frameId;
+  }
+
+  setPattern(pattern: PatternType): void {
+    this.pattern = pattern;
+  }
+
+  reset(): void {
+    this.beatCounter = 0;
+    this.lastBeatTime = 0;
+    this.phase = 'CENTER';
+    if (this.frames.length > 0) {
+      this.currentFrameId = this.frames[0].url;
+    }
+  }
+
+  protected selectRandom<T>(arr: T[]): T {
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  protected defaultPhysics(): PhysicsState {
+    return {
+      rotation: { x: 0, y: 0, z: 0 },
+      squash: 1,
+      bounce: 0,
+      tilt: 0,
+      zoom: 1,
+      pan: { x: 0, y: 0 }
+    };
+  }
+
+  protected defaultEffects(): EffectsState {
+    return {
+      rgbSplit: 0,
+      flash: 0,
+      invert: false,
+      grayscale: false,
+      glitch: 0,
+      mirror: false
+    };
+  }
+}
+
+// =============================================================================
+// REACTIVE ENGINE - Beat-reactive, energy-driven (Step4Preview style)
+// =============================================================================
+
+export class ReactiveEngine extends BaseEngine {
+  readonly name = 'Reactive';
+  readonly type: EngineType = 'REACTIVE';
+
+  private closeupLockUntil: number = 0;
+  private stutterCount: number = 0;
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'SMOOTH';
+    let transitionSpeed = 150;
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+
+    // Beat detection with 400ms minimum interval
+    if (beatDetected && (time - this.lastBeatTime) > 400) {
+      this.lastBeatTime = time;
+      this.beatCounter = (this.beatCounter + 1) % 16;
+
+      // Determine phase based on beat counter
+      const beat = this.beatCounter;
+      if (beat < 4) this.phase = 'CENTER';
+      else if (beat < 8) this.phase = 'LEFT';
+      else if (beat < 12) this.phase = 'RIGHT';
+      else if (beat < 14) this.phase = 'DROP';
+      else this.phase = 'CHAOS';
+
+      // Apply pattern modifiers
+      const pool = this.getFramePoolForPattern(energy);
+      const newFrame = this.selectRandom(pool);
+
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+
+      // Determine transition mode
+      if (this.phase === 'DROP') {
+        transitionMode = 'CUT';
+        transitionSpeed = 50;
+        effects.flash = 0.4;
+        effects.rgbSplit = 0.3;
+      } else if (this.phase === 'CHAOS') {
+        transitionMode = Math.random() > 0.5 ? 'CUT' : 'MORPH';
+        transitionSpeed = 80;
+        effects.glitch = 0.5;
+      } else if (this.phase === 'LEFT' || this.phase === 'RIGHT') {
+        transitionMode = 'SLIDE';
+        transitionSpeed = 120;
+      }
+
+      // Physics on beat
+      physics.squash = 0.85;
+      physics.bounce = -35 * bass;
+      physics.zoom = 1 + bass * 0.2;
+    }
+
+    // Stutter mode (rapid cuts on high energy)
+    if (mid > 0.8 && high > 0.7 && time - this.lastBeatTime > 100) {
+      if (Math.random() < 0.2) {
+        this.stutterCount++;
+        transitionMode = 'CUT';
+        transitionSpeed = 30;
+        effects.glitch = 0.4;
+        effects.rgbSplit = 0.3;
+      }
+    }
+
+    // Closeup trigger
+    if (high > 0.7 && mid > 0.5 && bass < 0.4 && time > this.closeupLockUntil) {
+      if (this.closeupFrames.length > 0 && Math.random() < 0.3) {
+        const closeup = this.selectRandom(this.closeupFrames);
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = closeup.url;
+        frameId = closeup.url;
+        transitionMode = 'ZOOM_IN';
+        this.closeupLockUntil = time + 3000;
+      }
+    }
+
+    // Continuous physics modulation
+    physics.rotation.x = bass * 25;
+    physics.rotation.y = mid * 15 * Math.sin(time * 0.003);
+    physics.rotation.z = high * 10;
+    physics.tilt = this.phase === 'LEFT' ? -6 : this.phase === 'RIGHT' ? 6 : 0;
+    physics.pan.x = this.phase === 'LEFT' ? -0.1 : this.phase === 'RIGHT' ? 0.1 : 0;
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+
+  private getFramePoolForPattern(energy: number): GeneratedFrame[] {
+    switch (this.pattern) {
+      case 'PING_PONG':
+        return this.phase === 'LEFT' ? this.leftFrames :
+               this.phase === 'RIGHT' ? this.rightFrames :
+               this.midEnergyFrames;
+      case 'BUILD_DROP':
+        return energy > 0.7 ? this.highEnergyFrames :
+               energy > 0.4 ? this.midEnergyFrames :
+               this.lowEnergyFrames;
+      case 'STUTTER':
+        return this.highEnergyFrames;
+      case 'VOGUE':
+        return this.closeupFrames.length > 0 ? this.closeupFrames : this.highEnergyFrames;
+      case 'FLOW':
+        return this.midEnergyFrames;
+      case 'CHAOS':
+        return this.frames;
+      case 'MINIMAL':
+        return energy > 0.5 ? this.highEnergyFrames : this.lowEnergyFrames;
+      default:
+        return this.frames;
+    }
+  }
+}
+
+// =============================================================================
+// CHAOS ENGINE - Random, aggressive, high stutter
+// =============================================================================
+
+export class ChaosEngine extends BaseEngine {
+  readonly name = 'Chaos';
+  readonly type: EngineType = 'CHAOS';
+
+  private lastFrameChange: number = 0;
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'CUT';
+    const transitionSpeed = 30 + Math.random() * 50;
+
+    // Change frame very frequently
+    const changeInterval = 100 + Math.random() * 200;
+    if (time - this.lastFrameChange > changeInterval) {
+      this.lastFrameChange = time;
+      const newFrame = this.selectRandom(this.frames);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+
+      // Random transition
+      const modes: TransitionMode[] = ['CUT', 'MORPH', 'ZOOM_IN'];
+      transitionMode = this.selectRandom(modes);
+    }
+
+    // Aggressive physics
+    physics.rotation.x = (Math.random() - 0.5) * 60 * energy;
+    physics.rotation.y = (Math.random() - 0.5) * 40 * energy;
+    physics.rotation.z = (Math.random() - 0.5) * 30 * energy;
+    physics.squash = 0.7 + Math.random() * 0.5;
+    physics.bounce = (Math.random() - 0.5) * 80 * bass;
+    physics.tilt = (Math.random() - 0.5) * 15;
+    physics.zoom = 0.9 + Math.random() * 0.6;
+
+    // Heavy effects
+    effects.rgbSplit = 0.3 + Math.random() * 0.5;
+    effects.flash = bass > 0.7 ? 0.5 : 0;
+    effects.invert = Math.random() < 0.1;
+    effects.glitch = 0.4 + Math.random() * 0.4;
+    effects.mirror = Math.random() < 0.2;
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// MINIMAL ENGINE - Simple beat cuts, clean
+// =============================================================================
+
+export class MinimalEngine extends BaseEngine {
+  readonly name = 'Minimal';
+  readonly type: EngineType = 'MINIMAL';
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'SMOOTH';
+    let transitionSpeed = 200;
+
+    // Only change on strong beats
+    if (beatDetected && bass > 0.6 && (time - this.lastBeatTime) > 500) {
+      this.lastBeatTime = time;
+
+      const pool = energy > 0.6 ? this.highEnergyFrames :
+                   energy > 0.3 ? this.midEnergyFrames :
+                   this.lowEnergyFrames;
+
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+
+      transitionMode = 'CUT';
+      transitionSpeed = 100;
+    }
+
+    // Minimal physics
+    physics.zoom = 1 + bass * 0.1;
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// FLOW ENGINE - Smooth, ambient, dreamy
+// =============================================================================
+
+export class FlowEngine extends BaseEngine {
+  readonly name = 'Flow';
+  readonly type: EngineType = 'FLOW';
+
+  private driftAngle: number = 0;
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    const transitionMode: TransitionMode = 'SMOOTH';
+    const transitionSpeed = 500;
+
+    // Slow frame changes
+    if (beatDetected && (time - this.lastBeatTime) > 2000) {
+      this.lastBeatTime = time;
+
+      const pool = this.midEnergyFrames.length > 0 ? this.midEnergyFrames : this.frames;
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+    }
+
+    // Dreamy physics - slow drifting
+    this.driftAngle += 0.001;
+    physics.rotation.x = Math.sin(this.driftAngle) * 10 * mid;
+    physics.rotation.y = Math.cos(this.driftAngle * 0.7) * 15 * high;
+    physics.rotation.z = Math.sin(this.driftAngle * 1.3) * 5;
+    physics.zoom = 1 + Math.sin(this.driftAngle * 0.5) * 0.1;
+    physics.pan.x = Math.sin(this.driftAngle * 0.3) * 0.05;
+    physics.pan.y = Math.cos(this.driftAngle * 0.4) * 0.03;
+
+    // Subtle effects
+    effects.rgbSplit = energy * 0.1;
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// FLUID ENGINE - Optical flow transitions (from Fluid-jusdnce)
+// =============================================================================
+
+export class FluidEngine extends BaseEngine {
+  readonly name = 'Fluid';
+  readonly type: EngineType = 'FLUID';
+
+  private lastDirection: 'left' | 'right' = 'left';
+  private burstMode: boolean = false;
+  private burstEndTime: number = 0;
+  private stutterStyle: StutterStyle = 'SHIVER';
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'SMOOTH';
+    let transitionSpeed = 240;
+
+    // Check burst mode (snare-triggered stutter)
+    if (mid > 0.6 && high > 0.6 && !this.burstMode) {
+      this.burstMode = true;
+      this.burstEndTime = time + 400;
+      this.stutterStyle = this.selectRandom(['SHIVER', 'JUMP', 'SMASH', 'SLICE'] as StutterStyle[]);
+    }
+
+    if (time > this.burstEndTime) {
+      this.burstMode = false;
+    }
+
+    // Beat detection with pattern (0-3 cycle)
+    if (beatDetected && (time - this.lastBeatTime) > (this.burstMode ? 60 : 150)) {
+      this.lastBeatTime = time;
+      this.beatCounter = (this.beatCounter + 1) % 4;
+
+      // Beats 0-1: CUT, Beats 2-3: FLOW
+      const isCutBeat = this.beatCounter < 2;
+
+      // Directional ping-pong with 30% repeat chance
+      if (Math.random() > 0.3) {
+        this.lastDirection = this.lastDirection === 'left' ? 'right' : 'left';
+      }
+
+      // Select frame pool
+      let pool: GeneratedFrame[];
+      if (mid > 0.6 && this.closeupFrames.length > 0) {
+        pool = this.closeupFrames;
+      } else if (bass > 0.7) {
+        pool = this.highEnergyFrames;
+      } else {
+        pool = this.lastDirection === 'left' ? this.leftFrames : this.rightFrames;
+        if (pool.length === 0) pool = this.midEnergyFrames;
+      }
+
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+
+      // Transition mode
+      if (isCutBeat || bass > 0.8) {
+        transitionMode = 'CUT';
+        transitionSpeed = 50;
+        physics.zoom = 1.15;
+        physics.tilt = 15 * (Math.random() - 0.5);
+      } else {
+        transitionMode = 'SLIDE';
+        transitionSpeed = 240;
+        physics.pan.x = this.lastDirection === 'left' ? -0.1 : 0.1;
+      }
+
+      // Beat physics
+      physics.squash = 0.85;
+      physics.bounce = -25 * bass;
+    }
+
+    // Burst mode effects
+    if (this.burstMode) {
+      switch (this.stutterStyle) {
+        case 'SHIVER':
+          physics.pan.x = (Math.random() - 0.5) * 0.15;
+          break;
+        case 'JUMP':
+          physics.bounce = -50 * Math.random();
+          break;
+        case 'SMASH':
+          physics.zoom = Math.random() > 0.5 ? 1.3 : 0.9;
+          break;
+        case 'SLICE':
+          effects.glitch = 0.8;
+          break;
+      }
+      effects.rgbSplit = 0.4;
+    }
+
+    // Continuous physics
+    physics.rotation.x = bass * 20;
+    physics.rotation.y = mid * 15 * Math.sin(time * 0.002);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// SEQUENCE ENGINE - GROOVE/EMOTE/FOOTWORK/IMPACT state machine (from FrequencyGolemz)
+// =============================================================================
+
+type SequenceMode = 'GROOVE' | 'EMOTE' | 'FOOTWORK' | 'IMPACT';
+
+export class SequenceEngine extends BaseEngine {
+  readonly name = 'Sequence';
+  readonly type: EngineType = 'SEQUENCE';
+
+  private sequenceMode: SequenceMode = 'GROOVE';
+  private phraseCounter: number = 0;
+  private barCounter: number = 0;
+
+  // Extended frame pools
+  private feetFrames: GeneratedFrame[] = [];
+  private handFrames: GeneratedFrame[] = [];
+
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void {
+    super.initialize(frames, category);
+    // Try to identify feet/hand frames by pose keywords
+    this.feetFrames = frames.filter(f =>
+      f.pose?.toLowerCase().includes('foot') ||
+      f.pose?.toLowerCase().includes('leg') ||
+      f.energy === 'low'
+    );
+    this.handFrames = frames.filter(f =>
+      f.pose?.toLowerCase().includes('hand') ||
+      f.pose?.toLowerCase().includes('arm') ||
+      f.energy === 'high'
+    );
+    if (this.feetFrames.length === 0) this.feetFrames = this.lowEnergyFrames;
+    if (this.handFrames.length === 0) this.handFrames = this.highEnergyFrames;
+  }
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'CUT';
+    let transitionSpeed = 100;
+
+    // Classify beat type
+    const isDrop = bass > 0.8;
+    const isPeak = high > 0.7;
+    const isFill = this.phraseCounter === 7;
+
+    // Beat detection
+    if (beatDetected && (time - this.lastBeatTime) > 300) {
+      this.lastBeatTime = time;
+      this.phraseCounter = (this.phraseCounter + 1) % 8;
+      this.barCounter = (this.barCounter + 1) % 16;
+
+      // Determine sequence mode
+      if (isPeak && this.closeupFrames.length > 0) {
+        this.sequenceMode = 'EMOTE';
+      } else if (isDrop && this.handFrames.length > 0) {
+        this.sequenceMode = 'IMPACT';
+      } else if (this.barCounter >= 12 && this.feetFrames.length > 0) {
+        this.sequenceMode = 'FOOTWORK';
+      } else if (isFill) {
+        this.sequenceMode = 'IMPACT';
+      } else {
+        this.sequenceMode = 'GROOVE';
+      }
+
+      // Select frame based on mode
+      let pool: GeneratedFrame[];
+      switch (this.sequenceMode) {
+        case 'EMOTE':
+          pool = this.closeupFrames.length > 0 ? this.closeupFrames : this.highEnergyFrames;
+          transitionMode = 'MORPH';
+          transitionSpeed = 150;
+          physics.zoom = 1.5;
+          break;
+        case 'FOOTWORK':
+          pool = this.feetFrames;
+          transitionMode = 'CUT';
+          physics.pan.y = -0.15;
+          break;
+        case 'IMPACT':
+          pool = this.handFrames.length > 0 ? this.handFrames : this.highEnergyFrames;
+          transitionMode = 'CUT';
+          transitionSpeed = 50;
+          effects.rgbSplit = 0.4;
+          effects.flash = 0.3;
+          break;
+        case 'GROOVE':
+        default:
+          // Alternate L/R
+          this.phase = this.phase === 'LEFT' ? 'RIGHT' : 'LEFT';
+          pool = this.phase === 'LEFT' ? this.leftFrames : this.rightFrames;
+          if (pool.length === 0) pool = this.midEnergyFrames;
+          physics.bounce = -20 * bass;
+          break;
+      }
+
+      const newFrame = this.selectRandom(pool);
+      if (newFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = newFrame.url;
+        frameId = newFrame.url;
+      }
+    }
+
+    // Continuous physics modulation
+    physics.rotation.x = bass * 25;
+    physics.rotation.y = mid * 15;
+    physics.squash = 1 - (bass * 0.15);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// PATTERN ENGINE - ABAB/AABB/ABAC cycling (from JusDNCE-core2)
+// =============================================================================
+
+type PatternSequence = 'ABAB' | 'AABB' | 'ABAC' | 'SNARE_ROLL' | 'CHAOS_SEQ';
+
+export class PatternEngine extends BaseEngine {
+  readonly name = 'Pattern';
+  readonly type: EngineType = 'PATTERN';
+
+  private currentPattern: PatternSequence = 'ABAB';
+  private patternPosition: number = 0;
+  private barCount: number = 0;
+  private frameA: GeneratedFrame | null = null;
+  private frameB: GeneratedFrame | null = null;
+  private frameC: GeneratedFrame | null = null;
+
+  private selectPatternFrames(): void {
+    // Select three distinct frames for pattern cycling
+    const pool = this.midEnergyFrames.length > 0 ? this.midEnergyFrames : this.frames;
+    if (pool.length >= 3) {
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      this.frameA = shuffled[0];
+      this.frameB = shuffled[1];
+      this.frameC = shuffled[2];
+    } else if (pool.length > 0) {
+      this.frameA = pool[0];
+      this.frameB = pool[pool.length > 1 ? 1 : 0];
+      this.frameC = pool[pool.length > 2 ? 2 : 0];
+    }
+  }
+
+  initialize(frames: GeneratedFrame[], category: SubjectCategory): void {
+    super.initialize(frames, category);
+    this.selectPatternFrames();
+  }
+
+  update(audio: AudioData): ChoreographyOutput {
+    const { bass, mid, high, energy, beatDetected, time } = audio;
+
+    const physics = this.defaultPhysics();
+    const effects = this.defaultEffects();
+    let frameId = this.currentFrameId;
+    let transitionMode: TransitionMode = 'CUT';
+    let transitionSpeed = 100;
+
+    if (beatDetected && (time - this.lastBeatTime) > 200) {
+      this.lastBeatTime = time;
+      this.patternPosition = (this.patternPosition + 1) % 4;
+
+      // Every 4 bars, potentially change pattern
+      if (this.patternPosition === 0) {
+        this.barCount++;
+        if (this.barCount % 4 === 0) {
+          // Rotate pattern and select new frames
+          const patterns: PatternSequence[] = ['ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'CHAOS_SEQ'];
+          this.currentPattern = patterns[(patterns.indexOf(this.currentPattern) + 1) % patterns.length];
+          this.selectPatternFrames();
+        }
+      }
+
+      // Get frame based on pattern
+      let targetFrame: GeneratedFrame | null = null;
+      const sequences: Record<PatternSequence, string[]> = {
+        'ABAB': ['A', 'B', 'A', 'B'],
+        'AABB': ['A', 'A', 'B', 'B'],
+        'ABAC': ['A', 'B', 'A', 'C'],
+        'SNARE_ROLL': ['B', 'B', 'B', 'B'],
+        'CHAOS_SEQ': ['A', 'C', 'B', 'C']
+      };
+
+      const seq = sequences[this.currentPattern];
+      const frameKey = seq[this.patternPosition];
+
+      switch (frameKey) {
+        case 'A': targetFrame = this.frameA; break;
+        case 'B': targetFrame = this.frameB; break;
+        case 'C': targetFrame = this.frameC; break;
+      }
+
+      if (targetFrame) {
+        this.previousFrameId = this.currentFrameId;
+        this.currentFrameId = targetFrame.url;
+        frameId = targetFrame.url;
+      }
+
+      // Transition based on position
+      if (this.patternPosition < 2 || bass > 0.7) {
+        transitionMode = 'CUT';
+        transitionSpeed = 50;
+        physics.zoom = 1.1 + bass * 0.1;
+      } else {
+        transitionMode = 'SLIDE';
+        transitionSpeed = 150;
+      }
+
+      // Beat physics
+      physics.squash = 0.9;
+      physics.bounce = -20 * bass;
+    }
+
+    // Continuous modulation
+    physics.rotation.x = bass * 20;
+    physics.rotation.z = high * 10 * Math.sin(time * 0.003);
+
+    return { frameId, transitionMode, transitionSpeed, physics, effects };
+  }
+}
+
+// =============================================================================
+// EFFECTS RACK - Stackable effects modifiers
+// =============================================================================
+
+export interface EffectsRackState {
+  rgbSplit: number;     // 0-1 intensity
+  flash: number;        // 0-1 intensity
+  invert: boolean;
+  grayscale: boolean;
+  glitch: number;       // 0-1 intensity
+  mirror: boolean;
+  zoomPulse: number;    // 0-1 intensity (beat-synced zoom)
+  strobe: boolean;      // Rapid flash on beats
+}
+
+export class EffectsRack {
+  private state: EffectsRackState = {
+    rgbSplit: 0,
+    flash: 0,
+    invert: false,
+    grayscale: false,
+    glitch: 0,
+    mirror: false,
+    zoomPulse: 0,
+    strobe: false
+  };
+
+  private strobeState: boolean = false;
+  private lastStrobeTime: number = 0;
+
+  setState(partial: Partial<EffectsRackState>): void {
+    this.state = { ...this.state, ...partial };
+  }
+
+  getState(): EffectsRackState {
+    return { ...this.state };
+  }
+
+  /** Apply rack effects on top of engine effects */
+  apply(engineEffects: EffectsState, audio: AudioData): EffectsState {
+    const result = { ...engineEffects };
+
+    // Additive effects
+    result.rgbSplit = Math.min(1, result.rgbSplit + this.state.rgbSplit);
+    result.glitch = Math.min(1, result.glitch + this.state.glitch);
+
+    // Flash (beat-synced if strobe enabled)
+    if (this.state.strobe && audio.beatDetected) {
+      if (audio.time - this.lastStrobeTime > 100) {
+        this.strobeState = !this.strobeState;
+        this.lastStrobeTime = audio.time;
+      }
+      result.flash = this.strobeState ? 1 : 0;
+    } else {
+      result.flash = Math.min(1, result.flash + this.state.flash);
+    }
+
+    // Toggle effects
+    result.invert = result.invert || this.state.invert;
+    result.grayscale = result.grayscale || this.state.grayscale;
+    result.mirror = result.mirror || this.state.mirror;
+
+    return result;
+  }
+
+  /** Apply zoom pulse to physics */
+  applyPhysics(physics: PhysicsState, audio: AudioData): PhysicsState {
+    const result = { ...physics };
+
+    if (this.state.zoomPulse > 0) {
+      result.zoom += audio.bass * this.state.zoomPulse * 0.3;
+    }
+
+    return result;
+  }
+}
+
+// =============================================================================
+// DECK - Single channel with frames + engine
+// =============================================================================
+
+export interface DeckState {
+  id: string;
+  frames: GeneratedFrame[];
+  category: SubjectCategory;
+  engine: IChoreographyEngine;
+  pattern: PatternType;
+  volume: number;  // 0-1, for crossfading
+}
+
+export class Deck {
+  readonly id: string;
+  private frames: GeneratedFrame[] = [];
+  private category: SubjectCategory = 'CHARACTER';
+  private engine: IChoreographyEngine;
+  private pattern: PatternType = 'PING_PONG';
+  private _volume: number = 1;
+
+  constructor(id: string, engine?: IChoreographyEngine) {
+    this.id = id;
+    this.engine = engine || new ReactiveEngine();
+  }
+
+  get volume(): number { return this._volume; }
+  set volume(v: number) { this._volume = Math.max(0, Math.min(1, v)); }
+
+  loadFrames(frames: GeneratedFrame[], category: SubjectCategory): void {
+    this.frames = frames;
+    this.category = category;
+    this.engine.initialize(frames, category);
+  }
+
+  setEngine(engine: IChoreographyEngine): void {
+    this.engine = engine;
+    if (this.frames.length > 0) {
+      this.engine.initialize(this.frames, this.category);
+    }
+    this.engine.setPattern(this.pattern);
+  }
+
+  setPattern(pattern: PatternType): void {
+    this.pattern = pattern;
+    this.engine.setPattern(pattern);
+  }
+
+  update(audio: AudioData): ChoreographyOutput | null {
+    if (this.frames.length === 0) return null;
+    return this.engine.update(audio);
+  }
+
+  getFrame(frameId: string): GeneratedFrame | undefined {
+    return this.frames.find(f => f.url === frameId);
+  }
+
+  getState(): DeckState {
+    return {
+      id: this.id,
+      frames: this.frames,
+      category: this.category,
+      engine: this.engine,
+      pattern: this.pattern,
+      volume: this._volume
+    };
+  }
+}
+
+// =============================================================================
+// LIVE MIXER - Main orchestrator
+// =============================================================================
+
+export interface LiveMixerState {
+  deckA: DeckState;
+  deckB: DeckState;
+  crossfader: number;  // -1 (full A) to 1 (full B)
+  effectsRack: EffectsRackState;
+  masterVolume: number;
+}
+
+export interface MixedOutput {
+  primary: {
+    frame: GeneratedFrame | undefined;
+    output: ChoreographyOutput;
+  };
+  secondary?: {
+    frame: GeneratedFrame | undefined;
+    output: ChoreographyOutput;
+    blend: number;  // 0-1, how much of secondary to blend
+  };
+  effects: EffectsState;
+  physics: PhysicsState;
+}
+
+export class LiveMixer {
+  private deckA: Deck;
+  private deckB: Deck;
+  private crossfader: number = 0;  // -1 to 1
+  private effectsRack: EffectsRack;
+  private engines: Map<EngineType, () => IChoreographyEngine>;
+
+  constructor() {
+    this.deckA = new Deck('A');
+    this.deckB = new Deck('B');
+    this.effectsRack = new EffectsRack();
+
+    // Engine factory - explicit typing to satisfy TypeScript
+    this.engines = new Map<EngineType, () => IChoreographyEngine>([
+      ['REACTIVE', () => new ReactiveEngine() as IChoreographyEngine],
+      ['CHAOS', () => new ChaosEngine() as IChoreographyEngine],
+      ['MINIMAL', () => new MinimalEngine() as IChoreographyEngine],
+      ['FLOW', () => new FlowEngine() as IChoreographyEngine],
+      // New engines from other repos
+      ['FLUID', () => new FluidEngine() as IChoreographyEngine],
+      ['SEQUENCE', () => new SequenceEngine() as IChoreographyEngine],
+      ['PATTERN', () => new PatternEngine() as IChoreographyEngine]
+    ]);
+  }
+
+  // Deck A controls
+  loadDeckA(frames: GeneratedFrame[], category: SubjectCategory): void {
+    this.deckA.loadFrames(frames, category);
+  }
+
+  setDeckAEngine(type: EngineType): void {
+    const factory = this.engines.get(type);
+    if (factory) {
+      this.deckA.setEngine(factory());
+    }
+  }
+
+  setDeckAPattern(pattern: PatternType): void {
+    this.deckA.setPattern(pattern);
+  }
+
+  // Deck B controls
+  loadDeckB(frames: GeneratedFrame[], category: SubjectCategory): void {
+    this.deckB.loadFrames(frames, category);
+  }
+
+  setDeckBEngine(type: EngineType): void {
+    const factory = this.engines.get(type);
+    if (factory) {
+      this.deckB.setEngine(factory());
+    }
+  }
+
+  setDeckBPattern(pattern: PatternType): void {
+    this.deckB.setPattern(pattern);
+  }
+
+  // Crossfader (-1 = full A, 0 = center, 1 = full B)
+  setCrossfader(value: number): void {
+    this.crossfader = Math.max(-1, Math.min(1, value));
+    // Update deck volumes
+    this.deckA.volume = 1 - Math.max(0, this.crossfader);
+    this.deckB.volume = 1 + Math.min(0, this.crossfader);
+  }
+
+  getCrossfader(): number {
+    return this.crossfader;
+  }
+
+  // Effects rack
+  setEffect(effect: keyof EffectsRackState, value: number | boolean): void {
+    this.effectsRack.setState({ [effect]: value });
+  }
+
+  getEffects(): EffectsRackState {
+    return this.effectsRack.getState();
+  }
+
+  // Main update
+  update(audio: AudioData): MixedOutput {
+    const outputA = this.deckA.update(audio);
+    const outputB = this.deckB.update(audio);
+
+    // Determine primary/secondary based on crossfader
+    const aVolume = this.deckA.volume;
+    const bVolume = this.deckB.volume;
+
+    let primary: { frame: GeneratedFrame | undefined; output: ChoreographyOutput };
+    let secondary: { frame: GeneratedFrame | undefined; output: ChoreographyOutput; blend: number } | undefined;
+
+    if (aVolume >= bVolume) {
+      primary = {
+        frame: outputA ? this.deckA.getFrame(outputA.frameId) : undefined,
+        output: outputA || this.defaultOutput()
+      };
+      if (outputB && bVolume > 0) {
+        secondary = {
+          frame: this.deckB.getFrame(outputB.frameId),
+          output: outputB,
+          blend: bVolume
+        };
+      }
+    } else {
+      primary = {
+        frame: outputB ? this.deckB.getFrame(outputB.frameId) : undefined,
+        output: outputB || this.defaultOutput()
+      };
+      if (outputA && aVolume > 0) {
+        secondary = {
+          frame: this.deckA.getFrame(outputA.frameId),
+          output: outputA,
+          blend: aVolume
+        };
+      }
+    }
+
+    // Apply effects rack
+    const effects = this.effectsRack.apply(primary.output.effects, audio);
+    const physics = this.effectsRack.applyPhysics(primary.output.physics, audio);
+
+    return { primary, secondary, effects, physics };
+  }
+
+  private defaultOutput(): ChoreographyOutput {
+    return {
+      frameId: '',
+      transitionMode: 'SMOOTH',
+      transitionSpeed: 200,
+      physics: {
+        rotation: { x: 0, y: 0, z: 0 },
+        squash: 1,
+        bounce: 0,
+        tilt: 0,
+        zoom: 1,
+        pan: { x: 0, y: 0 }
+      },
+      effects: {
+        rgbSplit: 0,
+        flash: 0,
+        invert: false,
+        grayscale: false,
+        glitch: 0,
+        mirror: false
+      }
+    };
+  }
+
+  getState(): LiveMixerState {
+    return {
+      deckA: this.deckA.getState(),
+      deckB: this.deckB.getState(),
+      crossfader: this.crossfader,
+      effectsRack: this.effectsRack.getState(),
+      masterVolume: 1
+    };
+  }
+
+  // Get available engines
+  getAvailableEngines(): EngineType[] {
+    return Array.from(this.engines.keys());
+  }
+
+  // Get available patterns
+  getAvailablePatterns(): PatternType[] {
+    return [
+      'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
+      // New patterns from other repos
+      'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
+    ];
+  }
+}
+
+// =============================================================================
+// FACTORY
+// =============================================================================
+
+export function createLiveMixer(): LiveMixer {
+  return new LiveMixer();
+}
+
+export function createEngine(type: EngineType): IChoreographyEngine {
+  switch (type) {
+    case 'REACTIVE': return new ReactiveEngine();
+    case 'CHAOS': return new ChaosEngine();
+    case 'MINIMAL': return new MinimalEngine();
+    case 'FLOW': return new FlowEngine();
+    case 'FLUID': return new FluidEngine();
+    case 'SEQUENCE': return new SequenceEngine();
+    case 'PATTERN': return new PatternEngine();
+    default: return new ReactiveEngine();
+  }
+}

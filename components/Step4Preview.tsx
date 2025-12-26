@@ -1,11 +1,15 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye } from 'lucide-react';
-import { AppState, EnergyLevel, MoveDirection, FrameType } from '../types';
+import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2, Disc3 } from 'lucide-react';
+import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
 import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
+import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
+import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
+import { MixerUI } from './MixerUI';
+import { EngineType, PatternType, EffectsRackState } from '../engine/LiveMixer';
 
 interface Step4Props {
   state: AppState;
@@ -42,21 +46,110 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const audioElementRef = useRef<HTMLAudioElement>(null);
   
   // -- Audio Hook --
-  const { 
-    audioDestRef, 
-    isMicActive, 
-    connectFileAudio, 
-    connectMicAudio, 
-    disconnectMic, 
-    getFrequencyData 
+  const {
+    audioDestRef,
+    isMicActive,
+    connectFileAudio,
+    connectMicAudio,
+    disconnectMic,
+    getFrequencyData,
+    analyserRef
   } = useAudioAnalyzer();
+
+  // -- Enhanced Choreography Hook --
+  const {
+    processAudio,
+    updateFramePools,
+    selectFrame,
+    getBPM,
+    getBeatCount,
+    reset: resetChoreography
+  } = useEnhancedChoreography();
+
+  // Enhanced choreography state
+  const choreographyStateRef = useRef<ChoreographyState | null>(null);
+  const useEnhancedModeRef = useRef<boolean>(true); // Toggle for enhanced vs legacy mode
+  const [choreoMode, setChoreoMode] = useState<'LABAN' | 'LEGACY'>('LABAN');
+
+  // Sync state with ref
+  const toggleChoreoMode = () => {
+    const newMode = choreoMode === 'LABAN' ? 'LEGACY' : 'LABAN';
+    setChoreoMode(newMode);
+    useEnhancedModeRef.current = newMode === 'LABAN';
+  };
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
+  const [showEffects, setShowEffects] = useState(false); // Effects Panel Visibility
+  const [showMixer, setShowMixer] = useState(false); // LiveMixer Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
+
+  // LiveMixer State
+  const [mixerState, setMixerState] = useState({
+    deckAEngine: 'REACTIVE' as EngineType,
+    deckAPattern: 'PING_PONG' as PatternType,
+    deckBEngine: 'FLOW' as EngineType,
+    deckBPattern: 'FLOW' as PatternType,
+    crossfader: 0,
+    effects: {
+      rgbSplit: 0,
+      flash: 0,
+      glitch: 0,
+      zoomPulse: 0,
+      invert: false,
+      grayscale: false,
+      mirror: false,
+      strobe: false
+    } as EffectsRackState
+  });
+
+  const availableEngines: EngineType[] = ['REACTIVE', 'CHAOS', 'MINIMAL', 'FLOW', 'FLUID', 'SEQUENCE', 'PATTERN'];
+  const availablePatterns: PatternType[] = [
+    'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
+    'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
+  ];
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
-  
+
+  // User-controlled effects state
+  const [userEffects, setUserEffects] = useState({
+    rgbSplit: false,
+    strobe: false,
+    ghost: false,
+    invert: false,
+    bw: false,
+    scanlines: false,
+    glitch: false,
+    shake: false,
+    zoom: false
+  });
+  const userEffectsRef = useRef(userEffects);
+
+  // Keep userEffects ref in sync
+  useEffect(() => {
+    userEffectsRef.current = userEffects;
+  }, [userEffects]);
+
+  // Toggle an effect
+  const toggleEffect = (effect: keyof typeof userEffects) => {
+    setUserEffects(prev => ({ ...prev, [effect]: !prev[effect] }));
+  };
+
+  // File input ref for track change
+  const trackInputRef = useRef<HTMLInputElement>(null);
+  const handleTrackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      onUploadAudio(file);
+      setIsPlaying(false);
+      // Reset audio element
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current.currentTime = 0;
+      }
+    }
+  };
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordCanvasRef = useRef<HTMLCanvasElement>(null); 
@@ -69,7 +162,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const lastBeatTimeRef = useRef<number>(0);
   const lastStutterTimeRef = useRef<number>(0);
   
-  const [brainState, setBrainState] = useState({ activePoseName: 'BASE', fps: 0 });
+  const [brainState, setBrainState] = useState({
+    activePoseName: 'BASE',
+    fps: 0,
+    effort: 'GLIDE' as LabanEffort,
+    danceStyle: 'HOUSE' as DanceStyle,
+    bpm: 120,
+    phraseSection: 'INTRO' as string
+  });
   const [hoveredFrame, setHoveredFrame] = useState<FrameData | null>(null); // For Tooltip
 
   // --- INTERPOLATION STATE ---
@@ -241,7 +341,17 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
        if (frame.energy === 'mid' && frame.type === 'body') images[frame.pose + '_vmid'] = img;
     });
     poseImagesRef.current = { ...poseImagesRef.current, ...images };
-  }, [state.generatedFrames, state.imagePreviewUrl]);
+
+    // Update enhanced choreography frame pools
+    const framesForPools: GeneratedFrame[] = framesToLoad.map(f => ({
+      url: f.url,
+      pose: f.pose,
+      energy: f.energy,
+      direction: f.direction || 'center',
+      type: f.type || 'body'
+    }));
+    updateFramePools(framesForPools);
+  }, [state.generatedFrames, state.imagePreviewUrl, updateFramePools]);
 
   const toggleMic = () => {
       if (isMicActive) {
@@ -279,15 +389,39 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     lastFrameTimeRef.current = time;
 
     requestRef.current = requestAnimationFrame(loop);
-    
+
     // --- TRANSITION UPDATE ---
     if (transitionProgressRef.current < 1.0) {
         transitionProgressRef.current += transitionSpeedRef.current * deltaTime;
         if (transitionProgressRef.current > 1.0) transitionProgressRef.current = 1.0;
     }
 
-    // Get Audio Data from Hook
-    const { bass, mid, high, energy } = getFrequencyData();
+    // Get Audio Data - use enhanced mode if available
+    let bass = 0, mid = 0, high = 0, energy = 0;
+    let choreoState: ChoreographyState | null = null;
+
+    if (useEnhancedModeRef.current && analyserRef.current) {
+        // Get raw frequency data for enhanced analyzer
+        const bufferLength = analyserRef.current.frequencyBinCount;
+        const frequencyData = new Uint8Array(bufferLength);
+        analyserRef.current.getByteFrequencyData(frequencyData);
+
+        // Process with enhanced choreography system
+        choreoState = processAudio(frequencyData, time);
+        choreographyStateRef.current = choreoState;
+
+        bass = choreoState.audio.bass;
+        mid = choreoState.audio.mid;
+        high = choreoState.audio.high;
+        energy = choreoState.audio.energy;
+    } else {
+        // Legacy mode
+        const audioData = getFrequencyData();
+        bass = audioData.bass;
+        mid = audioData.mid;
+        high = audioData.high;
+        energy = audioData.energy;
+    }
     
     // --- DYNAMIC CHOREOGRAPHY ANALYSIS ---
     energyHistoryRef.current.shift();
@@ -295,13 +429,24 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     const avgEnergy = energyHistoryRef.current.reduce((a, b) => a + b, 0) / energyHistoryRef.current.length;
     const energyTrend = energy - avgEnergy;
 
-    // --- PHYSICS ---
-    const stiffness = 140;
-    const damping = 8; 
-    
-    const targetRotX = bass * 35.0; 
-    const targetRotY = mid * 25.0 * Math.sin(time * 0.005); 
-    const targetRotZ = high * 15.0; 
+    // --- PHYSICS (Enhanced with Laban modifiers) ---
+    let stiffness = 140;
+    let damping = 8;
+    let maxRotation = 35;
+    let bounceIntensity = 1.0;
+
+    // Apply Laban-based physics modifiers when in enhanced mode
+    if (choreoState && useEnhancedModeRef.current) {
+        const physics = choreoState.physics;
+        stiffness = physics.stiffness;
+        damping = physics.damping;
+        maxRotation = physics.maxRotation;
+        bounceIntensity = physics.bounceIntensity;
+    }
+
+    const targetRotX = bass * maxRotation * bounceIntensity;
+    const targetRotY = mid * (maxRotation * 0.7) * Math.sin(time * 0.005);
+    const targetRotZ = high * (maxRotation * 0.4); 
 
     // Spring Solver
     masterVelXRef.current += ((targetRotX - masterRotXRef.current) * stiffness - (masterVelXRef.current * damping)) * deltaTime;
@@ -353,11 +498,48 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }
     }
 
-    // --- MAIN GROOVE ENGINE (Beat-focused) ---
+    // --- ENHANCED CHOREOGRAPHY MODE ---
+    // Use motion grammar and Laban effort for frame selection when enabled
+    if (choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
+        const currentPose = targetPoseRef.current;
+        const selection = selectFrame(choreoState, currentPose);
+
+        if (selection.frame && selection.frame.pose !== currentPose) {
+            // Use the transition mode from the motion grammar
+            const mode = selection.transitionMode;
+
+            // Apply physics boost from current move
+            if (choreoState.currentMove) {
+                const boost = choreoState.currentMove.physicsBoost;
+                if (boost > 0) {
+                    charSquashRef.current = 1.0 - (boost * 0.15);
+                    charBounceYRef.current = -30 * boost * bass;
+                    flashIntensityRef.current = boost * 0.2;
+                }
+            }
+
+            // Trigger transition with Laban-determined mode
+            triggerTransition(selection.frame.pose, mode as InterpMode);
+
+            // Update direction based on selection
+            currentDirectionRef.current = selection.direction;
+            if (selection.direction === 'left') targetTiltRef.current = -6;
+            else if (selection.direction === 'right') targetTiltRef.current = 6;
+            else targetTiltRef.current = 0;
+
+            // Update beat counter from enhanced system
+            beatCounterRef.current = getBeatCount() % 32;
+        }
+    }
+
+    // --- MAIN GROOVE ENGINE (Beat-focused, legacy fallback) ---
     const beatThreshold = 0.55; // Slightly higher threshold for cleaner beat detection
 
+    // Only use legacy groove engine if enhanced mode didn't trigger a transition
+    const useEnhancedTransition = choreoState && useEnhancedModeRef.current && choreoState.shouldTransition;
+
     // Increased cooldown from 300ms to 400ms - more deliberate timing
-    if (!scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
+    if (!useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
             beatCounterRef.current = (beatCounterRef.current + 1) % 16;
@@ -488,10 +670,33 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         const cx = w/2;
         const cy = h/2;
         ctx.clearRect(0, 0, w, h);
-        
-        if (activeFXModeRef.current === 'INVERT') ctx.filter = 'invert(1)';
-        else if (activeFXModeRef.current === 'BW') ctx.filter = 'grayscale(1)';
-        else ctx.filter = 'none';
+
+        // Apply user-controlled effects first
+        const ue = userEffectsRef.current;
+
+        // Build filter string
+        let filterStr = '';
+        if (ue.invert || activeFXModeRef.current === 'INVERT') filterStr += 'invert(1) ';
+        if (ue.bw || activeFXModeRef.current === 'BW') filterStr += 'grayscale(1) ';
+        ctx.filter = filterStr.trim() || 'none';
+
+        // Apply user RGB split
+        if (ue.rgbSplit) rgbSplitRef.current = Math.max(rgbSplitRef.current, 0.5);
+
+        // Apply user zoom pulse
+        if (ue.zoom) camZoomRef.current = BASE_ZOOM + 0.3 * Math.sin(time * 0.008);
+
+        // Apply user shake
+        if (ue.shake) {
+            masterRotZRef.current += (Math.random() - 0.5) * 3;
+            camPanXRef.current += (Math.random() - 0.5) * 10;
+        }
+
+        // Apply user glitch
+        if (ue.glitch && Math.random() < 0.1) {
+            charSkewRef.current = (Math.random() - 0.5) * 1.5;
+            rgbSplitRef.current = Math.random() * 0.8;
+        }
 
         const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
@@ -593,18 +798,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             }
         }
             
-        if (mid > 0.4) {
+        // Scanlines effect (audio-reactive OR user-controlled)
+        if (mid > 0.4 || ue.scanlines) {
             ctx.save();
-            ctx.fillStyle = `rgba(0,0,0, ${mid * 0.3})`;
+            const scanIntensity = ue.scanlines ? 0.4 : mid * 0.3;
+            ctx.fillStyle = `rgba(0,0,0, ${scanIntensity})`;
             for(let y=0; y<h; y+=6) {
                  ctx.fillRect(0, y, w, 2);
             }
             ctx.restore();
         }
-        
-        if (flashIntensityRef.current > 0.01) {
-            ctx.fillStyle = `rgba(255,255,255, ${flashIntensityRef.current})`;
+
+        // Strobe effect (audio-reactive OR user-controlled)
+        const strobeActive = ue.strobe && Math.sin(time * 0.05) > 0.7;
+        if (flashIntensityRef.current > 0.01 || strobeActive) {
+            const flashAmount = strobeActive ? 0.5 : flashIntensityRef.current;
+            ctx.fillStyle = `rgba(255,255,255, ${flashAmount})`;
             ctx.fillRect(0,0,w,h);
+        }
+
+        // Ghost/trail effect (user-controlled)
+        if (ue.ghost) {
+            ctx.globalAlpha = 0.15;
+            ctx.globalCompositeOperation = 'lighter';
         }
     };
 
@@ -631,10 +847,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     
     setBrainState({
         activePoseName: targetPoseRef.current,
-        fps: Math.round(1/deltaTime)
+        fps: Math.round(1/deltaTime),
+        effort: choreoState?.movementQualities.effort || 'GLIDE',
+        danceStyle: choreoState?.movementQualities.danceStyle || 'HOUSE',
+        bpm: choreoState?.audio.bpm || 120,
+        phraseSection: choreoState?.audio.phrase.phraseSection || 'INTRO'
     });
 
-  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording, getFrequencyData]);
+  }, [imagesReady, superCamActive, framesByEnergy, closeupFrames, isRecording, getFrequencyData, processAudio, selectFrame, getBeatCount, analyserRef]);
 
 
   useEffect(() => {
@@ -809,6 +1029,69 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           <audio ref={audioElementRef} src={state.audioPreviewUrl} loop crossOrigin="anonymous" onEnded={() => setIsPlaying(false)} />
       )}
 
+      {/* Hidden file input for track change */}
+      <input
+        ref={trackInputRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        onChange={handleTrackChange}
+      />
+
+      {/* EFFECTS PANEL */}
+      {showEffects && (
+        <div className="absolute top-20 right-6 z-50 animate-slide-in-right pointer-events-auto">
+          <div className="bg-black/90 backdrop-blur-xl border border-brand-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(139,92,246,0.3)] w-64">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-bold text-white tracking-widest flex items-center gap-2">
+                <Wand2 size={14} className="text-brand-400" /> EFFECTS
+              </h3>
+              <button onClick={() => setShowEffects(false)} className="text-gray-500 hover:text-white">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'rgbSplit', label: 'RGB', icon: Layers },
+                { key: 'strobe', label: 'STROBE', icon: Zap },
+                { key: 'ghost', label: 'GHOST', icon: Ghost },
+                { key: 'invert', label: 'INVERT', icon: Contrast },
+                { key: 'bw', label: 'B&W', icon: CircleDot },
+                { key: 'scanlines', label: 'SCAN', icon: ScanLine },
+                { key: 'glitch', label: 'GLITCH', icon: Activity },
+                { key: 'zoom', label: 'ZOOM', icon: Move3D },
+                { key: 'shake', label: 'SHAKE', icon: Radio }
+              ].map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => toggleEffect(key as keyof typeof userEffects)}
+                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all ${
+                    userEffects[key as keyof typeof userEffects]
+                      ? 'bg-brand-500/30 border-brand-500 text-brand-300'
+                      : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon size={16} />
+                  <span className="text-[9px] font-bold">{label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-white/10">
+              <button
+                onClick={() => setUserEffects({
+                  rgbSplit: false, strobe: false, ghost: false,
+                  invert: false, bw: false, scanlines: false,
+                  glitch: false, shake: false, zoom: false
+                })}
+                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-white transition-colors"
+              >
+                RESET ALL
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* NEURAL DECK / FRAME INSPECTOR */}
       {showDeck && (
          <div className="absolute bottom-24 left-0 right-0 z-40 p-4 animate-slide-in-right">
@@ -844,11 +1127,39 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           </div>
       )}
 
+      {/* LIVE MIXER PANEL */}
+      <MixerUI
+        deckAEngine={mixerState.deckAEngine}
+        deckAPattern={mixerState.deckAPattern}
+        onDeckAEngineChange={(engine) => setMixerState(s => ({ ...s, deckAEngine: engine }))}
+        onDeckAPatternChange={(pattern) => setMixerState(s => ({ ...s, deckAPattern: pattern }))}
+        deckBEngine={mixerState.deckBEngine}
+        deckBPattern={mixerState.deckBPattern}
+        onDeckBEngineChange={(engine) => setMixerState(s => ({ ...s, deckBEngine: engine }))}
+        onDeckBPatternChange={(pattern) => setMixerState(s => ({ ...s, deckBPattern: pattern }))}
+        crossfader={mixerState.crossfader}
+        onCrossfaderChange={(value) => setMixerState(s => ({ ...s, crossfader: value }))}
+        effects={mixerState.effects}
+        onEffectChange={(effect, value) => setMixerState(s => ({
+          ...s,
+          effects: { ...s.effects, [effect]: value }
+        }))}
+        availableEngines={availableEngines}
+        availablePatterns={availablePatterns}
+        isOpen={showMixer}
+        onToggle={() => setShowMixer(!showMixer)}
+      />
+
       <div className="absolute inset-0 pointer-events-none z-30 p-6 flex flex-col justify-between">
           <div className="flex justify-between items-start">
              <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
                  <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
-                 <div className="font-mono text-xs text-brand-300">FPS: {brainState.fps}<br/>POSE: {brainState.activePoseName}<br/>FRAMES: {frameCount}</div>
+                 <div className="font-mono text-xs text-brand-300">
+                   FPS: {brainState.fps} | BPM: {brainState.bpm}<br/>
+                   MODE: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span><br/>
+                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort}<br/></>}
+                   STYLE: {brainState.danceStyle} | {brainState.phraseSection}
+                 </div>
              </div>
              <div className="flex gap-2 pointer-events-auto items-center">
                  {isRecording && <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse"><div className="w-2 h-2 bg-red-500 rounded-full" /><span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span></div>}
@@ -863,11 +1174,22 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                        <button onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-brand-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.4)]' : 'bg-white/10 text-white hover:bg-white/20'}`}>{isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}</button>
                    ) : <div className="px-4 text-[10px] text-gray-400 font-mono">NO TRACK LOADED</div>}
                    <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => trackInputRef.current?.click()} className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border border-transparent text-gray-400 hover:text-white hover:bg-white/10"><Music2 size={16} /> CHANGE TRACK</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={toggleMic} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${isMicActive ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'border-transparent text-gray-400 hover:text-white'}`}>{isMicActive ? <Mic size={16} /> : <MicOff size={16} />} LIVE INPUT</button>
                    <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> SUPER CAM</button>
+                   <button onClick={() => setShowEffects(!showEffects)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showEffects ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Wand2 size={16} /> FX</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> CAM</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={() => setShowMixer(!showMixer)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showMixer ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Disc3 size={16} /> MIXER</button>
                    <div className="h-8 w-[1px] bg-white/10" />
                    <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
+                   <div className="h-8 w-[1px] bg-white/10" />
+                   <button onClick={toggleChoreoMode} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${choreoMode === 'LABAN' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-orange-500/20 border-orange-500 text-orange-400'}`}>
+                     {choreoMode === 'LABAN' ? <Brain size={16} /> : <Zap size={16} />}
+                     {choreoMode}
+                   </button>
               </div>
               <div className="flex gap-3">
                   <button onClick={onGenerateMore} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Package size={14} /> NEW VARIATIONS</button>

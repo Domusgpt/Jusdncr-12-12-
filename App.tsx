@@ -119,7 +119,7 @@ const App: React.FC = () => {
 
     try {
         const { frames, category } = await generateDanceFrames(
-            imageBase64, 
+            imageBase64,
             style?.promptModifier || 'artistic style',
             effectiveMotionPrompt,
             forceTurbo || appState.useTurbo,
@@ -131,7 +131,8 @@ const App: React.FC = () => {
                     generatedFrames: partialFrames,
                     // Auto-detect category from first batch logic if needed, or wait for final
                 }));
-            }
+            },
+            appState.cutoutMode // NEW: Pass cutout mode for background removal
         );
 
         setAppState(prev => ({
