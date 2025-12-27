@@ -148,15 +148,15 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-4 right-4 z-50 px-4 py-3 bg-black/80 backdrop-blur-xl
-                   border border-white/20 rounded-xl text-white font-rajdhani font-bold
-                   hover:border-cyan-500/50 hover:bg-black/90 transition-all
+        className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 px-3 sm:px-4 py-2 sm:py-3
+                   bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl text-white
+                   font-rajdhani font-bold hover:border-cyan-500/50 hover:bg-black/90 transition-all
                    flex items-center gap-2 shadow-lg"
       >
-        <Disc className="w-5 h-5 text-cyan-400" />
-        <span className="text-sm tracking-wider">MIXER</span>
+        <Disc className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
+        <span className="text-xs sm:text-sm tracking-wider">MIXER</span>
         {telemetry && (
-          <span className="text-xs text-cyan-400 ml-2">
+          <span className="text-[10px] sm:text-xs text-cyan-400 ml-1 sm:ml-2">
             {telemetry.bpm} BPM
           </span>
         )}
@@ -165,9 +165,10 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[420px] bg-black/90 backdrop-blur-xl
+    <div className="fixed bottom-20 sm:bottom-4 left-2 right-2 sm:left-auto sm:right-4 z-50
+                    w-auto sm:w-[420px] max-w-[calc(100vw-16px)] bg-black/90 backdrop-blur-xl
                     border border-white/15 rounded-2xl font-rajdhani text-white
-                    shadow-2xl shadow-black/50 overflow-hidden">
+                    shadow-2xl shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/10
@@ -210,7 +211,7 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
       </div>
 
       {/* Tab Content */}
-      <div className="p-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
+      <div className="p-3 sm:p-4 overflow-y-auto custom-scrollbar">
 
         {/* DECKS TAB */}
         {activeTab === 'DECKS' && (
@@ -231,26 +232,26 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
         {/* ENGINE TAB */}
         {activeTab === 'ENGINE' && (
           <div className="space-y-4">
-            {/* Engine Mode Toggle */}
+            {/* Engine Mode Toggle - Prominent */}
             <div className="flex gap-2">
               <button
                 onClick={() => onEngineModeChange('KINETIC')}
-                className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2
-                           transition-all border ${engineMode === 'KINETIC'
-                             ? 'bg-purple-500/30 border-purple-400 text-purple-300'
-                             : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'}`}
+                className={`flex-1 py-3 sm:py-4 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2
+                           transition-all border-2 ${engineMode === 'KINETIC'
+                             ? 'bg-purple-500/40 border-purple-400 text-purple-200 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
+                             : 'bg-white/5 border-white/10 text-white/50 hover:border-purple-500/50'}`}
               >
-                <Brain className="w-4 h-4" />
+                <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
                 KINETIC
               </button>
               <button
                 onClick={() => onEngineModeChange('PATTERN')}
-                className={`flex-1 py-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2
-                           transition-all border ${engineMode === 'PATTERN'
-                             ? 'bg-cyan-500/30 border-cyan-400 text-cyan-300'
-                             : 'bg-white/5 border-white/10 text-white/50 hover:border-white/30'}`}
+                className={`flex-1 py-3 sm:py-4 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 sm:gap-2
+                           transition-all border-2 ${engineMode === 'PATTERN'
+                             ? 'bg-cyan-500/40 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(0,255,255,0.3)]'
+                             : 'bg-white/5 border-white/10 text-white/50 hover:border-cyan-500/50'}`}
               >
-                <Grid3X3 className="w-4 h-4" />
+                <Grid3X3 className="w-4 h-4 sm:w-5 sm:h-5" />
                 PATTERN
               </button>
             </div>
@@ -292,15 +293,15 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
             {engineMode === 'PATTERN' && (
               <div className="space-y-2">
                 <div className="text-xs text-white/40">PATTERN</div>
-                <div className="grid grid-cols-5 gap-1">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-1">
                   {PATTERNS.map(p => (
                     <button
                       key={p.id}
                       onClick={() => onPatternChange(p.id)}
                       title={p.desc}
-                      className={`py-2 px-1 rounded text-[10px] font-bold transition-all border
+                      className={`py-2 px-1 rounded text-[9px] sm:text-[10px] font-bold transition-all border
                                  ${activePattern === p.id
-                                   ? 'bg-cyan-500 border-cyan-400 text-white'
+                                   ? 'bg-cyan-500 border-cyan-400 text-white shadow-[0_0_10px_rgba(0,255,255,0.3)]'
                                    : 'bg-white/5 border-white/10 text-white/50 hover:border-cyan-500/50'}`}
                     >
                       {p.label}

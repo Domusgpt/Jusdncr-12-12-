@@ -8,8 +8,11 @@ import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
-import { MixerUI } from './MixerUI';
-import { EngineType, PatternType, EffectsRackState } from '../engine/LiveMixer';
+import { GolemMixerPanel } from './GolemMixerPanel';
+import {
+  GolemMixer, createGolemMixer,
+  EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
+} from '../engine/GolemMixer';
 
 interface Step4Props {
   state: AppState;
@@ -85,30 +88,46 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [showMixer, setShowMixer] = useState(false); // LiveMixer Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
-  // LiveMixer State
-  const [mixerState, setMixerState] = useState({
-    deckAEngine: 'REACTIVE' as EngineType,
-    deckAPattern: 'PING_PONG' as PatternType,
-    deckBEngine: 'FLOW' as EngineType,
-    deckBPattern: 'FLOW' as PatternType,
-    crossfader: 0,
+  // GolemMixer Engine Instance
+  const golemMixerRef = useRef<GolemMixer | null>(null);
+
+  // Initialize GolemMixer
+  useEffect(() => {
+    if (!golemMixerRef.current) {
+      golemMixerRef.current = createGolemMixer();
+    }
+  }, []);
+
+  // GolemMixer UI State
+  const [golemState, setGolemState] = useState({
+    engineMode: 'KINETIC' as EngineMode,
+    activePattern: 'PING_PONG' as PatternType,
+    sequenceMode: 'GROOVE' as SequenceMode,
+    bpm: 120,
+    autoBPM: true,
     effects: {
       rgbSplit: 0,
       flash: 0,
       glitch: 0,
-      zoomPulse: 0,
+      scanlines: 0,
+      hueShift: 0,
+      aberration: 0,
       invert: false,
       grayscale: false,
       mirror: false,
       strobe: false
-    } as EffectsRackState
+    } as EffectsState,
+    decks: [
+      { id: 0, name: 'Deck 1', isActive: true, mixMode: 'sequencer' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
+      { id: 1, name: 'Deck 2', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
+      { id: 2, name: 'Deck 3', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
+      { id: 3, name: 'Deck 4', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined }
+    ],
+    telemetry: null as MixerTelemetry | null
   });
 
-  const availableEngines: EngineType[] = ['REACTIVE', 'CHAOS', 'MINIMAL', 'FLOW', 'FLUID', 'SEQUENCE', 'PATTERN'];
-  const availablePatterns: PatternType[] = [
-    'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
-    'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
-  ];
+  // Deck file input refs for loading rigs
+  const deckInputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null]);
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
 
   // User-controlled effects state
@@ -149,6 +168,116 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       }
     }
   };
+
+  // === GOLEM MIXER HANDLERS ===
+  const handleDeckModeChange = (deckId: number, mode: MixMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setDeckMode(deckId, mode);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === deckId ? { ...d, mixMode: mode, isActive: mode !== 'off' } : d)
+      }));
+    }
+  };
+
+  const handleDeckOpacityChange = (deckId: number, opacity: number) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setDeckOpacity(deckId, opacity);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === deckId ? { ...d, opacity } : d)
+      }));
+    }
+  };
+
+  const handleLoadDeck = (deckId: number) => {
+    // Trigger file input for this deck
+    deckInputRefs.current[deckId]?.click();
+  };
+
+  const handleDeckFileChange = async (deckId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !golemMixerRef.current) return;
+
+    try {
+      const text = await file.text();
+      const project = JSON.parse(text);
+      if (project.frames && Array.isArray(project.frames)) {
+        golemMixerRef.current.loadDeck(deckId, project.frames, project.subjectCategory || 'CHARACTER');
+        setGolemState(s => ({
+          ...s,
+          decks: s.decks.map(d => d.id === deckId ? {
+            ...d,
+            isActive: true,
+            mixMode: 'sequencer',
+            frameCount: project.frames.length,
+            rigName: file.name.replace('.json', '')
+          } : d)
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to load rig:', err);
+    }
+  };
+
+  const handleEngineModeChange = (mode: EngineMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setEngineMode(mode);
+      setGolemState(s => ({ ...s, engineMode: mode }));
+    }
+  };
+
+  const handlePatternChange = (pattern: PatternType) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setPattern(pattern);
+      setGolemState(s => ({ ...s, activePattern: pattern }));
+    }
+  };
+
+  const handleSequenceModeChange = (mode: SequenceMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setSequenceMode(mode);
+      setGolemState(s => ({ ...s, sequenceMode: mode }));
+    }
+  };
+
+  const handleBPMChange = (bpm: number) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setBPM(bpm);
+      setGolemState(s => ({ ...s, bpm }));
+    }
+  };
+
+  const handleAutoBPMChange = (auto: boolean) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setAutoBPM(auto);
+      setGolemState(s => ({ ...s, autoBPM: auto }));
+    }
+  };
+
+  const handleEffectChange = <K extends keyof EffectsState>(key: K, value: EffectsState[K]) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setEffect(key, value);
+      setGolemState(s => ({ ...s, effects: { ...s.effects, [key]: value } }));
+    }
+  };
+
+  // Load current frames into deck 0 when frames change
+  useEffect(() => {
+    if (golemMixerRef.current && state.generatedFrames.length > 0) {
+      golemMixerRef.current.loadDeck(0, state.generatedFrames, state.subjectCategory);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === 0 ? {
+          ...d,
+          isActive: true,
+          mixMode: 'sequencer',
+          frameCount: state.generatedFrames.length,
+          rigName: 'Current Rig'
+        } : d)
+      }));
+    }
+  }, [state.generatedFrames, state.subjectCategory]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -1127,25 +1256,41 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           </div>
       )}
 
-      {/* LIVE MIXER PANEL */}
-      <MixerUI
-        deckAEngine={mixerState.deckAEngine}
-        deckAPattern={mixerState.deckAPattern}
-        onDeckAEngineChange={(engine) => setMixerState(s => ({ ...s, deckAEngine: engine }))}
-        onDeckAPatternChange={(pattern) => setMixerState(s => ({ ...s, deckAPattern: pattern }))}
-        deckBEngine={mixerState.deckBEngine}
-        deckBPattern={mixerState.deckBPattern}
-        onDeckBEngineChange={(engine) => setMixerState(s => ({ ...s, deckBEngine: engine }))}
-        onDeckBPatternChange={(pattern) => setMixerState(s => ({ ...s, deckBPattern: pattern }))}
-        crossfader={mixerState.crossfader}
-        onCrossfaderChange={(value) => setMixerState(s => ({ ...s, crossfader: value }))}
-        effects={mixerState.effects}
-        onEffectChange={(effect, value) => setMixerState(s => ({
-          ...s,
-          effects: { ...s.effects, [effect]: value }
-        }))}
-        availableEngines={availableEngines}
-        availablePatterns={availablePatterns}
+      {/* Hidden file inputs for deck rig loading */}
+      {[0, 1, 2, 3].map(deckId => (
+        <input
+          key={deckId}
+          ref={el => { deckInputRefs.current[deckId] = el; }}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => handleDeckFileChange(deckId, e)}
+        />
+      ))}
+
+      {/* GOLEM MIXER PANEL - 4-CHANNEL DECK MIXER */}
+      <GolemMixerPanel
+        decks={golemState.decks}
+        onDeckModeChange={handleDeckModeChange}
+        onDeckOpacityChange={handleDeckOpacityChange}
+        onLoadDeck={handleLoadDeck}
+        engineMode={golemState.engineMode}
+        onEngineModeChange={handleEngineModeChange}
+        activePattern={golemState.activePattern}
+        onPatternChange={handlePatternChange}
+        sequenceMode={golemState.sequenceMode}
+        onSequenceModeChange={handleSequenceModeChange}
+        bpm={golemState.bpm}
+        autoBPM={golemState.autoBPM}
+        onBPMChange={handleBPMChange}
+        onAutoBPMChange={handleAutoBPMChange}
+        onTriggerStutter={(active) => golemMixerRef.current?.setTriggerStutter(active)}
+        onTriggerReverse={(active) => golemMixerRef.current?.setTriggerReverse(active)}
+        onTriggerGlitch={(active) => golemMixerRef.current?.setTriggerGlitch(active)}
+        onTriggerBurst={(active) => golemMixerRef.current?.setTriggerBurst(active)}
+        effects={golemState.effects}
+        onEffectChange={handleEffectChange}
+        telemetry={golemState.telemetry}
         isOpen={showMixer}
         onToggle={() => setShowMixer(!showMixer)}
       />
