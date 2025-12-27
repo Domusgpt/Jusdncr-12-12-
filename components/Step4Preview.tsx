@@ -1346,10 +1346,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
              <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
                  <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
                  <div className="font-mono text-xs text-brand-300">
-                   FPS: {brainState.fps} | BPM: {brainState.bpm}<br/>
-                   MODE: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span><br/>
-                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort}<br/></>}
-                   STYLE: {brainState.danceStyle} | {brainState.phraseSection}
+                   FPS: {brainState.fps} | BPM: {golemState.telemetry?.bpm ?? brainState.bpm}<br/>
+                   PHYSICS: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span>
+                   {' | '}ENGINE: <span className={golemState.engineMode === 'KINETIC' ? 'text-purple-400' : 'text-cyan-400'}>{golemState.engineMode}</span><br/>
+                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort} | </>}
+                   {golemState.engineMode === 'KINETIC' && <>SEQ: <span className="text-green-400">{golemState.telemetry?.sequenceMode ?? golemState.sequenceMode}</span> | NODE: {golemState.telemetry?.currentNode ?? 'idle'}</>}
+                   {golemState.engineMode === 'PATTERN' && <>PATTERN: <span className="text-cyan-400">{golemState.activePattern}</span></>}
                  </div>
              </div>
              <div className="flex gap-2 pointer-events-auto items-center">
