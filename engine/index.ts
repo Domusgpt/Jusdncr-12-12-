@@ -234,3 +234,55 @@ export {
   createLiveMixer,
   createEngine
 } from './LiveMixer';
+
+// =============================================================================
+// GOLEM MIXER (4-Channel System with Kinetic Engine)
+// =============================================================================
+
+export {
+  // Types
+  type EnergyLevel as GolemEnergyLevel,
+  type MoveDirection as GolemMoveDirection,
+  type FrameType as GolemFrameType,
+  type MixMode,
+  type SequenceMode,
+  type PatternType as GolemPatternType,
+  type EngineMode as GolemEngineMode,
+  type TransitionMode as GolemTransitionMode,
+  type AudioData as GolemAudioData,
+  type DeckFrame,
+  type GolemDeck,
+  type KineticState as GolemKineticState,
+  type PhysicsState as GolemPhysicsState,
+  type EffectsState as GolemEffectsState,
+  type MixerOutput,
+  type MixerTelemetry,
+
+  // Classes
+  GolemMixer,
+
+  // Factory
+  createGolemMixer
+} from './GolemMixer';
+
+// =============================================================================
+// UNIFIED CHOREOGRAPHER (New - Combines LEGACY/LABAN + KINETIC/PATTERN)
+// =============================================================================
+
+export {
+  // Types
+  type PhysicsStyle,
+  type EngineMode as UnifiedEngineMode,
+  type SequenceMode as UnifiedSequenceMode,
+  type PatternType as UnifiedPatternType,
+  type AudioData as UnifiedAudioData,
+  type ChoreographerConfig,
+  type ChoreographerState,
+  type ChoreographerOutput,
+
+  // Classes
+  UnifiedChoreographer,
+
+  // Factory
+  createUnifiedChoreographer
+} from './UnifiedChoreographer';

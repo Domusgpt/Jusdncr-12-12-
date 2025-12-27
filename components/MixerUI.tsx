@@ -5,6 +5,13 @@
 import React, { useState } from 'react';
 import type { EngineType, PatternType, EffectsRackState } from '../engine/LiveMixer';
 
+export interface TriggerState {
+  stutter: boolean;
+  reverse: boolean;
+  glitch: boolean;
+  burst: boolean;
+}
+
 interface MixerUIProps {
   // Deck A
   deckAEngine: EngineType;
@@ -25,6 +32,14 @@ interface MixerUIProps {
   // Effects
   effects: EffectsRackState;
   onEffectChange: (effect: keyof EffectsRackState, value: number | boolean) => void;
+
+  // Triggers (hold to activate)
+  triggers?: TriggerState;
+  onTriggerChange?: (trigger: keyof TriggerState, active: boolean) => void;
+
+  // BPM display
+  bpm?: number;
+  beatCount?: number;
 
   // Available options
   availableEngines: EngineType[];
@@ -78,6 +93,10 @@ export const MixerUI: React.FC<MixerUIProps> = ({
   onCrossfaderChange,
   effects,
   onEffectChange,
+  triggers,
+  onTriggerChange,
+  bpm,
+  beatCount,
   availableEngines,
   availablePatterns,
   isOpen,
@@ -87,19 +106,20 @@ export const MixerUI: React.FC<MixerUIProps> = ({
     return (
       <button
         onClick={onToggle}
-        className="fixed bottom-4 right-4 z-50 px-4 py-2 bg-black/60 backdrop-blur-xl
-                   border border-white/20 rounded-lg text-white font-rajdhani
+        className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 px-3 py-2 bg-black/60 backdrop-blur-xl
+                   border border-white/20 rounded-lg text-white font-rajdhani text-sm
                    hover:border-brand-500/50 transition-all"
       >
-        🎛️ MIXER
+        🎛️ <span className="hidden sm:inline">MIXER</span>
       </button>
     );
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[380px] bg-black/80 backdrop-blur-xl
-                    border border-white/20 rounded-xl p-4 font-rajdhani text-white
-                    shadow-2xl shadow-brand-500/20">
+    <div className="fixed bottom-20 sm:bottom-4 left-2 right-2 sm:left-auto sm:right-4 z-50
+                    w-auto sm:w-[380px] max-w-[calc(100vw-16px)] bg-black/90 backdrop-blur-xl
+                    border border-white/20 rounded-xl p-3 sm:p-4 font-rajdhani text-white
+                    shadow-2xl shadow-brand-500/20 max-h-[70vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold bg-gradient-to-r from-cyan-400 to-purple-500
@@ -229,7 +249,7 @@ export const MixerUI: React.FC<MixerUIProps> = ({
       </div>
 
       {/* Toggle Effects */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex gap-2 flex-wrap mb-3">
         <EffectToggle
           label="INVERT"
           active={effects.invert}
@@ -251,6 +271,63 @@ export const MixerUI: React.FC<MixerUIProps> = ({
           onChange={(v) => onEffectChange('strobe', v)}
         />
       </div>
+
+      {/* Trigger Pads */}
+      {triggers && onTriggerChange && (
+        <div className="mb-3">
+          <div className="text-[10px] text-white/50 mb-2 tracking-wider">TRIGGER PADS (hold)</div>
+          <div className="grid grid-cols-4 gap-2">
+            <TriggerPad
+              label="STUTTER"
+              hint="Q"
+              active={triggers.stutter}
+              onActivate={(active) => onTriggerChange('stutter', active)}
+              color="purple"
+            />
+            <TriggerPad
+              label="REVERSE"
+              hint="W"
+              active={triggers.reverse}
+              onActivate={(active) => onTriggerChange('reverse', active)}
+              color="cyan"
+            />
+            <TriggerPad
+              label="GLITCH"
+              hint="E"
+              active={triggers.glitch}
+              onActivate={(active) => onTriggerChange('glitch', active)}
+              color="green"
+            />
+            <TriggerPad
+              label="BURST"
+              hint="R"
+              active={triggers.burst}
+              onActivate={(active) => onTriggerChange('burst', active)}
+              color="orange"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* BPM Display */}
+      {bpm !== undefined && (
+        <div className="flex items-center justify-between bg-white/5 rounded-lg p-2">
+          <div className="text-[10px] text-white/50 tracking-wider">BPM</div>
+          <div className="text-xl font-bold text-brand-400">{bpm}</div>
+          <div className="flex gap-1">
+            {[0, 1, 2, 3].map(i => (
+              <div
+                key={i}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  beatCount !== undefined && (beatCount % 4) === i
+                    ? 'bg-brand-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]'
+                    : 'bg-white/20'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -309,5 +386,43 @@ const EffectToggle: React.FC<{
     {label}
   </button>
 );
+
+// Trigger Pad Component (hold to activate)
+const TriggerPad: React.FC<{
+  label: string;
+  hint: string;
+  active: boolean;
+  onActivate: (active: boolean) => void;
+  color: 'purple' | 'cyan' | 'green' | 'orange';
+}> = ({ label, hint, active, onActivate, color }) => {
+  const colorClasses = {
+    purple: 'border-purple-500/50 bg-purple-500/20 text-purple-300',
+    cyan: 'border-cyan-500/50 bg-cyan-500/20 text-cyan-300',
+    green: 'border-green-500/50 bg-green-500/20 text-green-300',
+    orange: 'border-orange-500/50 bg-orange-500/20 text-orange-300',
+  };
+
+  const activeClasses = {
+    purple: 'border-purple-400 bg-purple-500 text-white shadow-[0_0_15px_rgba(168,85,247,0.5)]',
+    cyan: 'border-cyan-400 bg-cyan-500 text-white shadow-[0_0_15px_rgba(0,255,255,0.5)]',
+    green: 'border-green-400 bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.5)]',
+    orange: 'border-orange-400 bg-orange-500 text-white shadow-[0_0_15px_rgba(249,115,22,0.5)]',
+  };
+
+  return (
+    <button
+      onMouseDown={() => onActivate(true)}
+      onMouseUp={() => onActivate(false)}
+      onMouseLeave={() => onActivate(false)}
+      onTouchStart={(e) => { e.preventDefault(); onActivate(true); }}
+      onTouchEnd={() => onActivate(false)}
+      className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all
+                  ${active ? activeClasses[color] : colorClasses[color]}`}
+    >
+      <span className="text-[9px] font-bold">{label}</span>
+      <span className="text-[8px] opacity-60">[{hint}]</span>
+    </button>
+  );
+};
 
 export default MixerUI;

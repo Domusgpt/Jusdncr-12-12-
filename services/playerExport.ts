@@ -2,6 +2,10 @@
 import { GeneratedFrame, SubjectCategory } from "../types";
 import { VERTEX_SHADER, FRAGMENT_SHADER, HolographicParams } from "../components/Visualizer/HolographicVisualizer";
 
+/**
+ * Generates standalone HTML player with unified choreography system
+ * Features: LEGACY/LABAN physics, PATTERN/KINETIC engines, keyboard shortcuts
+ */
 export const generatePlayerHTML = (
     frames: GeneratedFrame[],
     hologramParams: HolographicParams,
@@ -25,30 +29,54 @@ export const generatePlayerHTML = (
         #bgCanvas { z-index: 1; }
         #charCanvas { z-index: 2; pointer-events: none; }
         
-        /* UI OVERLAY */
+        /* UI OVERLAY - Responsive */
         #ui {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100;
-            display: flex; gap: 12px; align-items: center;
-            background: rgba(10,10,12,0.8); backdrop-filter: blur(16px);
-            padding: 12px 24px; border-radius: 24px; 
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            position: absolute; bottom: 0; left: 0; right: 0; z-index: 100;
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
             transition: opacity 0.3s, transform 0.3s;
         }
-        
-        button {
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-            color: #ccc; padding: 10px 20px; border-radius: 14px;
-            cursor: pointer; font-weight: 700; font-size: 13px; font-family: 'Rajdhani', sans-serif;
-            letter-spacing: 1px; text-transform: uppercase;
-            transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+        #ui.hidden { opacity: 0; pointer-events: none; transform: translateY(100%); }
+
+        .ui-row {
+            display: flex; gap: 6px; align-items: center; justify-content: center;
+            flex-wrap: wrap; max-width: 100%;
         }
-        button:hover { background: rgba(255,255,255,0.15); color: white; transform: translateY(-2px); border-color: rgba(255,255,255,0.3); }
-        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 20px rgba(139,92,246,0.4); }
-        button.red { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
-        button.red.active { background: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.4); }
-        
-        .separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+
+        button, a.active {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #ccc; padding: 10px 14px; border-radius: 12px;
+            cursor: pointer; font-weight: 700; font-size: 11px; font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.5px; text-transform: uppercase;
+            transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+            min-width: 44px; min-height: 44px; justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active, a.active:active { transform: scale(0.95); }
+        button.active, a.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        button.cyan { background: rgba(0,255,255,0.15); border-color: rgba(0,255,255,0.4); color: #0ff; }
+        button.cyan.active { background: #0ff; color: #000; }
+        button.orange { background: rgba(255,150,0,0.15); border-color: rgba(255,150,0,0.4); color: #f90; }
+        button.red { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+        button.red.active { background: #ef4444; color: white; border-color: #ef4444; }
+
+        .btn-icon { width: 44px; padding: 10px; }
+        .btn-icon svg { width: 20px; height: 20px; }
+        .btn-label { display: none; }
+        @media (min-width: 480px) { .btn-label { display: inline; } button { padding: 10px 16px; } }
+
+        .separator { width: 1px; height: 20px; background: rgba(255,255,255,0.1); display: none; }
+        @media (min-width: 480px) { .separator { display: block; } }
+
+        /* Tap to show UI hint */
+        #tapHint {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); padding: 16px 24px; border-radius: 12px;
+            font-size: 14px; color: rgba(255,255,255,0.6); pointer-events: none;
+            opacity: 0; transition: opacity 0.3s; z-index: 80;
+        }
+        #tapHint.visible { opacity: 1; }
 
         /* Loader */
         #loader {
@@ -71,48 +99,68 @@ export const generatePlayerHTML = (
         body.drag-active #dropOverlay { opacity: 1; }
         .drop-title { font-size: 3em; color: white; font-weight: 900; letter-spacing: 4px; margin-bottom: 10px; }
         
-        /* Info Corner */
+        /* Info Corner - Responsive */
         #info {
-            position: absolute; top: 30px; left: 30px; z-index: 50;
-            color: rgba(255,255,255,0.4); font-size: 12px; pointer-events: none;
-            line-height: 1.5; font-weight: 600;
+            position: absolute; top: 12px; left: 12px; z-index: 50;
+            color: rgba(255,255,255,0.5); font-size: 10px; pointer-events: none;
+            line-height: 1.4; font-weight: 600;
+            background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 10px;
+            backdrop-filter: blur(10px); max-width: 180px;
         }
+        @media (min-width: 480px) { #info { font-size: 11px; top: 20px; left: 20px; } }
         .brand {
-            font-size: 24px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; display: block;
-            text-shadow: 0 0 20px rgba(139,92,246,0.5);
+            font-size: 18px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 2px; display: block;
+            text-shadow: 0 0 15px rgba(139,92,246,0.5);
         }
+        @media (min-width: 480px) { .brand { font-size: 22px; } }
 
-        /* NEURAL DECK (Frame Swapping) */
+        /* NEURAL DECK - Responsive */
         #deck {
-            position: absolute; bottom: 100px; left: 0; right: 0;
-            height: 100px; padding: 0 20px;
-            display: flex; gap: 10px; overflow-x: auto;
-            align-items: center; justify-content: center;
-            z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+            position: absolute; left: 0; right: 0; z-index: 90;
+            padding: 8px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            display: flex; gap: 8px; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            /* Mobile: top position */
+            top: 60px; bottom: auto; height: auto;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+        }
+        @media (min-width: 600px) {
+            #deck { top: auto; bottom: 80px; background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%); }
         }
         #deck.visible { opacity: 1; pointer-events: auto; }
         .frame-thumb {
-            width: 60px; height: 60px; border-radius: 8px;
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
-            cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+            width: 52px; height: 52px; border-radius: 8px;
+            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.15);
+            cursor: pointer; flex-shrink: 0; transition: all 0.15s;
             overflow: hidden; position: relative;
         }
+        @media (min-width: 480px) { .frame-thumb { width: 60px; height: 60px; } }
         .frame-thumb img { width: 100%; height: 100%; object-fit: contain; }
-        .frame-thumb:hover { transform: scale(1.1); border-color: #a78bfa; background: rgba(139,92,246,0.2); }
+        .frame-thumb:active { transform: scale(0.95); border-color: #a78bfa; }
+        .frame-thumb.selected { border-color: #8b5cf6; box-shadow: 0 0 12px rgba(139,92,246,0.5); }
         .frame-thumb .badge {
-            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7);
-            color: white; font-size: 8px; padding: 2px 4px; border-top-left-radius: 4px;
+            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.8);
+            color: white; font-size: 7px; padding: 1px 3px; border-top-left-radius: 4px;
         }
 
-        /* LIVE MIXER PANEL */
+        /* GOLEM MIXER PANEL - Responsive */
         #mixerPanel {
-            position: absolute; bottom: 100px; right: 20px; z-index: 100;
-            width: 340px; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            position: absolute; z-index: 110;
+            background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
             border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
-            padding: 16px; font-family: 'Rajdhani', sans-serif;
+            padding: 12px; font-family: 'Rajdhani', sans-serif;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.1);
-            display: none;
+            display: none; overflow-y: auto;
+            /* Mobile: full width bottom sheet */
+            bottom: 0; left: 0; right: 0;
+            max-height: 70vh; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+        }
+        @media (min-width: 600px) {
+            #mixerPanel {
+                bottom: 80px; right: 16px; left: auto;
+                width: 360px; max-height: 75vh;
+                border-radius: 16px;
+            }
         }
         #mixerPanel.visible { display: block; }
         #mixerPanel h3 {
@@ -121,6 +169,15 @@ export const generatePlayerHTML = (
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
             letter-spacing: 2px;
         }
+        .mixer-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+        .mixer-tab {
+            flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 8px;
+            transition: all 0.15s; text-align: center;
+        }
+        .mixer-tab:hover { background: rgba(139,92,246,0.2); }
+        .mixer-tab.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
         .mixer-section { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
         .mixer-section-title { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 8px; letter-spacing: 1px; }
         .mixer-row { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -140,6 +197,49 @@ export const generatePlayerHTML = (
             -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
             background: #a78bfa; cursor: pointer; border: 2px solid white;
         }
+        /* 4-Channel Deck Grid */
+        .deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+        .deck-channel {
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px; padding: 8px; text-align: center;
+        }
+        .deck-channel.active { border-color: #a78bfa; background: rgba(139,92,246,0.1); }
+        .deck-label { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
+        .deck-mode-select {
+            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+            color: white; padding: 4px; border-radius: 4px; font-size: 9px;
+            font-family: 'Rajdhani', sans-serif; cursor: pointer;
+        }
+        .deck-indicator {
+            width: 8px; height: 8px; border-radius: 50%; margin: 4px auto 0;
+            background: rgba(255,255,255,0.2); transition: all 0.2s;
+        }
+        .deck-indicator.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        /* Engine Mode Toggle */
+        .engine-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+        .engine-btn, .physics-btn {
+            flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
+            transition: all 0.15s; text-align: center;
+        }
+        .engine-btn:hover, .physics-btn:hover { background: rgba(139,92,246,0.2); }
+        .engine-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        .physics-btn.active { background: #00ffff; border-color: #00ffff; color: black; }
+        /* Sequence Mode Indicators */
+        .seq-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
+        .seq-mode {
+            padding: 6px 4px; font-size: 9px; font-weight: 600;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.5); border-radius: 6px; text-align: center;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .seq-mode:hover { background: rgba(139,92,246,0.15); }
+        .seq-mode.active {
+            background: rgba(0,255,136,0.2); border-color: #00ff88; color: #00ff88;
+            box-shadow: 0 0 8px rgba(0,255,136,0.3);
+        }
+        /* Pattern Grid */
         .pattern-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
         .pattern-btn {
             padding: 6px 4px; font-size: 9px; border-radius: 6px;
@@ -148,6 +248,96 @@ export const generatePlayerHTML = (
         }
         .pattern-btn:hover { background: rgba(139,92,246,0.2); border-color: rgba(139,92,246,0.5); }
         .pattern-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        /* BPM Display */
+        .bpm-display {
+            display: flex; align-items: center; gap: 12px; padding: 8px;
+            background: rgba(0,0,0,0.3); border-radius: 8px; margin-bottom: 8px;
+        }
+        .bpm-value { font-size: 24px; font-weight: 900; color: #00ffff; min-width: 60px; }
+        .bpm-label { font-size: 10px; color: rgba(255,255,255,0.5); }
+        .bar-counter {
+            display: flex; gap: 2px; flex: 1;
+        }
+        .bar-beat {
+            width: 8px; height: 16px; background: rgba(255,255,255,0.1);
+            border-radius: 2px; transition: all 0.1s;
+        }
+        .bar-beat.active { background: #a78bfa; }
+        .bar-beat.downbeat { background: #00ffff; }
+        /* Trigger Pads */
+        .trigger-pads { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .trigger-pad {
+            padding: 12px 4px; font-size: 10px; font-weight: 700;
+            background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.7); cursor: pointer; border-radius: 8px;
+            transition: all 0.1s; text-align: center; user-select: none;
+        }
+        .trigger-pad:hover { background: rgba(139,92,246,0.2); }
+        .trigger-pad:active, .trigger-pad.active {
+            background: #ef4444; border-color: #f87171; color: white;
+            transform: scale(0.95); box-shadow: 0 0 12px rgba(239,68,68,0.5);
+        }
+        /* FX Grid */
+        .fx-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+        .fx-slider-container { text-align: center; }
+        .fx-slider {
+            width: 100%; height: 60px; -webkit-appearance: slider-vertical;
+            writing-mode: vertical-lr; direction: rtl;
+            background: transparent;
+        }
+        .fx-label { font-size: 9px; color: rgba(255,255,255,0.5); margin-top: 4px; }
+        .fx-toggles { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+        .fx-toggle {
+            padding: 6px 10px; font-size: 9px; font-weight: 600;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .fx-toggle:hover { background: rgba(139,92,246,0.2); }
+        .fx-toggle.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+
+        /* INTERACTIVE ENHANCEMENTS */
+        /* Keyboard hints */
+        .key-hint {
+            font-size: 8px; color: rgba(255,255,255,0.3); font-weight: 600;
+            display: block; margin-top: 2px;
+        }
+        /* Audio-reactive glow on mixer panel */
+        #mixerPanel.pulse { box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 60px rgba(139,92,246,0.3); }
+        /* Beat flash on BPM display */
+        .bpm-value.beat { text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff; }
+        /* Trigger pad ripple effect */
+        .trigger-pad.ripple::after {
+            content: ''; position: absolute; inset: 0; border-radius: 8px;
+            background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+            animation: ripple 0.3s ease-out; pointer-events: none;
+        }
+        @keyframes ripple {
+            from { transform: scale(0); opacity: 1; }
+            to { transform: scale(2); opacity: 0; }
+        }
+        .trigger-pad { position: relative; overflow: hidden; }
+        /* Pattern shuffle button */
+        .shuffle-btn {
+            padding: 4px 10px; font-size: 9px; font-weight: 600;
+            background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.3);
+            color: #00ff88; cursor: pointer; border-radius: 6px; margin-left: auto;
+            transition: all 0.15s;
+        }
+        .shuffle-btn:hover { background: rgba(0,255,136,0.2); }
+        .shuffle-btn.active { background: #00ff88; color: black; animation: pulse 0.5s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
+        /* Help overlay - Responsive */
+        #helpOverlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            z-index: 500; background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 16px;
+            padding: 16px 20px; width: calc(100% - 32px); max-width: 360px; display: none;
+        }
+        #helpOverlay h3 { color: #00ffff; margin: 0 0 12px 0; font-size: 14px; }
+        #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; gap: 8px; }
+        #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px; white-space: nowrap; }
+        #helpOverlay .desc { color: rgba(255,255,255,0.6); text-align: right; }
     </style>
 </head>
 <body>
@@ -166,75 +356,333 @@ export const generatePlayerHTML = (
     </div>
     
     <div id="info">
-        <span class="brand">jusDNCE</span>
+        <a href="https://jusdnce.com" target="_blank" class="brand" style="text-decoration:none; cursor:pointer;">jusDNCE</a>
         MODE: <span id="subjectDisplay">${subjectCategory}</span><br>
         <span id="fps">0 FPS</span> // <span id="poseDisplay">INIT</span>
     </div>
 
     <div id="deck"></div>
 
-    <!-- LIVE MIXER PANEL -->
+    <!-- GOLEM MIXER PANEL -->
     <div id="mixerPanel">
-        <h3>🎛️ LIVE MIXER</h3>
+        <h3>GOLEM MIXER</h3>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">ENGINE</div>
-            <select id="engineSelect" class="mixer-select" style="width: 100%;">
-                <option value="REACTIVE">⚡ Reactive</option>
-                <option value="CHAOS">🌀 Chaos</option>
-                <option value="MINIMAL">◻️ Minimal</option>
-                <option value="FLOW">🌊 Flow</option>
-                <option value="FLUID">💧 Fluid</option>
-                <option value="SEQUENCE">🎬 Sequence</option>
-                <option value="PATTERN">🔄 Pattern</option>
-            </select>
+        <!-- Tab Navigation -->
+        <div class="mixer-tabs">
+            <button class="mixer-tab active" data-tab="decks">DECKS</button>
+            <button class="mixer-tab" data-tab="engine">ENGINE</button>
+            <button class="mixer-tab" data-tab="fx">FX</button>
         </div>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">PATTERN</div>
-            <div class="pattern-grid" id="patternGrid">
-                <button class="pattern-btn active" data-pattern="PING_PONG">↔️ PING</button>
-                <button class="pattern-btn" data-pattern="BUILD_DROP">📈 DROP</button>
-                <button class="pattern-btn" data-pattern="STUTTER">⚡ STUT</button>
-                <button class="pattern-btn" data-pattern="VOGUE">💃 VOGUE</button>
-                <button class="pattern-btn" data-pattern="FLOW">🌊 FLOW</button>
-                <button class="pattern-btn" data-pattern="CHAOS">🎲 CHAOS</button>
-                <button class="pattern-btn" data-pattern="ABAB">🔁 ABAB</button>
-                <button class="pattern-btn" data-pattern="AABB">🔂 AABB</button>
-                <button class="pattern-btn" data-pattern="ABAC">🎯 ABAC</button>
-                <button class="pattern-btn" data-pattern="SNARE_ROLL">🥁 SNARE</button>
-                <button class="pattern-btn" data-pattern="GROOVE">🎵 GROOVE</button>
-                <button class="pattern-btn" data-pattern="EMOTE">😎 EMOTE</button>
-                <button class="pattern-btn" data-pattern="FOOTWORK">👟 FOOT</button>
-                <button class="pattern-btn" data-pattern="IMPACT">💥 IMPACT</button>
-                <button class="pattern-btn" data-pattern="MINIMAL">⬜ MIN</button>
+        <!-- DECKS TAB -->
+        <div id="tabDecks" class="tab-content">
+            <div class="mixer-section">
+                <div class="mixer-section-title">4-CHANNEL DECK SYSTEM</div>
+                <div class="deck-grid">
+                    <div class="deck-channel active" data-deck="1">
+                        <div class="deck-label">CH 1</div>
+                        <select class="deck-mode-select" data-deck="1">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off">OFF</option>
+                        </select>
+                        <div class="deck-indicator active"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="2">
+                        <div class="deck-label">CH 2</div>
+                        <select class="deck-mode-select" data-deck="2">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="3">
+                        <div class="deck-label">CH 3</div>
+                        <select class="deck-mode-select" data-deck="3">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="4">
+                        <div class="deck-label">CH 4</div>
+                        <select class="deck-mode-select" data-deck="4">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">BPM / BAR</div>
+                <div class="bpm-display">
+                    <div>
+                        <div class="bpm-value" id="bpmValue">120</div>
+                        <div class="bpm-label">BPM</div>
+                    </div>
+                    <div class="bar-counter" id="barCounter">
+                        <div class="bar-beat downbeat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">TRIGGER PADS (hold to activate)</div>
+                <div class="trigger-pads">
+                    <button class="trigger-pad" data-trigger="stutter" data-key="q">STUTTER<span class="key-hint">[Q]</span></button>
+                    <button class="trigger-pad" data-trigger="reverse" data-key="w">REVERSE<span class="key-hint">[W]</span></button>
+                    <button class="trigger-pad" data-trigger="glitch" data-key="e">GLITCH<span class="key-hint">[E]</span></button>
+                    <button class="trigger-pad" data-trigger="burst" data-key="r">BURST<span class="key-hint">[R]</span></button>
+                </div>
             </div>
         </div>
 
-        <div class="mixer-section">
-            <div class="mixer-section-title">INTENSITY</div>
-            <div class="mixer-slider-row">
-                <span class="mixer-slider-label">Energy</span>
-                <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+        <!-- ENGINE TAB -->
+        <div id="tabEngine" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">PHYSICS STYLE (how frames move)</div>
+                <div class="engine-toggle" id="physicsToggle">
+                    <button class="physics-btn active" data-physics="LEGACY">LEGACY</button>
+                    <button class="physics-btn" data-physics="LABAN">LABAN</button>
+                </div>
+                <div class="mixer-section-title" style="margin-top:8px;">ENGINE MODE (which frame selected)</div>
+                <div class="engine-toggle" id="engineToggle">
+                    <button class="engine-btn active" data-mode="PATTERN">PATTERN</button>
+                    <button class="engine-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
+                <!-- LABAN Effort Display (shows when LABAN active) -->
+                <div id="labanDisplay" style="display:none; margin-top:8px; padding:8px; background:rgba(0,255,255,0.1); border-radius:6px; border:1px solid rgba(0,255,255,0.2);">
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:4px; font-size:9px;">
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">WEIGHT</div>
+                            <div id="effortWeight" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">SPACE</div>
+                            <div id="effortSpace" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">TIME</div>
+                            <div id="effortTime" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">FLOW</div>
+                            <div id="effortFlow" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="mixer-slider-row">
-                <span class="mixer-slider-label">Stutter</span>
-                <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">SEQUENCE MODE</div>
+                <div class="seq-modes" id="seqModes">
+                    <button class="seq-mode active" data-seq="GROOVE">GROOVE</button>
+                    <button class="seq-mode" data-seq="EMOTE">EMOTE</button>
+                    <button class="seq-mode" data-seq="IMPACT">IMPACT</button>
+                    <button class="seq-mode" data-seq="FOOTWORK">FOOTWRK</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div style="display:flex; align-items:center; margin-bottom:8px;">
+                    <div class="mixer-section-title" style="margin:0;">PATTERNS [1-0]</div>
+                    <button id="shuffleBtn" class="shuffle-btn">SHUFFLE</button>
+                </div>
+                <div class="pattern-grid" id="patternGrid">
+                    <button class="pattern-btn active" data-pattern="PING_PONG" data-key="1">PING</button>
+                    <button class="pattern-btn" data-pattern="BUILD_DROP" data-key="2">DROP</button>
+                    <button class="pattern-btn" data-pattern="STUTTER" data-key="3">STUT</button>
+                    <button class="pattern-btn" data-pattern="VOGUE" data-key="4">VOGUE</button>
+                    <button class="pattern-btn" data-pattern="FLOW" data-key="5">FLOW</button>
+                    <button class="pattern-btn" data-pattern="CHAOS" data-key="6">CHAOS</button>
+                    <button class="pattern-btn" data-pattern="ABAB" data-key="7">ABAB</button>
+                    <button class="pattern-btn" data-pattern="AABB" data-key="8">AABB</button>
+                    <button class="pattern-btn" data-pattern="ABAC" data-key="9">ABAC</button>
+                    <button class="pattern-btn" data-pattern="SNARE_ROLL" data-key="0">SNARE</button>
+                    <button class="pattern-btn" data-pattern="GROOVE">GROOVE</button>
+                    <button class="pattern-btn" data-pattern="EMOTE">EMOTE</button>
+                    <button class="pattern-btn" data-pattern="FOOTWORK">FOOT</button>
+                    <button class="pattern-btn" data-pattern="IMPACT">IMPACT</button>
+                    <button class="pattern-btn" data-pattern="MINIMAL">MIN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">INTENSITY</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Energy</span>
+                    <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Stutter</span>
+                    <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+                </div>
+            </div>
+        </div>
+
+        <!-- FX TAB -->
+        <div id="tabFx" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX SLIDERS</div>
+                <div class="fx-grid">
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxRgb" min="0" max="100" value="0">
+                        <div class="fx-label">RGB</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxFlash" min="0" max="100" value="0">
+                        <div class="fx-label">FLASH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxGlitch" min="0" max="100" value="0">
+                        <div class="fx-label">GLITCH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxZoom" min="0" max="100" value="0">
+                        <div class="fx-label">ZOOM</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX TOGGLES</div>
+                <div class="fx-toggles">
+                    <button class="fx-toggle" data-fx="invert">INVERT</button>
+                    <button class="fx-toggle" data-fx="grayscale">B+W</button>
+                    <button class="fx-toggle" data-fx="mirror">MIRROR</button>
+                    <button class="fx-toggle" data-fx="strobe">STROBE</button>
+                    <button class="fx-toggle" data-fx="pixelate">PIXEL</button>
+                    <button class="fx-toggle" data-fx="scanlines">SCAN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FILTER</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Hue</span>
+                    <input type="range" id="fxHue" class="mixer-slider" min="0" max="360" value="0">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Saturation</span>
+                    <input type="range" id="fxSaturation" class="mixer-slider" min="0" max="200" value="100">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Contrast</span>
+                    <input type="range" id="fxContrast" class="mixer-slider" min="50" max="150" value="100">
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Help Overlay -->
+    <div id="helpOverlay">
+        <h3>KEYBOARD SHORTCUTS</h3>
+        <div class="hotkey-row"><span class="key">SPACE</span><span class="desc">Play/Pause audio</span></div>
+        <div class="hotkey-row"><span class="key">M</span><span class="desc">Toggle mixer panel</span></div>
+        <div class="hotkey-row"><span class="key">D</span><span class="desc">Toggle frame deck</span></div>
+        <div class="hotkey-row"><span class="key">C</span><span class="desc">Toggle dynamic camera</span></div>
+        <div class="hotkey-row"><span class="key">Q W E R</span><span class="desc">Trigger pads (hold)</span></div>
+        <div class="hotkey-row"><span class="key">1-0</span><span class="desc">Select patterns 1-10</span></div>
+        <div class="hotkey-row"><span class="key">L</span><span class="desc">Toggle LEGACY/LABAN</span></div>
+        <div class="hotkey-row"><span class="key">K</span><span class="desc">Toggle PATTERN/KINETIC</span></div>
+        <div class="hotkey-row"><span class="key">S</span><span class="desc">Toggle pattern shuffle</span></div>
+        <div class="hotkey-row"><span class="key">?</span><span class="desc">Show/hide this help</span></div>
+        <div style="margin-top:16px; text-align:center; color:rgba(255,255,255,0.4); font-size:10px;">Press ? to close</div>
+    </div>
+
+    <div id="tapHint">TAP TO SHOW CONTROLS</div>
 
     <div id="ui">
-        <button id="btnPlay">⏯️ PLAY</button>
-        <button id="btnMic">🎙️ MIC INPUT</button>
-        <div class="separator"></div>
-        <button id="btnCam" class="active">🎥 DYNAMIC CAM</button>
-        <button id="btnMixer">🎛️ MIXER</button>
-        <button id="btnDeck">👁️ DECK</button>
-        <div class="separator"></div>
-        <button id="btnLoad" onclick="document.getElementById('fileInput').click()">📂 LOAD</button>
-        <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
+        <!-- Row 1: Main controls -->
+        <div class="ui-row">
+            <button id="btnPlay" class="btn-icon" title="Play/Pause">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="btnMic" class="btn-icon red" title="Microphone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            </button>
+            <div class="separator"></div>
+            <button id="btnCam" class="active" title="Camera Motion">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span class="btn-label">CAM</span>
+            </button>
+            <button id="btnFx" title="Effects">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
+                <span class="btn-label">FX</span>
+            </button>
+            <button id="btnMixer" title="Mixer Panel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>
+                <span class="btn-label">MIXER</span>
+            </button>
+            <button id="btnDeck" title="Frame Deck">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span class="btn-label">DECK</span>
+            </button>
+        </div>
+
+        <!-- Row 2: Mode toggles + Load -->
+        <div class="ui-row">
+            <button id="btnPhysics" class="cyan" title="Physics: LEGACY/LABAN">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4l3-2"/></svg>
+                <span id="physicsLabel">LEGACY</span>
+            </button>
+            <button id="btnEngine" class="orange" title="Engine: PATTERN/KINETIC">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span id="engineLabel">PATTERN</span>
+            </button>
+            <div class="separator"></div>
+            <button id="btnLoadRig" title="Load Rig File">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span class="btn-label">RIG</span>
+            </button>
+            <button id="btnLoadAudio" title="Load Audio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                <span class="btn-label">AUDIO</span>
+            </button>
+            <button id="btnHelp" class="btn-icon" title="Help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
+            <div class="separator"></div>
+            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Rigs" style="text-decoration:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                <span class="btn-label">GET MORE</span>
+            </a>
+        </div>
+
+        <!-- Progression indicator -->
+        <div class="ui-row" style="gap:4px; opacity:0.5;">
+            <span style="font-size:9px; letter-spacing:2px; color:#888;">PROGRESSION</span>
+            <div id="progressBars" style="display:flex; gap:3px;">
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+            </div>
+        </div>
     </div>
+
+    <input type="file" id="rigInput" style="display:none" accept=".jusdnce,.json">
+    <input type="file" id="audioInput" style="display:none" accept="audio/*">
 
     <script>
         // --- 1. DATA INJECTION ---
@@ -374,11 +822,37 @@ export const generatePlayerHTML = (
             flashIntensity: 0.0,
             dynamicCam: true,
             filterMode: 'NORMAL', // NORMAL, INVERT, BW
-            // Mixer state
-            engine: 'REACTIVE',
+            // Golem Mixer state
+            physicsStyle: 'LEGACY', // LEGACY or LABAN (how frames move)
+            engineMode: 'PATTERN', // PATTERN or KINETIC (which frame selected)
             pattern: 'PING_PONG',
+            sequenceMode: 'GROOVE', // GROOVE, EMOTE, IMPACT, FOOTWORK
             energyMultiplier: 1.0,
-            stutterChance: 0.3
+            stutterChance: 0.3,
+            // LABAN effort state (calculated from audio)
+            labanEffort: { weight: 0.5, space: 0.5, time: 0.5, flow: 0.5 },
+            // 4-channel deck modes
+            deckModes: ['sequencer', 'off', 'off', 'off'],
+            activeDeck: 0,
+            // BPM tracking
+            bpm: 120,
+            beatInBar: 0,
+            barCount: 0,
+            lastBeatTime: 0,
+            beatIntervals: [],
+            // Trigger states
+            triggers: { stutter: false, reverse: false, glitch: false, burst: false },
+            // Interactive mode state
+            shuffleMode: false,
+            shuffleInterval: null,
+            helpVisible: false,
+            // FX state
+            fx: {
+                rgb: 0, flash: 0, glitch: 0, zoom: 0,
+                invert: false, grayscale: false, mirror: false, strobe: false,
+                pixelate: false, scanlines: false,
+                hue: 0, saturation: 100, contrast: 100
+            }
         };
 
         // --- 5. INITIALIZATION LOGIC ---
@@ -519,7 +993,10 @@ export const generatePlayerHTML = (
             const mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
             const high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
             const energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
-            
+
+            // Update BPM detection (function defined in mixer handlers)
+            if (typeof updateBPM === 'function') updateBPM(bass, now);
+
             // Trend Analysis
             energyHistory.shift();
             energyHistory.push(energy);
@@ -527,22 +1004,55 @@ export const generatePlayerHTML = (
             const energyTrend = energy - avgEnergy;
 
             // Physics Update (Spring Solver)
+            // LABAN mode: Calculate effort factors from audio
+            if (STATE.physicsStyle === 'LABAN') {
+                // Weight: bass = strong, low bass = light
+                STATE.labanEffort.weight = bass;
+                // Space: high freq = direct, low = indirect
+                STATE.labanEffort.space = high;
+                // Time: energy volatility = sudden, stable = sustained
+                const energyVariance = Math.abs(energyTrend);
+                STATE.labanEffort.time = Math.min(1, energyVariance * 5);
+                // Flow: mid stability = bound, variable = free
+                STATE.labanEffort.flow = 1 - mid;
+            }
+
             if(STATE.dynamicCam) {
-                const stiffness = 140;
-                const damping = 8;
-                
-                const tRotX = bass * 35.0;
-                const tRotY = mid * 25.0 * Math.sin(now * 0.005);
-                const tRotZ = high * 15.0;
-                
+                let stiffness = 140;
+                let damping = 8;
+                let rotScale = 1.0;
+                let squashMod = 1.0;
+                let bounceMod = 1.0;
+
+                // Apply LABAN effort modifiers
+                if (STATE.physicsStyle === 'LABAN') {
+                    const e = STATE.labanEffort;
+                    rotScale = 0.5 + e.space * 1.5;     // Direct space = more rotation
+                    squashMod = 0.5 + e.weight * 1.0;  // Strong weight = more squash
+                    bounceMod = 0.5 + e.time * 1.5;    // Sudden time = more bounce
+                    // Bound flow = sharper transitions (higher stiffness)
+                    stiffness = 100 + e.flow * 80;
+                    damping = 5 + (1 - e.flow) * 6;
+                }
+
+                const tRotX = bass * 35.0 * rotScale;
+                const tRotY = mid * 25.0 * Math.sin(now * 0.005) * rotScale;
+                const tRotZ = high * 15.0 * rotScale;
+
                 STATE.masterVel.x += ((tRotX - STATE.masterRot.x) * stiffness - STATE.masterVel.x * damping) * dt;
                 STATE.masterRot.x += STATE.masterVel.x * dt;
-                
+
                 STATE.masterVel.y += ((tRotY - STATE.masterRot.y) * stiffness*0.5 - STATE.masterVel.y * damping*0.8) * dt;
                 STATE.masterRot.y += STATE.masterVel.y * dt;
-                
+
                 STATE.masterVel.z += ((tRotZ - STATE.masterRot.z) * stiffness - STATE.masterVel.z * damping) * dt;
                 STATE.masterRot.z += STATE.masterVel.z * dt;
+
+                // Apply LABAN squash/bounce modifiers
+                if (STATE.physicsStyle === 'LABAN') {
+                    STATE.charSquash = 1 - (STATE.labanEffort.weight * 0.3 * squashMod);
+                    STATE.charBounceY = -STATE.labanEffort.time * 60 * bounceMod * bass;
+                }
             } else {
                 STATE.masterRot = {x:0, y:0, z:0};
             }
@@ -556,11 +1066,14 @@ export const generatePlayerHTML = (
             // The Brain (Choreography)
             const isCloseupLocked = now < STATE.closeupLockTime;
             const isStuttering = (mid > 0.6 || high > 0.6) && !isCloseupLocked;
-            
-            // Stutter Logic - Modified by mixer settings
+
+            // Trigger Pad: Stutter (force stutter when held)
+            const stutterActive = STATE.triggers.stutter || isStuttering;
+
+            // Stutter Logic - Modified by mixer settings and trigger pads
             const stutterThreshold = STATE.stutterChance * 0.3;
-            if (isStuttering && Math.random() < stutterThreshold) {
-                if (Math.random() < 0.35 || STATE.pattern === 'STUTTER') {
+            if ((stutterActive && Math.random() < stutterThreshold) || STATE.triggers.stutter) {
+                if (Math.random() < 0.35 || STATE.pattern === 'STUTTER' || STATE.triggers.stutter) {
                      // Reverse
                      const swap = STATE.targetPose;
                      triggerTransition(STATE.sourcePose, 'CUT');
@@ -568,6 +1081,18 @@ export const generatePlayerHTML = (
                      STATE.charSkew = (Math.random() - 0.5) * 2.0;
                      STATE.masterRot.z += (Math.random() - 0.5) * 10;
                 }
+            }
+
+            // Trigger Pad: Reverse (swap poses when held)
+            if (STATE.triggers.reverse && Math.random() < 0.15) {
+                const swap = STATE.targetPose;
+                triggerTransition(STATE.sourcePose, 'CUT');
+                STATE.sourcePose = swap;
+            }
+
+            // Strobe effect
+            if (STATE.fx.strobe && now % 100 < 50) {
+                STATE.flashIntensity = 0.9;
             }
 
             // Rhythm Logic
@@ -674,14 +1199,35 @@ export const generatePlayerHTML = (
             if(charC.width !== w || charC.height !== h) { charC.width=w; charC.height=h; }
             const cx = w/2; const cy = h/2;
             ctx.clearRect(0,0,w,h);
-            
-            if(STATE.filterMode === 'INVERT') ctx.filter = 'invert(1)';
-            else if(STATE.filterMode === 'BW') ctx.filter = 'grayscale(1)';
-            else ctx.filter = 'none';
-            
-            if(STATE.flashIntensity > 0.01) {
-                ctx.fillStyle = \`rgba(255,255,255,\${STATE.flashIntensity})\`;
+
+            // Build filter string from FX state
+            let filters = [];
+            if(STATE.fx.invert) filters.push('invert(1)');
+            if(STATE.fx.grayscale) filters.push('grayscale(1)');
+            if(STATE.fx.hue !== 0) filters.push(\`hue-rotate(\${STATE.fx.hue}deg)\`);
+            if(STATE.fx.saturation !== 100) filters.push(\`saturate(\${STATE.fx.saturation}%)\`);
+            if(STATE.fx.contrast !== 100) filters.push(\`contrast(\${STATE.fx.contrast}%)\`);
+            // Legacy filter mode support
+            if(STATE.filterMode === 'INVERT' && !STATE.fx.invert) filters.push('invert(1)');
+            if(STATE.filterMode === 'BW' && !STATE.fx.grayscale) filters.push('grayscale(1)');
+            ctx.filter = filters.length > 0 ? filters.join(' ') : 'none';
+
+            // Flash from FX or trigger
+            const flashAmount = Math.max(STATE.flashIntensity, STATE.fx.flash, STATE.triggers.burst ? 0.8 : 0);
+            if(flashAmount > 0.01) {
+                ctx.fillStyle = \`rgba(255,255,255,\${flashAmount})\`;
                 ctx.fillRect(0,0,w,h);
+            }
+
+            // Glitch effect from FX
+            if(STATE.fx.glitch > 0 || STATE.triggers.glitch) {
+                const glitchAmount = Math.max(STATE.fx.glitch, STATE.triggers.glitch ? 0.8 : 0);
+                if(Math.random() < glitchAmount * 0.3) {
+                    const sliceH = Math.random() * h * 0.1;
+                    const sliceY = Math.random() * h;
+                    const offset = (Math.random() - 0.5) * w * glitchAmount * 0.1;
+                    ctx.drawImage(charC, 0, sliceY, w, sliceH, offset, sliceY, w, sliceH);
+                }
             }
 
             const drawLayer = (pose, opacity, blur, skew, extraScale) => {
@@ -743,6 +1289,19 @@ export const generatePlayerHTML = (
             
             document.getElementById('fps').innerText = Math.round(1/dt) + ' FPS';
             document.getElementById('poseDisplay').innerText = STATE.targetPose.toUpperCase();
+
+            // Update LABAN effort display (if visible)
+            if (STATE.physicsStyle === 'LABAN') {
+                const e = STATE.labanEffort;
+                const weightEl = document.getElementById('effortWeight');
+                const spaceEl = document.getElementById('effortSpace');
+                const timeEl = document.getElementById('effortTime');
+                const flowEl = document.getElementById('effortFlow');
+                if (weightEl) weightEl.innerText = e.weight.toFixed(2);
+                if (spaceEl) spaceEl.innerText = e.space.toFixed(2);
+                if (timeEl) timeEl.innerText = e.time.toFixed(2);
+                if (flowEl) flowEl.innerText = e.flow.toFixed(2);
+            }
         }
 
         loadRig();
@@ -758,21 +1317,21 @@ export const generatePlayerHTML = (
         btnMic.onclick = async () => {
             // Check for secure context (HTTPS required for mic)
             if (!window.isSecureContext) {
-                alert("🔒 Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
+                alert("Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
                 return;
             }
 
             // Check for getUserMedia support
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("❌ Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
+                alert("Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
                 return;
             }
 
             audioCtx.resume();
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
-                btnMic.classList.remove('red', 'active');
-                btnMic.innerHTML = '🎙️ MIC INPUT';
+                btnMic.classList.remove('active');
+                btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
                 if(sourceNode) { sourceNode.disconnect(); sourceNode=null; }
             } else {
                 try {
@@ -787,17 +1346,22 @@ export const generatePlayerHTML = (
                     if(sourceNode) sourceNode.disconnect();
                     sourceNode = micNode;
                     sourceNode.connect(analyser);
-                    if(audioEl) audioEl.pause();
-                    btnMic.classList.add('red', 'active');
-                    btnMic.innerHTML = '🔴 LIVE';
+                    if(audioEl) {
+                        audioEl.pause();
+                        btnPlay.classList.remove('active');
+                        btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                    }
+                    btnMic.classList.add('active');
+                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/></svg>';
+                    if (typeof resetUITimeout === 'function') resetUITimeout();
                 } catch(e) {
                     console.error("Mic error:", e);
                     if (e.name === 'NotAllowedError') {
-                        alert("🎙️ Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
+                        alert("Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
                     } else if (e.name === 'NotFoundError') {
-                        alert("🎙️ No microphone found.\\n\\nPlease connect a microphone and try again.");
+                        alert("No microphone found.\\n\\nPlease connect a microphone and try again.");
                     } else {
-                        alert("🎙️ Could not access microphone: " + e.message);
+                        alert("Could not access microphone: " + e.message);
                     }
                 }
             }
@@ -805,14 +1369,17 @@ export const generatePlayerHTML = (
         
         btnPlay.onclick = () => {
             audioCtx.resume();
-            if(audioEl.paused) { 
-                connectAudioElement(); 
-                audioEl.play(); 
-                btnPlay.classList.add('active'); 
+            if(audioEl.paused) {
+                connectAudioElement();
+                audioEl.play();
+                btnPlay.classList.add('active');
+                btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
                 if(micStream) btnMic.click(); // turn off mic
-            } else { 
-                audioEl.pause(); 
-                btnPlay.classList.remove('active'); 
+                resetUITimeout();
+            } else {
+                audioEl.pause();
+                btnPlay.classList.remove('active');
+                btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
             }
         };
         
@@ -823,10 +1390,9 @@ export const generatePlayerHTML = (
             btnDeck.classList.toggle('active');
         };
 
-        // --- MIXER HANDLERS ---
+        // --- GOLEM MIXER HANDLERS ---
         const btnMixer = document.getElementById('btnMixer');
         const mixerPanel = document.getElementById('mixerPanel');
-        const engineSelect = document.getElementById('engineSelect');
         const patternGrid = document.getElementById('patternGrid');
         const energySlider = document.getElementById('energySlider');
         const stutterSlider = document.getElementById('stutterSlider');
@@ -836,58 +1402,482 @@ export const generatePlayerHTML = (
             btnMixer.classList.toggle('active');
         };
 
-        engineSelect.onchange = (e) => {
-            STATE.engine = e.target.value;
-            console.log('Engine changed to:', STATE.engine);
-        };
+        // Tab Navigation
+        document.querySelectorAll('.mixer-tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.mixer-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+                tab.classList.add('active');
+                const tabId = 'tab' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+                document.getElementById(tabId).style.display = 'block';
+            };
+        });
 
+        // Deck Mode Selects
+        document.querySelectorAll('.deck-mode-select').forEach(select => {
+            select.onchange = (e) => {
+                const deckId = parseInt(e.target.dataset.deck) - 1;
+                STATE.deckModes[deckId] = e.target.value;
+                updateDeckIndicators();
+            };
+        });
+
+        function updateDeckIndicators() {
+            document.querySelectorAll('.deck-channel').forEach((ch, i) => {
+                const indicator = ch.querySelector('.deck-indicator');
+                const isActive = STATE.deckModes[i] !== 'off';
+                indicator.classList.toggle('active', isActive);
+                ch.classList.toggle('active', i === STATE.activeDeck && isActive);
+            });
+        }
+
+        // Physics Style Toggle (LEGACY vs LABAN)
+        const labanDisplay = document.getElementById('labanDisplay');
+        document.querySelectorAll('.physics-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.physics-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.physicsStyle = btn.dataset.physics;
+                // Show/hide LABAN effort display
+                if (labanDisplay) {
+                    labanDisplay.style.display = btn.dataset.physics === 'LABAN' ? 'block' : 'none';
+                }
+            };
+        });
+
+        // Engine Mode Toggle (PATTERN vs KINETIC)
+        document.querySelectorAll('.engine-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.engineMode = btn.dataset.mode;
+            };
+        });
+
+        // Sequence Mode
+        document.querySelectorAll('.seq-mode').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.seq-mode').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.sequenceMode = btn.dataset.seq;
+            };
+        });
+
+        // Pattern Grid
         patternGrid.querySelectorAll('.pattern-btn').forEach(btn => {
             btn.onclick = () => {
                 patternGrid.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 STATE.pattern = btn.dataset.pattern;
-                console.log('Pattern changed to:', STATE.pattern);
             };
         });
 
+        // Intensity Sliders
         energySlider.oninput = (e) => {
-            STATE.energyMultiplier = e.target.value / 50; // 0-2 range
+            STATE.energyMultiplier = e.target.value / 50;
         };
 
         stutterSlider.oninput = (e) => {
-            STATE.stutterChance = e.target.value / 100; // 0-1 range
+            STATE.stutterChance = e.target.value / 100;
         };
 
-        // --- 9. DRAG AND DROP ---
+        // Trigger Pads (mousedown/mouseup for hold behavior)
+        document.querySelectorAll('.trigger-pad').forEach(pad => {
+            const trigger = pad.dataset.trigger;
+            pad.onmousedown = () => { STATE.triggers[trigger] = true; pad.classList.add('active'); };
+            pad.onmouseup = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+            pad.onmouseleave = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+            // Touch support
+            pad.ontouchstart = (e) => { e.preventDefault(); STATE.triggers[trigger] = true; pad.classList.add('active'); };
+            pad.ontouchend = () => { STATE.triggers[trigger] = false; pad.classList.remove('active'); };
+        });
+
+        // FX Sliders
+        ['Rgb', 'Flash', 'Glitch', 'Zoom'].forEach(fx => {
+            const slider = document.getElementById('fx' + fx);
+            if (slider) {
+                slider.oninput = (e) => {
+                    STATE.fx[fx.toLowerCase()] = e.target.value / 100;
+                };
+            }
+        });
+
+        // FX Toggles
+        document.querySelectorAll('.fx-toggle').forEach(toggle => {
+            toggle.onclick = () => {
+                const fx = toggle.dataset.fx;
+                STATE.fx[fx] = !STATE.fx[fx];
+                toggle.classList.toggle('active', STATE.fx[fx]);
+            };
+        });
+
+        // Filter Sliders
+        ['Hue', 'Saturation', 'Contrast'].forEach(filter => {
+            const slider = document.getElementById('fx' + filter);
+            if (slider) {
+                slider.oninput = (e) => {
+                    STATE.fx[filter.toLowerCase()] = parseFloat(e.target.value);
+                };
+            }
+        });
+
+        // BPM Detection (simple onset detection)
+        function updateBPM(bass, now) {
+            if (bass > 0.5 && (now - STATE.lastBeatTime) > 200) {
+                const interval = now - STATE.lastBeatTime;
+                STATE.lastBeatTime = now;
+
+                if (interval < 2000 && interval > 200) {
+                    STATE.beatIntervals.push(interval);
+                    if (STATE.beatIntervals.length > 8) STATE.beatIntervals.shift();
+
+                    if (STATE.beatIntervals.length >= 4) {
+                        const avgInterval = STATE.beatIntervals.reduce((a,b) => a+b, 0) / STATE.beatIntervals.length;
+                        STATE.bpm = Math.round(60000 / avgInterval);
+                        STATE.bpm = Math.max(60, Math.min(200, STATE.bpm));
+                        document.getElementById('bpmValue').innerText = STATE.bpm;
+                    }
+                }
+
+                // Update bar counter
+                STATE.beatInBar = (STATE.beatInBar + 1) % 16;
+                if (STATE.beatInBar === 0) STATE.barCount++;
+
+                // Update progression bars
+                if (typeof updateProgressionBars === 'function') {
+                    updateProgressionBars(STATE.beatInBar);
+                }
+
+                const beats = document.querySelectorAll('.bar-beat');
+                beats.forEach((b, i) => {
+                    b.classList.remove('active', 'downbeat');
+                    if (i === STATE.beatInBar) {
+                        b.classList.add(i % 4 === 0 ? 'downbeat' : 'active');
+                    }
+                });
+
+                // Auto-update sequence mode based on energy
+                if (STATE.engineMode === 'KINETIC') {
+                    const avgEnergy = energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length;
+                    let newSeqMode = STATE.sequenceMode;
+                    if (avgEnergy > 0.6) newSeqMode = 'IMPACT';
+                    else if (avgEnergy > 0.4) newSeqMode = 'GROOVE';
+                    else if (avgEnergy > 0.2) newSeqMode = 'FOOTWORK';
+                    else newSeqMode = 'EMOTE';
+
+                    if (newSeqMode !== STATE.sequenceMode) {
+                        STATE.sequenceMode = newSeqMode;
+                        document.querySelectorAll('.seq-mode').forEach(b => {
+                            b.classList.toggle('active', b.dataset.seq === newSeqMode);
+                        });
+                    }
+                }
+            }
+        }
+
+        // --- 9. FILE HANDLING ---
+        const rigInput = document.getElementById('rigInput');
+        const audioInput = document.getElementById('audioInput');
+        const btnLoadRig = document.getElementById('btnLoadRig');
+        const btnLoadAudio = document.getElementById('btnLoadAudio');
+        const btnFx = document.getElementById('btnFx');
+        const btnPhysics = document.getElementById('btnPhysics');
+        const btnEngine = document.getElementById('btnEngine');
+        const physicsLabel = document.getElementById('physicsLabel');
+        const engineLabel = document.getElementById('engineLabel');
+        const tapHint = document.getElementById('tapHint');
+        const progressBars = document.querySelectorAll('.prog-bar');
+
+        // Load buttons
+        btnLoadRig.onclick = () => rigInput.click();
+        btnLoadAudio.onclick = () => audioInput.click();
+
+        rigInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(file) handleRigFile(file);
+        };
+
+        audioInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(file) handleAudioFile(file);
+        };
+
+        function handleRigFile(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const proj = JSON.parse(ev.target.result);
+                    if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
+                } catch(e) { alert("Invalid Rig File"); }
+            };
+            reader.readAsText(file);
+        }
+
+        function handleAudioFile(file) {
+            const url = URL.createObjectURL(file);
+            audioEl.src = url;
+            audioEl.play();
+            connectAudioElement();
+            btnPlay.classList.add('active');
+            btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+        }
+
+        // Drag and drop (still works but secondary)
         document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-active'); });
         document.body.addEventListener('dragleave', e => { e.preventDefault(); document.body.classList.remove('drag-active'); });
         document.body.addEventListener('drop', e => {
             e.preventDefault(); document.body.classList.remove('drag-active');
             const file = e.dataTransfer.files[0];
-            handleFile(file);
-        });
-        
-        fileInput.onchange = (e) => handleFile(e.target.files[0]);
-        
-        function handleFile(file) {
             if(!file) return;
             if(file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const proj = JSON.parse(ev.target.result);
-                        if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
-                    } catch(e) { alert("Invalid Rig File"); }
-                };
-                reader.readAsText(file);
+                handleRigFile(file);
             } else if(file.type.startsWith('audio/')) {
-                const url = URL.createObjectURL(file);
-                audioEl.src = url;
-                audioEl.play();
-                connectAudioElement();
-                btnPlay.classList.add('active');
+                handleAudioFile(file);
+            }
+        });
+
+        // FX button - toggle mixer to FX tab
+        btnFx.onclick = () => {
+            mixerPanel.classList.add('visible');
+            btnMixer.classList.add('active');
+            btnFx.classList.toggle('active');
+            // Switch to FX tab
+            document.querySelectorAll('.mixer-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            document.querySelector('[data-tab="fx"]').classList.add('active');
+            document.getElementById('tabFx').style.display = 'block';
+        };
+
+        // Physics toggle (LEGACY/LABAN)
+        btnPhysics.onclick = () => {
+            STATE.physicsStyle = STATE.physicsStyle === 'LEGACY' ? 'LABAN' : 'LEGACY';
+            physicsLabel.innerText = STATE.physicsStyle;
+            btnPhysics.classList.toggle('active', STATE.physicsStyle === 'LABAN');
+            // Update mixer panel buttons
+            document.querySelectorAll('.physics-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.physics === STATE.physicsStyle);
+            });
+            const labanDisplay = document.getElementById('labanDisplay');
+            if (labanDisplay) labanDisplay.style.display = STATE.physicsStyle === 'LABAN' ? 'block' : 'none';
+        };
+
+        // Engine toggle (PATTERN/KINETIC)
+        btnEngine.onclick = () => {
+            STATE.engineMode = STATE.engineMode === 'PATTERN' ? 'KINETIC' : 'PATTERN';
+            engineLabel.innerText = STATE.engineMode;
+            btnEngine.classList.toggle('active', STATE.engineMode === 'KINETIC');
+            // Update mixer panel buttons
+            document.querySelectorAll('.engine-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === STATE.engineMode);
+            });
+        };
+
+        // --- AUTO-HIDE UI ---
+        let uiTimeout;
+        let uiVisible = true;
+
+        function showUI() {
+            ui.classList.remove('hidden');
+            uiVisible = true;
+            tapHint.classList.remove('visible');
+            resetUITimeout();
+        }
+
+        function hideUI() {
+            ui.classList.add('hidden');
+            uiVisible = false;
+        }
+
+        function resetUITimeout() {
+            clearTimeout(uiTimeout);
+            uiTimeout = setTimeout(() => {
+                // Only auto-hide if playing and not interacting with mixer
+                if (!audioEl.paused || micStream) {
+                    hideUI();
+                    tapHint.classList.add('visible');
+                    setTimeout(() => tapHint.classList.remove('visible'), 2000);
+                }
+            }, 5000);
+        }
+
+        // Tap anywhere to show/hide UI
+        document.body.addEventListener('click', (e) => {
+            // Don't toggle if clicking on UI elements
+            if (e.target.closest('#ui') || e.target.closest('#mixerPanel') || e.target.closest('#deck')) {
+                resetUITimeout();
+                return;
+            }
+            if (uiVisible) {
+                hideUI();
+            } else {
+                showUI();
+            }
+        });
+
+        // Keep UI visible when interacting
+        ui.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetUITimeout();
+        });
+        mixerPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetUITimeout();
+        });
+
+        // Update progression bars in animation loop
+        function updateProgressionBars(beat) {
+            const phase = Math.floor(beat / 4);
+            progressBars.forEach((bar, i) => {
+                if (i < phase) {
+                    bar.style.background = i === 0 ? '#8b5cf6' : i === 1 ? '#8b5cf6' : i === 2 ? '#ec4899' : '#00ffff';
+                } else if (i === phase) {
+                    const progress = (beat % 4) / 4;
+                    const color = i === 0 ? '#8b5cf6' : i === 1 ? '#8b5cf6' : i === 2 ? '#ec4899' : '#00ffff';
+                    bar.style.background = \`linear-gradient(to right, \${color} \${progress*100}%, rgba(255,255,255,0.15) \${progress*100}%)\`;
+                } else {
+                    bar.style.background = 'rgba(255,255,255,0.15)';
+                }
+            });
+        }
+
+        // --- 10. INTERACTIVE FEATURES ---
+        const helpOverlay = document.getElementById('helpOverlay');
+        const btnHelp = document.getElementById('btnHelp');
+        const shuffleBtn = document.getElementById('shuffleBtn');
+        const PATTERNS = ['PING_PONG','BUILD_DROP','STUTTER','VOGUE','FLOW','CHAOS','ABAB','AABB','ABAC','SNARE_ROLL','GROOVE','EMOTE','FOOTWORK','IMPACT','MINIMAL'];
+
+        // Help button and overlay
+        function toggleHelp() {
+            STATE.helpVisible = !STATE.helpVisible;
+            helpOverlay.style.display = STATE.helpVisible ? 'block' : 'none';
+        }
+        btnHelp.onclick = toggleHelp;
+
+        // Shuffle mode
+        function toggleShuffle() {
+            STATE.shuffleMode = !STATE.shuffleMode;
+            shuffleBtn.classList.toggle('active', STATE.shuffleMode);
+            if (STATE.shuffleMode) {
+                STATE.shuffleInterval = setInterval(() => {
+                    const newPattern = PATTERNS[Math.floor(Math.random() * PATTERNS.length)];
+                    STATE.pattern = newPattern;
+                    patternGrid.querySelectorAll('.pattern-btn').forEach(b => {
+                        b.classList.toggle('active', b.dataset.pattern === newPattern);
+                    });
+                }, 4000);
+            } else if (STATE.shuffleInterval) {
+                clearInterval(STATE.shuffleInterval);
+                STATE.shuffleInterval = null;
             }
         }
+        shuffleBtn.onclick = toggleShuffle;
+
+        // Keyboard shortcuts
+        const triggerKeyMap = { q: 'stutter', w: 'reverse', e: 'glitch', r: 'burst' };
+        const patternKeyMap = { '1': 'PING_PONG', '2': 'BUILD_DROP', '3': 'STUTTER', '4': 'VOGUE', '5': 'FLOW',
+                                '6': 'CHAOS', '7': 'ABAB', '8': 'AABB', '9': 'ABAC', '0': 'SNARE_ROLL' };
+
+        document.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+
+            // Don't capture if typing in input
+            if (e.target.tagName === 'INPUT') return;
+
+            // Trigger pads (hold)
+            if (triggerKeyMap[key] && !e.repeat) {
+                const trigger = triggerKeyMap[key];
+                STATE.triggers[trigger] = true;
+                document.querySelector(\`[data-trigger="\${trigger}"]\`)?.classList.add('active', 'ripple');
+            }
+
+            // Pattern selection
+            if (patternKeyMap[key]) {
+                STATE.pattern = patternKeyMap[key];
+                patternGrid.querySelectorAll('.pattern-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.pattern === patternKeyMap[key]);
+                });
+            }
+
+            // Space = play/pause
+            if (key === ' ') {
+                e.preventDefault();
+                btnPlay.click();
+            }
+
+            // M = toggle mixer
+            if (key === 'm') {
+                btnMixer.click();
+            }
+
+            // D = toggle deck
+            if (key === 'd') {
+                btnDeck.click();
+            }
+
+            // C = toggle camera
+            if (key === 'c') {
+                btnCam.click();
+            }
+
+            // L = toggle LEGACY/LABAN
+            if (key === 'l') {
+                STATE.physicsStyle = STATE.physicsStyle === 'LEGACY' ? 'LABAN' : 'LEGACY';
+                document.querySelectorAll('.physics-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.physics === STATE.physicsStyle);
+                });
+                if (labanDisplay) {
+                    labanDisplay.style.display = STATE.physicsStyle === 'LABAN' ? 'block' : 'none';
+                }
+            }
+
+            // K = toggle PATTERN/KINETIC
+            if (key === 'k') {
+                STATE.engineMode = STATE.engineMode === 'PATTERN' ? 'KINETIC' : 'PATTERN';
+                document.querySelectorAll('.engine-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.mode === STATE.engineMode);
+                });
+            }
+
+            // S = toggle shuffle
+            if (key === 's') {
+                toggleShuffle();
+            }
+
+            // ? = toggle help
+            if (key === '?' || (e.shiftKey && key === '/')) {
+                toggleHelp();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            // Release trigger pads
+            if (triggerKeyMap[key]) {
+                const trigger = triggerKeyMap[key];
+                STATE.triggers[trigger] = false;
+                const pad = document.querySelector(\`[data-trigger="\${trigger}"]\`);
+                if (pad) {
+                    pad.classList.remove('active');
+                    setTimeout(() => pad.classList.remove('ripple'), 300);
+                }
+            }
+        });
+
+        // Beat flash on BPM value
+        const bpmValueEl = document.getElementById('bpmValue');
+        setInterval(() => {
+            if (bpmValueEl && STATE.bpm > 0) {
+                const beatInterval = 60000 / STATE.bpm;
+                const timeSinceBeat = Date.now() - STATE.lastBeatTime;
+                if (timeSinceBeat < 100) {
+                    bpmValueEl.classList.add('beat');
+                    mixerPanel.classList.add('pulse');
+                } else {
+                    bpmValueEl.classList.remove('beat');
+                    mixerPanel.classList.remove('pulse');
+                }
+            }
+        }, 50);
     </script>
 </body>
 </html>`;
