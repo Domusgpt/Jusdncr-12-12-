@@ -44,7 +44,7 @@ export const generatePlayerHTML = (
             flex-wrap: wrap; max-width: 100%;
         }
 
-        button {
+        button, a.active {
             background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
             color: #ccc; padding: 10px 14px; border-radius: 12px;
             cursor: pointer; font-weight: 700; font-size: 11px; font-family: 'Rajdhani', sans-serif;
@@ -53,8 +53,8 @@ export const generatePlayerHTML = (
             min-width: 44px; min-height: 44px; justify-content: center;
             -webkit-tap-highlight-color: transparent;
         }
-        button:active { transform: scale(0.95); }
-        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        button:active, a.active:active { transform: scale(0.95); }
+        button.active, a.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
         button.cyan { background: rgba(0,255,255,0.15); border-color: rgba(0,255,255,0.4); color: #0ff; }
         button.cyan.active { background: #0ff; color: #000; }
         button.orange { background: rgba(255,150,0,0.15); border-color: rgba(255,150,0,0.4); color: #f90; }
@@ -356,7 +356,7 @@ export const generatePlayerHTML = (
     </div>
     
     <div id="info">
-        <span class="brand">jusDNCE</span>
+        <a href="https://jusdnce.com" target="_blank" class="brand" style="text-decoration:none; cursor:pointer;">jusDNCE</a>
         MODE: <span id="subjectDisplay">${subjectCategory}</span><br>
         <span id="fps">0 FPS</span> // <span id="poseDisplay">INIT</span>
     </div>
@@ -662,6 +662,11 @@ export const generatePlayerHTML = (
             <button id="btnHelp" class="btn-icon" title="Help">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
+            <div class="separator"></div>
+            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Rigs" style="text-decoration:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                <span class="btn-label">GET MORE</span>
+            </a>
         </div>
 
         <!-- Progression indicator -->
