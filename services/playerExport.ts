@@ -29,30 +29,54 @@ export const generatePlayerHTML = (
         #bgCanvas { z-index: 1; }
         #charCanvas { z-index: 2; pointer-events: none; }
         
-        /* UI OVERLAY */
+        /* UI OVERLAY - Responsive */
         #ui {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100;
-            display: flex; gap: 12px; align-items: center;
-            background: rgba(10,10,12,0.8); backdrop-filter: blur(16px);
-            padding: 12px 24px; border-radius: 24px; 
-            border: 1px solid rgba(255,255,255,0.1);
-            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            position: absolute; bottom: 0; left: 0; right: 0; z-index: 100;
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+            padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom));
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
             transition: opacity 0.3s, transform 0.3s;
         }
-        
-        button {
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-            color: #ccc; padding: 10px 20px; border-radius: 14px;
-            cursor: pointer; font-weight: 700; font-size: 13px; font-family: 'Rajdhani', sans-serif;
-            letter-spacing: 1px; text-transform: uppercase;
-            transition: all 0.2s; display: flex; align-items: center; gap: 8px;
+        #ui.hidden { opacity: 0; pointer-events: none; transform: translateY(100%); }
+
+        .ui-row {
+            display: flex; gap: 6px; align-items: center; justify-content: center;
+            flex-wrap: wrap; max-width: 100%;
         }
-        button:hover { background: rgba(255,255,255,0.15); color: white; transform: translateY(-2px); border-color: rgba(255,255,255,0.3); }
-        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 20px rgba(139,92,246,0.4); }
-        button.red { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
-        button.red.active { background: #ef4444; color: white; border-color: #ef4444; box-shadow: 0 0 20px rgba(239,68,68,0.4); }
-        
-        .separator { width: 1px; height: 24px; background: rgba(255,255,255,0.1); margin: 0 4px; }
+
+        button {
+            background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+            color: #ccc; padding: 10px 14px; border-radius: 12px;
+            cursor: pointer; font-weight: 700; font-size: 11px; font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.5px; text-transform: uppercase;
+            transition: all 0.15s; display: flex; align-items: center; gap: 6px;
+            min-width: 44px; min-height: 44px; justify-content: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+        button:active { transform: scale(0.95); }
+        button.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        button.cyan { background: rgba(0,255,255,0.15); border-color: rgba(0,255,255,0.4); color: #0ff; }
+        button.cyan.active { background: #0ff; color: #000; }
+        button.orange { background: rgba(255,150,0,0.15); border-color: rgba(255,150,0,0.4); color: #f90; }
+        button.red { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
+        button.red.active { background: #ef4444; color: white; border-color: #ef4444; }
+
+        .btn-icon { width: 44px; padding: 10px; }
+        .btn-icon svg { width: 20px; height: 20px; }
+        .btn-label { display: none; }
+        @media (min-width: 480px) { .btn-label { display: inline; } button { padding: 10px 16px; } }
+
+        .separator { width: 1px; height: 20px; background: rgba(255,255,255,0.1); display: none; }
+        @media (min-width: 480px) { .separator { display: block; } }
+
+        /* Tap to show UI hint */
+        #tapHint {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); padding: 16px 24px; border-radius: 12px;
+            font-size: 14px; color: rgba(255,255,255,0.6); pointer-events: none;
+            opacity: 0; transition: opacity 0.3s; z-index: 80;
+        }
+        #tapHint.visible { opacity: 1; }
 
         /* Loader */
         #loader {
@@ -75,48 +99,68 @@ export const generatePlayerHTML = (
         body.drag-active #dropOverlay { opacity: 1; }
         .drop-title { font-size: 3em; color: white; font-weight: 900; letter-spacing: 4px; margin-bottom: 10px; }
         
-        /* Info Corner */
+        /* Info Corner - Responsive */
         #info {
-            position: absolute; top: 30px; left: 30px; z-index: 50;
-            color: rgba(255,255,255,0.4); font-size: 12px; pointer-events: none;
-            line-height: 1.5; font-weight: 600;
+            position: absolute; top: 12px; left: 12px; z-index: 50;
+            color: rgba(255,255,255,0.5); font-size: 10px; pointer-events: none;
+            line-height: 1.4; font-weight: 600;
+            background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 10px;
+            backdrop-filter: blur(10px); max-width: 180px;
         }
+        @media (min-width: 480px) { #info { font-size: 11px; top: 20px; left: 20px; } }
         .brand {
-            font-size: 24px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 4px; display: block;
-            text-shadow: 0 0 20px rgba(139,92,246,0.5);
+            font-size: 18px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 2px; display: block;
+            text-shadow: 0 0 15px rgba(139,92,246,0.5);
         }
+        @media (min-width: 480px) { .brand { font-size: 22px; } }
 
-        /* NEURAL DECK (Frame Swapping) */
+        /* NEURAL DECK - Responsive */
         #deck {
-            position: absolute; bottom: 100px; left: 0; right: 0;
-            height: 100px; padding: 0 20px;
-            display: flex; gap: 10px; overflow-x: auto;
-            align-items: center; justify-content: center;
-            z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+            position: absolute; left: 0; right: 0; z-index: 90;
+            padding: 8px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            display: flex; gap: 8px; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            /* Mobile: top position */
+            top: 60px; bottom: auto; height: auto;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+        }
+        @media (min-width: 600px) {
+            #deck { top: auto; bottom: 80px; background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%); }
         }
         #deck.visible { opacity: 1; pointer-events: auto; }
         .frame-thumb {
-            width: 60px; height: 60px; border-radius: 8px;
-            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);
-            cursor: pointer; flex-shrink: 0; transition: all 0.2s;
+            width: 52px; height: 52px; border-radius: 8px;
+            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.15);
+            cursor: pointer; flex-shrink: 0; transition: all 0.15s;
             overflow: hidden; position: relative;
         }
+        @media (min-width: 480px) { .frame-thumb { width: 60px; height: 60px; } }
         .frame-thumb img { width: 100%; height: 100%; object-fit: contain; }
-        .frame-thumb:hover { transform: scale(1.1); border-color: #a78bfa; background: rgba(139,92,246,0.2); }
+        .frame-thumb:active { transform: scale(0.95); border-color: #a78bfa; }
+        .frame-thumb.selected { border-color: #8b5cf6; box-shadow: 0 0 12px rgba(139,92,246,0.5); }
         .frame-thumb .badge {
-            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.7);
-            color: white; font-size: 8px; padding: 2px 4px; border-top-left-radius: 4px;
+            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.8);
+            color: white; font-size: 7px; padding: 1px 3px; border-top-left-radius: 4px;
         }
 
-        /* GOLEM MIXER PANEL */
+        /* GOLEM MIXER PANEL - Responsive */
         #mixerPanel {
-            position: absolute; bottom: 100px; right: 20px; z-index: 100;
-            width: 380px; background: rgba(10,10,15,0.95); backdrop-filter: blur(20px);
+            position: absolute; z-index: 110;
+            background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
             border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
-            padding: 16px; font-family: 'Rajdhani', sans-serif;
+            padding: 12px; font-family: 'Rajdhani', sans-serif;
             box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.1);
-            display: none; max-height: 80vh; overflow-y: auto;
+            display: none; overflow-y: auto;
+            /* Mobile: full width bottom sheet */
+            bottom: 0; left: 0; right: 0;
+            max-height: 70vh; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+        }
+        @media (min-width: 600px) {
+            #mixerPanel {
+                bottom: 80px; right: 16px; left: auto;
+                width: 360px; max-height: 75vh;
+                border-radius: 16px;
+            }
         }
         #mixerPanel.visible { display: block; }
         #mixerPanel h3 {
@@ -283,17 +327,17 @@ export const generatePlayerHTML = (
         .shuffle-btn:hover { background: rgba(0,255,136,0.2); }
         .shuffle-btn.active { background: #00ff88; color: black; animation: pulse 0.5s infinite alternate; }
         @keyframes pulse { from { opacity: 0.7; } to { opacity: 1; } }
-        /* Help overlay */
+        /* Help overlay - Responsive */
         #helpOverlay {
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             z-index: 500; background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
             border: 1px solid rgba(255,255,255,0.2); border-radius: 16px;
-            padding: 24px 32px; min-width: 360px; display: none;
+            padding: 16px 20px; width: calc(100% - 32px); max-width: 360px; display: none;
         }
-        #helpOverlay h3 { color: #00ffff; margin: 0 0 16px 0; font-size: 16px; }
-        #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px; font-family: monospace; }
-        #helpOverlay .desc { color: rgba(255,255,255,0.6); }
+        #helpOverlay h3 { color: #00ffff; margin: 0 0 12px 0; font-size: 14px; }
+        #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; gap: 8px; }
+        #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px; white-space: nowrap; }
+        #helpOverlay .desc { color: rgba(255,255,255,0.6); text-align: right; }
     </style>
 </head>
 <body>
@@ -566,18 +610,74 @@ export const generatePlayerHTML = (
         <div style="margin-top:16px; text-align:center; color:rgba(255,255,255,0.4); font-size:10px;">Press ? to close</div>
     </div>
 
+    <div id="tapHint">TAP TO SHOW CONTROLS</div>
+
     <div id="ui">
-        <button id="btnPlay">PLAY</button>
-        <button id="btnMic">MIC</button>
-        <div class="separator"></div>
-        <button id="btnCam" class="active">CAM</button>
-        <button id="btnMixer">MIXER</button>
-        <button id="btnDeck">DECK</button>
-        <div class="separator"></div>
-        <button id="btnLoad" onclick="document.getElementById('fileInput').click()">LOAD</button>
-        <button id="btnHelp">?</button>
-        <input type="file" id="fileInput" style="display:none" accept=".jusdnce,audio/*">
+        <!-- Row 1: Main controls -->
+        <div class="ui-row">
+            <button id="btnPlay" class="btn-icon" title="Play/Pause">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="btnMic" class="btn-icon red" title="Microphone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            </button>
+            <div class="separator"></div>
+            <button id="btnCam" class="active" title="Camera Motion">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span class="btn-label">CAM</span>
+            </button>
+            <button id="btnFx" title="Effects">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
+                <span class="btn-label">FX</span>
+            </button>
+            <button id="btnMixer" title="Mixer Panel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>
+                <span class="btn-label">MIXER</span>
+            </button>
+            <button id="btnDeck" title="Frame Deck">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span class="btn-label">DECK</span>
+            </button>
+        </div>
+
+        <!-- Row 2: Mode toggles + Load -->
+        <div class="ui-row">
+            <button id="btnPhysics" class="cyan" title="Physics: LEGACY/LABAN">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4l3-2"/></svg>
+                <span id="physicsLabel">LEGACY</span>
+            </button>
+            <button id="btnEngine" class="orange" title="Engine: PATTERN/KINETIC">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span id="engineLabel">PATTERN</span>
+            </button>
+            <div class="separator"></div>
+            <button id="btnLoadRig" title="Load Rig File">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span class="btn-label">RIG</span>
+            </button>
+            <button id="btnLoadAudio" title="Load Audio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                <span class="btn-label">AUDIO</span>
+            </button>
+            <button id="btnHelp" class="btn-icon" title="Help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
+        </div>
+
+        <!-- Progression indicator -->
+        <div class="ui-row" style="gap:4px; opacity:0.5;">
+            <span style="font-size:9px; letter-spacing:2px; color:#888;">PROGRESSION</span>
+            <div id="progressBars" style="display:flex; gap:3px;">
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+            </div>
+        </div>
     </div>
+
+    <input type="file" id="rigInput" style="display:none" accept=".jusdnce,.json">
+    <input type="file" id="audioInput" style="display:none" accept="audio/*">
 
     <script>
         // --- 1. DATA INJECTION ---
@@ -1225,8 +1325,8 @@ export const generatePlayerHTML = (
             audioCtx.resume();
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
-                btnMic.classList.remove('red', 'active');
-                btnMic.innerHTML = '🎙️ MIC INPUT';
+                btnMic.classList.remove('active');
+                btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
                 if(sourceNode) { sourceNode.disconnect(); sourceNode=null; }
             } else {
                 try {
@@ -1241,9 +1341,14 @@ export const generatePlayerHTML = (
                     if(sourceNode) sourceNode.disconnect();
                     sourceNode = micNode;
                     sourceNode.connect(analyser);
-                    if(audioEl) audioEl.pause();
-                    btnMic.classList.add('red', 'active');
-                    btnMic.innerHTML = 'LIVE';
+                    if(audioEl) {
+                        audioEl.pause();
+                        btnPlay.classList.remove('active');
+                        btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                    }
+                    btnMic.classList.add('active');
+                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/></svg>';
+                    if (typeof resetUITimeout === 'function') resetUITimeout();
                 } catch(e) {
                     console.error("Mic error:", e);
                     if (e.name === 'NotAllowedError') {
@@ -1259,14 +1364,17 @@ export const generatePlayerHTML = (
         
         btnPlay.onclick = () => {
             audioCtx.resume();
-            if(audioEl.paused) { 
-                connectAudioElement(); 
-                audioEl.play(); 
-                btnPlay.classList.add('active'); 
+            if(audioEl.paused) {
+                connectAudioElement();
+                audioEl.play();
+                btnPlay.classList.add('active');
+                btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
                 if(micStream) btnMic.click(); // turn off mic
-            } else { 
-                audioEl.pause(); 
-                btnPlay.classList.remove('active'); 
+                resetUITimeout();
+            } else {
+                audioEl.pause();
+                btnPlay.classList.remove('active');
+                btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
             }
         };
         
@@ -1430,6 +1538,11 @@ export const generatePlayerHTML = (
                 STATE.beatInBar = (STATE.beatInBar + 1) % 16;
                 if (STATE.beatInBar === 0) STATE.barCount++;
 
+                // Update progression bars
+                if (typeof updateProgressionBars === 'function') {
+                    updateProgressionBars(STATE.beatInBar);
+                }
+
                 const beats = document.querySelectorAll('.bar-beat');
                 beats.forEach((b, i) => {
                     b.classList.remove('active', 'downbeat');
@@ -1457,35 +1570,169 @@ export const generatePlayerHTML = (
             }
         }
 
-        // --- 9. DRAG AND DROP ---
+        // --- 9. FILE HANDLING ---
+        const rigInput = document.getElementById('rigInput');
+        const audioInput = document.getElementById('audioInput');
+        const btnLoadRig = document.getElementById('btnLoadRig');
+        const btnLoadAudio = document.getElementById('btnLoadAudio');
+        const btnFx = document.getElementById('btnFx');
+        const btnPhysics = document.getElementById('btnPhysics');
+        const btnEngine = document.getElementById('btnEngine');
+        const physicsLabel = document.getElementById('physicsLabel');
+        const engineLabel = document.getElementById('engineLabel');
+        const tapHint = document.getElementById('tapHint');
+        const progressBars = document.querySelectorAll('.prog-bar');
+
+        // Load buttons
+        btnLoadRig.onclick = () => rigInput.click();
+        btnLoadAudio.onclick = () => audioInput.click();
+
+        rigInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(file) handleRigFile(file);
+        };
+
+        audioInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if(file) handleAudioFile(file);
+        };
+
+        function handleRigFile(file) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const proj = JSON.parse(ev.target.result);
+                    if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
+                } catch(e) { alert("Invalid Rig File"); }
+            };
+            reader.readAsText(file);
+        }
+
+        function handleAudioFile(file) {
+            const url = URL.createObjectURL(file);
+            audioEl.src = url;
+            audioEl.play();
+            connectAudioElement();
+            btnPlay.classList.add('active');
+            btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+        }
+
+        // Drag and drop (still works but secondary)
         document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-active'); });
         document.body.addEventListener('dragleave', e => { e.preventDefault(); document.body.classList.remove('drag-active'); });
         document.body.addEventListener('drop', e => {
             e.preventDefault(); document.body.classList.remove('drag-active');
             const file = e.dataTransfer.files[0];
-            handleFile(file);
-        });
-        
-        fileInput.onchange = (e) => handleFile(e.target.files[0]);
-        
-        function handleFile(file) {
             if(!file) return;
             if(file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    try {
-                        const proj = JSON.parse(ev.target.result);
-                        if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
-                    } catch(e) { alert("Invalid Rig File"); }
-                };
-                reader.readAsText(file);
+                handleRigFile(file);
             } else if(file.type.startsWith('audio/')) {
-                const url = URL.createObjectURL(file);
-                audioEl.src = url;
-                audioEl.play();
-                connectAudioElement();
-                btnPlay.classList.add('active');
+                handleAudioFile(file);
             }
+        });
+
+        // FX button - toggle mixer to FX tab
+        btnFx.onclick = () => {
+            mixerPanel.classList.add('visible');
+            btnMixer.classList.add('active');
+            btnFx.classList.toggle('active');
+            // Switch to FX tab
+            document.querySelectorAll('.mixer-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.style.display = 'none');
+            document.querySelector('[data-tab="fx"]').classList.add('active');
+            document.getElementById('tabFx').style.display = 'block';
+        };
+
+        // Physics toggle (LEGACY/LABAN)
+        btnPhysics.onclick = () => {
+            STATE.physicsStyle = STATE.physicsStyle === 'LEGACY' ? 'LABAN' : 'LEGACY';
+            physicsLabel.innerText = STATE.physicsStyle;
+            btnPhysics.classList.toggle('active', STATE.physicsStyle === 'LABAN');
+            // Update mixer panel buttons
+            document.querySelectorAll('.physics-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.physics === STATE.physicsStyle);
+            });
+            const labanDisplay = document.getElementById('labanDisplay');
+            if (labanDisplay) labanDisplay.style.display = STATE.physicsStyle === 'LABAN' ? 'block' : 'none';
+        };
+
+        // Engine toggle (PATTERN/KINETIC)
+        btnEngine.onclick = () => {
+            STATE.engineMode = STATE.engineMode === 'PATTERN' ? 'KINETIC' : 'PATTERN';
+            engineLabel.innerText = STATE.engineMode;
+            btnEngine.classList.toggle('active', STATE.engineMode === 'KINETIC');
+            // Update mixer panel buttons
+            document.querySelectorAll('.engine-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === STATE.engineMode);
+            });
+        };
+
+        // --- AUTO-HIDE UI ---
+        let uiTimeout;
+        let uiVisible = true;
+
+        function showUI() {
+            ui.classList.remove('hidden');
+            uiVisible = true;
+            tapHint.classList.remove('visible');
+            resetUITimeout();
+        }
+
+        function hideUI() {
+            ui.classList.add('hidden');
+            uiVisible = false;
+        }
+
+        function resetUITimeout() {
+            clearTimeout(uiTimeout);
+            uiTimeout = setTimeout(() => {
+                // Only auto-hide if playing and not interacting with mixer
+                if (!audioEl.paused || micStream) {
+                    hideUI();
+                    tapHint.classList.add('visible');
+                    setTimeout(() => tapHint.classList.remove('visible'), 2000);
+                }
+            }, 5000);
+        }
+
+        // Tap anywhere to show/hide UI
+        document.body.addEventListener('click', (e) => {
+            // Don't toggle if clicking on UI elements
+            if (e.target.closest('#ui') || e.target.closest('#mixerPanel') || e.target.closest('#deck')) {
+                resetUITimeout();
+                return;
+            }
+            if (uiVisible) {
+                hideUI();
+            } else {
+                showUI();
+            }
+        });
+
+        // Keep UI visible when interacting
+        ui.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetUITimeout();
+        });
+        mixerPanel.addEventListener('click', (e) => {
+            e.stopPropagation();
+            resetUITimeout();
+        });
+
+        // Update progression bars in animation loop
+        function updateProgressionBars(beat) {
+            const phase = Math.floor(beat / 4);
+            progressBars.forEach((bar, i) => {
+                if (i < phase) {
+                    bar.style.background = i === 0 ? '#8b5cf6' : i === 1 ? '#8b5cf6' : i === 2 ? '#ec4899' : '#00ffff';
+                } else if (i === phase) {
+                    const progress = (beat % 4) / 4;
+                    const color = i === 0 ? '#8b5cf6' : i === 1 ? '#8b5cf6' : i === 2 ? '#ec4899' : '#00ffff';
+                    bar.style.background = \`linear-gradient(to right, \${color} \${progress*100}%, rgba(255,255,255,0.15) \${progress*100}%)\`;
+                } else {
+                    bar.style.background = 'rgba(255,255,255,0.15)';
+                }
+            });
         }
 
         // --- 10. INTERACTIVE FEATURES ---
