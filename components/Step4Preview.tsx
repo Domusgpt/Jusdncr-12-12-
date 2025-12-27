@@ -629,7 +629,53 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     // --- ENHANCED CHOREOGRAPHY MODE ---
     // Use motion grammar and Laban effort for frame selection when enabled
-    if (choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
+    // NOTE: This is now a fallback if GolemMixer doesn't handle the transition
+
+    // --- GOLEM MIXER ENGINE ---
+    // Call GolemMixer.update() to get frame selection from KINETIC or PATTERN mode
+    let golemMixerHandled = false;
+    if (golemMixerRef.current && golemState.engineMode) {
+        const audioData = {
+            bass,
+            mid,
+            high,
+            energy,
+            timestamp: now
+        };
+
+        const mixerOutput = golemMixerRef.current.update(audioData);
+
+        // Update telemetry
+        const telemetry = golemMixerRef.current.getTelemetry();
+        if (telemetry.bpm !== golemState.bpm || telemetry.barCounter !== (golemState.telemetry?.barCounter ?? -1)) {
+            setGolemState(s => ({ ...s, bpm: telemetry.bpm, telemetry }));
+        }
+
+        // Use GolemMixer's frame selection if it has a valid frame
+        if (mixerOutput.frame && mixerOutput.frame.pose !== targetPoseRef.current) {
+            golemMixerHandled = true;
+
+            // Trigger transition with GolemMixer's mode
+            triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode);
+
+            // Apply GolemMixer physics (can be combined with LABAN physics above)
+            charSquashRef.current = mixerOutput.physics.squash;
+            charBounceYRef.current = mixerOutput.physics.bounce * bass * -30;
+            targetTiltRef.current = mixerOutput.physics.tilt;
+            camZoomRef.current = BASE_ZOOM + (mixerOutput.physics.zoom * 0.3);
+
+            // Apply GolemMixer effects
+            if (mixerOutput.effects.flash > 0) flashIntensityRef.current = mixerOutput.effects.flash;
+            if (mixerOutput.effects.rgbSplit > 0) rgbSplitRef.current = mixerOutput.effects.rgbSplit;
+            if (mixerOutput.effects.glitch > 0.5) charSkewRef.current = (Math.random() - 0.5) * mixerOutput.effects.glitch;
+
+            // Update beat counter from GolemMixer
+            beatCounterRef.current = telemetry.barCounter;
+        }
+    }
+
+    // Only use Laban/enhanced choreography if GolemMixer didn't handle it
+    if (!golemMixerHandled && choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
         const currentPose = targetPoseRef.current;
         const selection = selectFrame(choreoState, currentPose);
 
@@ -664,11 +710,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     // --- MAIN GROOVE ENGINE (Beat-focused, legacy fallback) ---
     const beatThreshold = 0.55; // Slightly higher threshold for cleaner beat detection
 
-    // Only use legacy groove engine if enhanced mode didn't trigger a transition
+    // Only use legacy groove engine if neither GolemMixer nor enhanced mode triggered a transition
     const useEnhancedTransition = choreoState && useEnhancedModeRef.current && choreoState.shouldTransition;
 
     // Increased cooldown from 300ms to 400ms - more deliberate timing
-    if (!useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
+    if (!golemMixerHandled && !useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
             beatCounterRef.current = (beatCounterRef.current + 1) % 16;
