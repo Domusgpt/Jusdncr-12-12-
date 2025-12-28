@@ -806,6 +806,20 @@ export class GolemMixer {
     // Beat detection
     const beatDetected = this.bpmDetector.detectBeat(bass, now);
 
+    // DEBUG: Log pattern state
+    if (beatDetected) {
+      const pool = this.gatherFrames(d => d.allFrames);
+      console.log('[PATTERN DEBUG]', {
+        pattern: this.activePattern,
+        beatDetected,
+        poolSize: pool.length,
+        currentFrame: this.currentFrame?.pose,
+        patternIndex: this.patternIndex,
+        barCounter: this.kineticState.barCounter,
+        activeDecks: this.getSequencerDecks().map(d => ({ id: d.id, frames: d.allFrames.length }))
+      });
+    }
+
     if (!beatDetected) return;
 
     this.lastBeatTime = now;
@@ -982,11 +996,22 @@ export class GolemMixer {
   }
 
   private triggerFrame(frame: DeckFrame | null, mode: TransitionMode, forceTransition: boolean = false): void {
-    if (!frame) return;
+    if (!frame) {
+      console.log('[TRIGGER DEBUG] No frame provided!');
+      return;
+    }
 
     // In pattern mode, allow same frame (for AABB where A repeats)
     // But still trigger visual feedback (squash/bounce)
     const isSameFrame = frame.pose === this.currentFrame?.pose;
+
+    console.log('[TRIGGER DEBUG]', {
+      newFrame: frame.pose,
+      currentFrame: this.currentFrame?.pose,
+      isSameFrame,
+      forceTransition,
+      willTrigger: !isSameFrame || forceTransition
+    });
 
     if (isSameFrame && !forceTransition) {
       // Same frame - still pulse on beat but don't change frame
