@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2, Disc3 } from 'lucide-react';
+import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -9,7 +9,9 @@ import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { GolemMixerPanel } from './GolemMixerPanel';
-import { FXPanel, FXState } from './FXPanel';
+import { FXRail, FXState } from './FXRail';
+import { PressurePaddle } from './PressurePaddle';
+import { ControlDock } from './ControlDock';
 import {
   GolemMixer, createGolemMixer,
   EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
@@ -85,8 +87,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
-  const [showEffects, setShowEffects] = useState(false); // Effects Panel Visibility
-  const [showMixer, setShowMixer] = useState(false); // LiveMixer Visibility
+  const [showMixer, setShowMixer] = useState(false); // GolemMixer Drawer Visibility
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
   // GolemMixer Engine Instance
@@ -1216,8 +1217,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* NEW MOBILE-FIRST FX PANEL */}
-      <FXPanel
+      {/* FX RAIL - Left edge vertical strip */}
+      <FXRail
         effects={userEffects}
         onToggleEffect={toggleEffect}
         onResetAll={() => setUserEffects({
@@ -1225,9 +1226,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           invert: false, bw: false, scanlines: false,
           glitch: false, shake: false, zoom: false
         })}
-        isOpen={showEffects}
-        onClose={() => setShowEffects(false)}
-        onPaddlePress={(intensity) => {
+      />
+
+      {/* PRESSURE PADDLE - Right edge expression controller */}
+      <PressurePaddle
+        onPressureChange={(intensity) => {
           // Paddle activates multiple effects based on intensity
           rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity * 0.8);
           flashIntensityRef.current = intensity * 0.3;
@@ -1235,7 +1238,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             charSkewRef.current = (Math.random() - 0.5) * intensity;
           }
         }}
-        onPaddleRelease={() => {
+        onRelease={() => {
           // Effects will decay naturally via the animation loop
         }}
       />
@@ -1314,198 +1317,68 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onToggle={() => setShowMixer(!showMixer)}
       />
 
-      <div className="absolute inset-0 pointer-events-none z-30 p-6 flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-             <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
-                 <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
-                 <div className="font-mono text-xs text-brand-300">
-                   FPS: {brainState.fps} | BPM: {golemState.telemetry?.bpm ?? brainState.bpm}<br/>
-                   PHYSICS: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span>
-                   {' | '}ENGINE: <span className={golemState.engineMode === 'KINETIC' ? 'text-purple-400' : 'text-cyan-400'}>{golemState.engineMode}</span><br/>
-                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort} | </>}
-                   {golemState.engineMode === 'KINETIC' && <>SEQ: <span className="text-green-400">{golemState.telemetry?.sequenceMode ?? golemState.sequenceMode}</span> | NODE: {golemState.telemetry?.currentNode ?? 'idle'}</>}
-                   {golemState.engineMode === 'PATTERN' && <>PATTERN: <span className="text-cyan-400">{golemState.activePattern}</span></>}
-                 </div>
-             </div>
-             <div className="flex gap-2 pointer-events-auto items-center">
-                 {isRecording && <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse"><div className="w-2 h-2 bg-red-500 rounded-full" /><span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span></div>}
-                 <button onClick={() => isRecording ? stopRecording() : setShowExportMenu(true)} className={`glass-button px-4 py-2 rounded-lg text-white flex items-center gap-2 ${isRecording ? 'bg-red-500/50 border-red-500' : ''}`}><CircleDot size={18} className={isRecording ? 'text-white' : 'text-red-400'} /><span className="text-xs font-bold">{isRecording ? 'STOP REC' : 'REC VIDEO'}</span></button>
-                 <button className="glass-button p-2 rounded-lg text-white" onClick={handleExportWidget} title="Download Standalone Widget"><Download size={20} /></button>
-             </div>
+      {/* STATUS BAR - Top left, minimal */}
+      <div className="absolute top-4 left-4 z-30 pointer-events-auto">
+        <div className="bg-black/50 backdrop-blur-md border border-white/10 px-3 py-2 rounded-lg">
+          <div className="flex items-center gap-2 mb-0.5">
+            <Activity size={12} className="text-brand-400" />
+            <span className="text-[9px] font-bold text-gray-400 tracking-widest">STATUS</span>
           </div>
-
-          {/* MOBILE-FIRST CONTROL BAR - Large touch targets (min 48px) */}
-          <div className="flex flex-col items-center gap-4 pointer-events-auto w-full px-3 pb-safe">
-
-              {/* Primary Play Button - Always visible, prominent */}
-              <div className="flex items-center gap-4">
-                  {state.audioPreviewUrl ? (
-                      <button
-                          onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
-                          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all
-                                      shadow-xl active:scale-95 touch-manipulation flex-shrink-0
-                                      ${isPlaying
-                                        ? 'bg-brand-500 text-white shadow-[0_0_30px_rgba(139,92,246,0.5)]'
-                                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
-                                      }`}
-                      >
-                          {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
-                      </button>
-                  ) : (
-                      <button
-                          onClick={() => trackInputRef.current?.click()}
-                          className="w-16 h-16 rounded-full flex items-center justify-center bg-brand-500/20
-                                     border-2 border-dashed border-brand-500/50 text-brand-400
-                                     active:scale-95 touch-manipulation"
-                      >
-                          <Music2 size={24} />
-                      </button>
-                  )}
-              </div>
-
-              {/* Control Grid - Large touch-friendly buttons */}
-              <div className="grid grid-cols-5 gap-2 w-full max-w-sm bg-black/60 backdrop-blur-xl
-                              border border-white/10 p-3 rounded-2xl shadow-2xl">
-                  {/* Track */}
-                  <button
-                      onClick={() => trackInputRef.current?.click()}
-                      className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                                 bg-white/5 border border-white/10 text-white/60 hover:text-white
-                                 hover:bg-white/10 active:scale-95 transition-all min-h-[60px]"
-                  >
-                      <Music2 size={20} />
-                      <span className="text-[10px] font-bold">TRACK</span>
-                  </button>
-
-                  {/* Mic */}
-                  <button
-                      onClick={toggleMic}
-                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                                  active:scale-95 transition-all min-h-[60px] border
-                                  ${isMicActive
-                                    ? 'bg-red-500/30 border-red-500 text-red-400'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                                  }`}
-                  >
-                      {isMicActive ? <Mic size={20} /> : <MicOff size={20} />}
-                      <span className="text-[10px] font-bold">LIVE</span>
-                  </button>
-
-                  {/* FX */}
-                  <button
-                      onClick={() => setShowEffects(!showEffects)}
-                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                                  active:scale-95 transition-all min-h-[60px] border
-                                  ${showEffects
-                                    ? 'bg-pink-500/30 border-pink-500 text-pink-400'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                                  }`}
-                  >
-                      <Wand2 size={20} />
-                      <span className="text-[10px] font-bold">FX</span>
-                  </button>
-
-                  {/* Mixer */}
-                  <button
-                      onClick={() => setShowMixer(!showMixer)}
-                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                                  active:scale-95 transition-all min-h-[60px] border
-                                  ${showMixer
-                                    ? 'bg-cyan-500/30 border-cyan-500 text-cyan-400'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                                  }`}
-                  >
-                      <Disc3 size={20} />
-                      <span className="text-[10px] font-bold">MIXER</span>
-                  </button>
-
-                  {/* Camera */}
-                  <button
-                      onClick={() => setSuperCamActive(!superCamActive)}
-                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                                  active:scale-95 transition-all min-h-[60px] border
-                                  ${superCamActive
-                                    ? 'bg-blue-500/30 border-blue-500 text-blue-400'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
-                                  }`}
-                  >
-                      <Camera size={20} />
-                      <span className="text-[10px] font-bold">CAM</span>
-                  </button>
-              </div>
-
-              {/* Secondary controls row */}
-              <div className="flex gap-3 flex-wrap justify-center w-full max-w-sm">
-                  {/* Mode toggle */}
-                  <button
-                      onClick={toggleChoreoMode}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
-                                  active:scale-95 transition-all border
-                                  ${choreoMode === 'LABAN'
-                                    ? 'bg-purple-500/30 border-purple-500 text-purple-300'
-                                    : 'bg-orange-500/30 border-orange-500 text-orange-300'
-                                  }`}
-                  >
-                      {choreoMode === 'LABAN' ? <Brain size={16} /> : <Zap size={16} />}
-                      <span>{choreoMode}</span>
-                  </button>
-
-                  {/* Frame Deck */}
-                  <button
-                      onClick={() => setShowDeck(!showDeck)}
-                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
-                                  active:scale-95 transition-all border
-                                  ${showDeck
-                                    ? 'bg-white/20 border-white/40 text-white'
-                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
-                                  }`}
-                  >
-                      <Eye size={16} />
-                      <span>FRAMES</span>
-                  </button>
-
-                  {/* Generate More */}
-                  <button
-                      onClick={onGenerateMore}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
-                                 bg-brand-500/20 border border-brand-500/50 text-brand-300
-                                 hover:bg-brand-500/30 active:scale-95 transition-all"
-                  >
-                      <Sparkles size={16} />
-                      <span>NEW</span>
-                  </button>
-
-                  {/* Save */}
-                  <button
-                      onClick={onSaveProject}
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
-                                 bg-white/5 border border-white/10 text-white/60
-                                 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
-                  >
-                      <Download size={16} />
-                      <span>SAVE</span>
-                  </button>
-              </div>
-
-              {/* Beat progression indicator */}
-              <div className="flex items-center gap-3">
-                  <div className="flex gap-1.5">
-                      {[0, 1, 2, 3].map(i => (
-                          <div
-                              key={i}
-                              className={`w-12 h-2 rounded-full transition-all ${
-                                  beatCounterRef.current >= i * 4
-                                      ? i === 3 ? 'bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,0.5)]'
-                                        : i === 2 ? 'bg-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.5)]'
-                                        : 'bg-brand-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]'
-                                      : 'bg-white/10'
-                              }`}
-                          />
-                      ))}
-                  </div>
-              </div>
+          <div className="font-mono text-[10px] text-brand-300 leading-relaxed">
+            {brainState.fps} FPS | {golemState.telemetry?.bpm ?? brainState.bpm} BPM<br/>
+            <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span>
+            {' / '}
+            <span className={golemState.engineMode === 'KINETIC' ? 'text-purple-400' : 'text-cyan-400'}>{golemState.engineMode}</span>
+            {golemState.engineMode === 'KINETIC' && (
+              <> | <span className="text-green-400">{golemState.telemetry?.currentNode ?? 'idle'}</span></>
+            )}
+            {golemState.engineMode === 'PATTERN' && (
+              <> | <span className="text-cyan-400">{golemState.activePattern}</span></>
+            )}
           </div>
+        </div>
       </div>
+
+      {/* RECORDING INDICATOR + EXPORT - Top right */}
+      <div className="absolute top-4 right-4 z-30 pointer-events-auto flex gap-2 items-center">
+        {isRecording && (
+          <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse">
+            <div className="w-2 h-2 bg-red-500 rounded-full" />
+            <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
+          </div>
+        )}
+        <button
+          onClick={handleExportWidget}
+          className="bg-black/50 backdrop-blur-md border border-white/10 p-2 rounded-lg text-white/60 hover:text-white transition-colors"
+          title="Download Standalone Widget"
+        >
+          <Download size={18} />
+        </button>
+      </div>
+
+      {/* CONTROL DOCK - Bottom bar */}
+      <ControlDock
+        isPlaying={isPlaying}
+        hasAudio={!!state.audioPreviewUrl}
+        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
+        onUploadAudio={() => trackInputRef.current?.click()}
+        isMicActive={isMicActive}
+        onMicToggle={toggleMic}
+        isMixerOpen={showMixer}
+        onMixerToggle={() => setShowMixer(!showMixer)}
+        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
+        isCamActive={superCamActive}
+        onCamToggle={() => setSuperCamActive(!superCamActive)}
+        choreoMode={choreoMode}
+        onChoreoModeToggle={toggleChoreoMode}
+        isFrameDeckOpen={showDeck}
+        onFrameDeckToggle={() => setShowDeck(!showDeck)}
+        onGenerateMore={onGenerateMore}
+        onSaveProject={onSaveProject}
+        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
+        isRecording={isRecording}
+        beatCounter={beatCounterRef.current}
+      />
       
     </div>
   );

@@ -1,20 +1,16 @@
 /**
- * GolemMixerPanel - Unified 4-Channel Mixer + Engine Controls
+ * GolemMixerPanel - Bottom Sheet Drawer for 4-Channel Mixer
  *
- * No emojis - uses text labels and Lucide icons
- * Designed for intuitive control of:
- * - 4 deck channels with sequencer/layer modes
- * - Kinetic vs Pattern engine modes
- * - Sequence mode indicators
- * - Trigger pads
- * - BPM control
+ * Slides up from bottom, never blocks animation (max 60% height).
+ * Context-aware: shows patterns only in PATTERN mode.
+ * Trigger pads at bottom for thumb accessibility.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
-  Layers, Radio, Volume2, VolumeX, Play, Pause,
-  Zap, Brain, Music, Disc, Grid3X3, Activity,
-  ChevronUp, ChevronDown, Settings, RefreshCw, Image
+  Layers, Volume2, VolumeX,
+  Zap, Brain, Disc, Grid3X3,
+  ChevronDown, ChevronUp, GripHorizontal, Image
 } from 'lucide-react';
 import type {
   EngineMode, SequenceMode, PatternType, MixMode, MixerTelemetry, EffectsState
@@ -143,100 +139,62 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
   isOpen,
   onToggle
 }) => {
-  const [activeTab, setActiveTab] = useState<'DECKS' | 'ENGINE'>('ENGINE');
   const [expandedDeck, setExpandedDeck] = useState<number | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const [dragStartY, setDragStartY] = useState(0);
 
-  // Collapsed state - just show toggle button
-  if (!isOpen) {
-    return (
-      <button
-        onClick={onToggle}
-        className="fixed bottom-24 sm:bottom-4 right-2 sm:right-4 z-50 px-3 sm:px-4 py-2 sm:py-3
-                   bg-black/80 backdrop-blur-xl border border-white/20 rounded-xl text-white
-                   font-rajdhani font-bold hover:border-cyan-500/50 hover:bg-black/90 transition-all
-                   flex items-center gap-2 shadow-lg"
-      >
-        <Disc className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400" />
-        <span className="text-xs sm:text-sm tracking-wider">MIXER</span>
-        {telemetry && (
-          <span className="text-[10px] sm:text-xs text-cyan-400 ml-1 sm:ml-2">
-            {telemetry.bpm} BPM
-          </span>
-        )}
-      </button>
-    );
-  }
+  // Swipe down to close
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    setDragStartY(e.touches[0].clientY);
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const deltaY = e.changedTouches[0].clientY - dragStartY;
+    if (deltaY > 80) onToggle(); // Swipe down to close
+  }, [dragStartY, onToggle]);
+
+  // Closed state - don't render anything (ControlDock has the toggle)
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed bottom-20 sm:bottom-4 left-2 right-2 sm:left-auto sm:right-4 z-50
-                    w-auto sm:w-[420px] max-w-[calc(100vw-16px)] bg-black/90 backdrop-blur-xl
-                    border border-white/15 rounded-2xl font-rajdhani text-white
-                    shadow-2xl shadow-black/50 overflow-hidden max-h-[70vh] overflow-y-auto">
+    <div
+      ref={drawerRef}
+      className="fixed bottom-0 left-0 right-0 z-40
+                 bg-black/90 backdrop-blur-xl
+                 border-t border-white/15 rounded-t-3xl font-rajdhani text-white
+                 shadow-2xl shadow-black/50 overflow-hidden
+                 max-h-[60vh] animate-in slide-in-from-bottom duration-300"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
 
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10
-                      bg-gradient-to-r from-cyan-500/10 to-purple-500/10">
+      {/* Drawer Handle */}
+      <div className="flex flex-col items-center pt-2 pb-1">
+        <div className="w-12 h-1.5 bg-white/30 rounded-full" />
+      </div>
+
+      {/* Header - compact */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
         <div className="flex items-center gap-3">
           <Disc className="w-5 h-5 text-cyan-400" />
-          <span className="text-lg font-bold tracking-wider">GOLEM MIXER</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Telemetry */}
+          <span className="text-base font-bold tracking-wider">MIXER</span>
           {telemetry && (
-            <div className="flex items-center gap-2 text-xs">
-              <span className="text-white/50">{telemetry.fps} FPS</span>
-              <span className="text-cyan-400 font-bold">{telemetry.bpm} BPM</span>
-            </div>
+            <span className="text-xs text-cyan-400 font-mono">{telemetry.bpm} BPM</span>
           )}
-          <button
-            onClick={onToggle}
-            className="text-white/50 hover:text-white transition-colors p-1"
-          >
-            <ChevronDown className="w-5 h-5" />
-          </button>
         </div>
+        <button
+          onClick={onToggle}
+          className="p-2 text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/10"
+        >
+          <ChevronDown className="w-5 h-5" />
+        </button>
       </div>
 
-      {/* Tab Navigation - simplified to DECKS and ENGINE only */}
-      <div className="flex border-b border-white/10">
-        {(['DECKS', 'ENGINE'] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-3 text-sm font-bold tracking-wider transition-all
-                       ${activeTab === tab
-                         ? 'bg-white/10 text-white border-b-2 border-cyan-400'
-                         : 'text-white/50 hover:text-white hover:bg-white/5'}`}
-          >
-            {tab === 'DECKS' ? '4-CHANNEL DECKS' : 'ENGINE MODE'}
-          </button>
-        ))}
-      </div>
+      {/* Scrollable Content - all sections in one view */}
+      <div className="p-3 overflow-y-auto max-h-[calc(60vh-80px)] custom-scrollbar space-y-4">
 
-      {/* Tab Content */}
-      <div className="p-3 sm:p-4 overflow-y-auto custom-scrollbar">
-
-        {/* DECKS TAB */}
-        {activeTab === 'DECKS' && (
-          <div className="space-y-3">
-            <div className="text-xs text-white/40 mb-2">TAP DECK TO EXPAND / LOAD FRAMES</div>
-            {decks.map(deck => (
-              <DeckStrip
-                key={deck.id}
-                deck={deck}
-                isExpanded={expandedDeck === deck.id}
-                onToggleExpand={() => setExpandedDeck(expandedDeck === deck.id ? null : deck.id)}
-                onModeChange={(mode) => onDeckModeChange(deck.id, mode)}
-                onOpacityChange={(opacity) => onDeckOpacityChange(deck.id, opacity)}
-                onLoad={() => onLoadDeck(deck.id)}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ENGINE TAB */}
-        {activeTab === 'ENGINE' && (
-          <div className="space-y-4">
+        {/* ENGINE MODE TOGGLE - Always visible at top */}
+        <div className="space-y-2">
             {/* Engine Mode Toggle - Prominent */}
             <div className="flex gap-2">
               <button
@@ -374,38 +332,54 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
               )}
             </div>
 
-            {/* Trigger Pads */}
-            <div className="space-y-2">
-              <div className="text-xs text-white/40">TRIGGER PADS</div>
-              <div className="grid grid-cols-4 gap-2">
-                <TriggerPad
-                  label="STUTTER"
-                  color="yellow"
-                  onPress={() => onTriggerStutter(true)}
-                  onRelease={() => onTriggerStutter(false)}
-                />
-                <TriggerPad
-                  label="REVERSE"
-                  color="blue"
-                  onPress={() => onTriggerReverse(true)}
-                  onRelease={() => onTriggerReverse(false)}
-                />
-                <TriggerPad
-                  label="GLITCH"
-                  color="red"
-                  onPress={() => onTriggerGlitch(true)}
-                  onRelease={() => onTriggerGlitch(false)}
-                />
-                <TriggerPad
-                  label="BURST"
-                  color="green"
-                  onPress={() => onTriggerBurst(true)}
-                  onRelease={() => onTriggerBurst(false)}
-                />
-              </div>
-            </div>
+        </div>
+
+        {/* TRIGGER PADS - Always at bottom for thumb access */}
+        <div className="space-y-2 pt-2 border-t border-white/10">
+          <div className="text-xs text-white/40">TRIGGER PADS</div>
+          <div className="grid grid-cols-4 gap-2">
+            <TriggerPad
+              label="STUTTER"
+              color="yellow"
+              onPress={() => onTriggerStutter(true)}
+              onRelease={() => onTriggerStutter(false)}
+            />
+            <TriggerPad
+              label="REVERSE"
+              color="blue"
+              onPress={() => onTriggerReverse(true)}
+              onRelease={() => onTriggerReverse(false)}
+            />
+            <TriggerPad
+              label="GLITCH"
+              color="red"
+              onPress={() => onTriggerGlitch(true)}
+              onRelease={() => onTriggerGlitch(false)}
+            />
+            <TriggerPad
+              label="BURST"
+              color="green"
+              onPress={() => onTriggerBurst(true)}
+              onRelease={() => onTriggerBurst(false)}
+            />
           </div>
-        )}
+        </div>
+
+        {/* DECKS - Collapsible section */}
+        <div className="space-y-2 pt-2 border-t border-white/10">
+          <div className="text-xs text-white/40">DECKS (tap to expand)</div>
+          {decks.map(deck => (
+            <DeckStrip
+              key={deck.id}
+              deck={deck}
+              isExpanded={expandedDeck === deck.id}
+              onToggleExpand={() => setExpandedDeck(expandedDeck === deck.id ? null : deck.id)}
+              onModeChange={(mode) => onDeckModeChange(deck.id, mode)}
+              onOpacityChange={(opacity) => onDeckOpacityChange(deck.id, opacity)}
+              onLoad={() => onLoadDeck(deck.id)}
+            />
+          ))}
+        </div>
 
       </div>
     </div>

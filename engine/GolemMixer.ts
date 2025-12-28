@@ -682,8 +682,8 @@ export class GolemMixer {
         return node && energy >= node.energyRequired;
       });
 
-      // Increased transition probability from 30% to 60% to prevent getting stuck
-      if (validTransitions.length > 0 && Math.random() < 0.6) {
+      // 30% transition probability - allows natural groove without constant switching
+      if (validTransitions.length > 0 && Math.random() < 0.3) {
         const nextNodeId = this.selectRandom(validTransitions);
         if (nextNodeId) {
           this.transitionToNode(nextNodeId, now);
@@ -942,7 +942,8 @@ export class GolemMixer {
   }
 
   private triggerFrame(frame: DeckFrame | null, mode: TransitionMode): void {
-    if (!frame || frame === this.currentFrame) return;
+    // Compare pose strings, not object references - fixes pattern getting stuck
+    if (!frame || frame.pose === this.currentFrame?.pose) return;
 
     this.previousFrame = this.currentFrame;
     this.currentFrame = frame;
