@@ -826,32 +826,50 @@ export class GolemMixer {
       case 'ABAB':
         this.patternIndex = (this.patternIndex + 1) % 2;
         // Refresh pattern frames periodically to prevent staleness
-        if (this.kineticState.barCounter % 4 === 0) {
+        if (this.kineticState.barCounter % 4 === 0 && this.patternIndex === 0) {
           this.patternFrameA = null;
           this.patternFrameB = null;
         }
-        if (this.patternIndex === 0) {
-          if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
-          this.triggerFrame(this.patternFrameA, 'CUT');
-        } else {
-          if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
-          this.triggerFrame(this.patternFrameB, 'CUT');
+        {
+          const allFrames = this.gatherFrames(d => d.allFrames);
+          if (this.patternIndex === 0) {
+            if (!this.patternFrameA) {
+              this.patternFrameA = this.selectRandom(allFrames);
+            }
+            this.triggerFrame(this.patternFrameA, 'CUT', true);
+          } else {
+            if (!this.patternFrameB) {
+              // Ensure B is different from A
+              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
+              this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            }
+            this.triggerFrame(this.patternFrameB, 'CUT', true);
+          }
         }
         break;
 
       case 'AABB':
         this.patternIndex = (this.patternIndex + 1) % 4;
-        // Refresh pattern frames periodically
+        // Refresh pattern frames every 4 bars at start of pattern
         if (this.patternIndex === 0 && this.kineticState.barCounter % 4 === 0) {
           this.patternFrameA = null;
           this.patternFrameB = null;
         }
-        if (this.patternIndex < 2) {
-          if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
-          this.triggerFrame(this.patternFrameA, 'CUT');
-        } else {
-          if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
-          this.triggerFrame(this.patternFrameB, 'CUT');
+        {
+          const allFrames = this.gatherFrames(d => d.allFrames);
+          if (this.patternIndex < 2) {
+            if (!this.patternFrameA) {
+              this.patternFrameA = this.selectRandom(allFrames);
+            }
+            // Force transition even for repeated A frames (AABB pattern)
+            this.triggerFrame(this.patternFrameA, 'CUT', true);
+          } else {
+            if (!this.patternFrameB) {
+              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
+              this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            }
+            this.triggerFrame(this.patternFrameB, 'CUT', true);
+          }
         }
         break;
 
@@ -863,11 +881,24 @@ export class GolemMixer {
           this.patternFrameB = null;
           this.patternFrameC = null;
         }
-        if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
-        if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
-        if (!this.patternFrameC) this.patternFrameC = this.selectRandom(this.gatherFrames(d => d.allFrames));
-        const abacMap = [this.patternFrameA, this.patternFrameB, this.patternFrameA, this.patternFrameC];
-        this.triggerFrame(abacMap[this.patternIndex], 'CUT');
+        {
+          const allFrames = this.gatherFrames(d => d.allFrames);
+          if (!this.patternFrameA) {
+            this.patternFrameA = this.selectRandom(allFrames);
+          }
+          if (!this.patternFrameB) {
+            const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
+            this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+          }
+          if (!this.patternFrameC) {
+            const candidates = allFrames.filter(f =>
+              f.pose !== this.patternFrameA?.pose && f.pose !== this.patternFrameB?.pose
+            );
+            this.patternFrameC = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+          }
+          const abacMap = [this.patternFrameA, this.patternFrameB, this.patternFrameA, this.patternFrameC];
+          this.triggerFrame(abacMap[this.patternIndex], 'CUT', true);
+        }
         break;
 
       case 'STUTTER':
@@ -937,13 +968,32 @@ export class GolemMixer {
       pool = this.gatherFrames(d => d.allFrames);
     }
 
-    const newFrame = this.selectRandom(pool);
-    this.triggerFrame(newFrame, this.transitionMode);
+    // For all pool-based patterns, try to select a DIFFERENT frame than current
+    let newFrame = this.selectRandom(pool);
+    if (pool.length > 1 && newFrame?.pose === this.currentFrame?.pose) {
+      const alternatives = pool.filter(f => f.pose !== this.currentFrame?.pose);
+      if (alternatives.length > 0) {
+        newFrame = this.selectRandom(alternatives);
+      }
+    }
+
+    // Force transition in pattern mode to ensure frame changes are visible
+    this.triggerFrame(newFrame, this.transitionMode, true);
   }
 
-  private triggerFrame(frame: DeckFrame | null, mode: TransitionMode): void {
-    // Compare pose strings, not object references - fixes pattern getting stuck
-    if (!frame || frame.pose === this.currentFrame?.pose) return;
+  private triggerFrame(frame: DeckFrame | null, mode: TransitionMode, forceTransition: boolean = false): void {
+    if (!frame) return;
+
+    // In pattern mode, allow same frame (for AABB where A repeats)
+    // But still trigger visual feedback (squash/bounce)
+    const isSameFrame = frame.pose === this.currentFrame?.pose;
+
+    if (isSameFrame && !forceTransition) {
+      // Same frame - still pulse on beat but don't change frame
+      this.transitionProgress = 0.5;
+      this.physics.squash = 0.9;
+      return;
+    }
 
     this.previousFrame = this.currentFrame;
     this.currentFrame = frame;

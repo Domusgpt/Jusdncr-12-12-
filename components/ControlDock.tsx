@@ -9,7 +9,7 @@ import React, { useState } from 'react';
 import {
   Play, Pause, Mic, MicOff, Disc3, Camera,
   MoreHorizontal, Music2, Brain, Zap, Eye,
-  Sparkles, Download, Video, X
+  Sparkles, Download, Video, X, Upload
 } from 'lucide-react';
 
 interface ControlDockProps {
@@ -188,6 +188,19 @@ export const ControlDock: React.FC<ControlDockProps> = ({
               <Music2 size={24} />
             </button>
           )}
+
+          {/* TRACK - always visible for uploading/changing audio */}
+          <button
+            onClick={onUploadAudio}
+            className={`w-12 h-12 rounded-xl flex items-center justify-center
+                       transition-all active:scale-95 touch-manipulation border
+                       ${hasAudio
+                         ? 'bg-green-500/20 border-green-500/50 text-green-400'
+                         : 'bg-brand-500/20 border-brand-500/50 text-brand-400'
+                       }`}
+          >
+            <Upload size={20} />
+          </button>
 
           {/* MIC */}
           <button
