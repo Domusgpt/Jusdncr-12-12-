@@ -656,13 +656,18 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }
 
         // Use GolemMixer's frame selection if it has a valid frame
-        if (mixerOutput.frame && mixerOutput.frame.pose !== targetPoseRef.current) {
+        // IMPORTANT: Don't filter by "different pose" - let GolemMixer control transitions
+        // This allows patterns like AABB (same frame twice) to work correctly
+        if (mixerOutput.frame) {
             golemMixerHandled = true;
 
-            // Trigger transition with GolemMixer's mode
-            triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode);
+            // Only trigger visual transition if pose changed
+            // But always apply physics/effects for beat feedback
+            if (mixerOutput.frame.pose !== targetPoseRef.current) {
+                triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode);
+            }
 
-            // Apply GolemMixer physics (can be combined with LABAN physics above)
+            // Apply GolemMixer physics (always apply for beat feedback)
             charSquashRef.current = mixerOutput.physics.squash;
             charBounceYRef.current = mixerOutput.physics.bounce * bass * -30;
             targetTiltRef.current = mixerOutput.physics.tilt;

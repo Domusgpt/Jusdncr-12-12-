@@ -27,3 +27,4 @@ test-results/
 tests/output/*.png
 tests/output/*.txt
 tests/output/*.json
+gcp-key.json

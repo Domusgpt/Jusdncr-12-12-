@@ -806,17 +806,23 @@ export class GolemMixer {
     // Beat detection
     const beatDetected = this.bpmDetector.detectBeat(bass, now);
 
-    // DEBUG: Log pattern state
+    // DEBUG: Log pattern state on every beat
     if (beatDetected) {
-      const pool = this.gatherFrames(d => d.allFrames);
-      console.log('[PATTERN DEBUG]', {
+      const allFrames = this.gatherFrames(d => d.allFrames);
+      const sequencerDecks = this.getSequencerDecks();
+      console.log('[PATTERN DEBUG] Beat detected', {
         pattern: this.activePattern,
-        beatDetected,
-        poolSize: pool.length,
-        currentFrame: this.currentFrame?.pose,
-        patternIndex: this.patternIndex,
-        barCounter: this.kineticState.barCounter,
-        activeDecks: this.getSequencerDecks().map(d => ({ id: d.id, frames: d.allFrames.length }))
+        totalFrames: allFrames.length,
+        deckCount: sequencerDecks.length,
+        decks: sequencerDecks.map(d => ({
+          id: d.id,
+          name: d.name,
+          frames: d.allFrames.length,
+          mode: d.mixMode,
+          active: d.isActive
+        })),
+        currentPose: this.currentFrame?.pose,
+        bpm: this.kineticState.bpm
       });
     }
 
@@ -832,86 +838,137 @@ export class GolemMixer {
     switch (this.activePattern) {
       case 'PING_PONG':
         this.patternIndex = (this.patternIndex + 1) % 2;
-        pool = this.patternIndex === 0
-          ? this.gatherFrames(d => d.leftFrames)
-          : this.gatherFrames(d => d.rightFrames);
+        {
+          // Try left/right pools first, fall back to allFrames split by index
+          const leftPool = this.gatherFrames(d => d.leftFrames);
+          const rightPool = this.gatherFrames(d => d.rightFrames);
+          const allFrames = this.gatherFrames(d => d.allFrames);
+
+          if (leftPool.length > 0 && rightPool.length > 0) {
+            pool = this.patternIndex === 0 ? leftPool : rightPool;
+          } else if (allFrames.length >= 2) {
+            // Split allFrames into two halves for ping-pong effect
+            const half = Math.ceil(allFrames.length / 2);
+            pool = this.patternIndex === 0
+              ? allFrames.slice(0, half)
+              : allFrames.slice(half);
+          } else {
+            pool = allFrames;
+          }
+        }
         break;
 
       case 'ABAB':
         this.patternIndex = (this.patternIndex + 1) % 2;
-        // Refresh pattern frames periodically to prevent staleness
-        if (this.kineticState.barCounter % 4 === 0 && this.patternIndex === 0) {
-          this.patternFrameA = null;
-          this.patternFrameB = null;
-        }
         {
           const allFrames = this.gatherFrames(d => d.allFrames);
+          console.log('[ABAB DEBUG]', {
+            patternIndex: this.patternIndex,
+            poolSize: allFrames.length,
+            hasA: !!this.patternFrameA,
+            hasB: !!this.patternFrameB
+          });
+
+          // Refresh pattern frames every 8 beats (more variety)
+          if (this.patternIndex === 0 && Math.random() < 0.15) {
+            this.patternFrameA = null;
+            this.patternFrameB = null;
+          }
+
           if (this.patternIndex === 0) {
-            if (!this.patternFrameA) {
+            // Select A frame
+            if (!this.patternFrameA || allFrames.length === 0) {
               this.patternFrameA = this.selectRandom(allFrames);
             }
-            this.triggerFrame(this.patternFrameA, 'CUT', true);
-          } else {
-            if (!this.patternFrameB) {
-              // Ensure B is different from A
-              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
-              this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            if (this.patternFrameA) {
+              this.triggerFrame(this.patternFrameA, 'CUT', true);
             }
-            this.triggerFrame(this.patternFrameB, 'CUT', true);
+          } else {
+            // Select B frame - MUST be different from A
+            if (!this.patternFrameB || allFrames.length === 0) {
+              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
+              this.patternFrameB = candidates.length > 0
+                ? this.selectRandom(candidates)
+                : (allFrames.length > 1 ? allFrames[1] : this.selectRandom(allFrames));
+            }
+            if (this.patternFrameB) {
+              this.triggerFrame(this.patternFrameB, 'CUT', true);
+            }
           }
         }
         break;
 
       case 'AABB':
         this.patternIndex = (this.patternIndex + 1) % 4;
-        // Refresh pattern frames every 4 bars at start of pattern
-        if (this.patternIndex === 0 && this.kineticState.barCounter % 4 === 0) {
-          this.patternFrameA = null;
-          this.patternFrameB = null;
-        }
         {
           const allFrames = this.gatherFrames(d => d.allFrames);
+
+          // Refresh pattern frames periodically
+          if (this.patternIndex === 0 && Math.random() < 0.2) {
+            this.patternFrameA = null;
+            this.patternFrameB = null;
+          }
+
           if (this.patternIndex < 2) {
-            if (!this.patternFrameA) {
+            // AA - same frame twice
+            if (!this.patternFrameA || allFrames.length === 0) {
               this.patternFrameA = this.selectRandom(allFrames);
             }
-            // Force transition even for repeated A frames (AABB pattern)
-            this.triggerFrame(this.patternFrameA, 'CUT', true);
-          } else {
-            if (!this.patternFrameB) {
-              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
-              this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            if (this.patternFrameA) {
+              this.triggerFrame(this.patternFrameA, 'CUT', true);
             }
-            this.triggerFrame(this.patternFrameB, 'CUT', true);
+          } else {
+            // BB - different frame twice
+            if (!this.patternFrameB || allFrames.length === 0) {
+              const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
+              this.patternFrameB = candidates.length > 0
+                ? this.selectRandom(candidates)
+                : (allFrames.length > 1 ? allFrames[1] : this.selectRandom(allFrames));
+            }
+            if (this.patternFrameB) {
+              this.triggerFrame(this.patternFrameB, 'CUT', true);
+            }
           }
         }
         break;
 
       case 'ABAC':
         this.patternIndex = (this.patternIndex + 1) % 4;
-        // Refresh pattern frames every 8 bars
-        if (this.patternIndex === 0 && this.kineticState.barCounter % 8 === 0) {
-          this.patternFrameA = null;
-          this.patternFrameB = null;
-          this.patternFrameC = null;
-        }
         {
           const allFrames = this.gatherFrames(d => d.allFrames);
-          if (!this.patternFrameA) {
+
+          // Refresh pattern frames periodically
+          if (this.patternIndex === 0 && Math.random() < 0.12) {
+            this.patternFrameA = null;
+            this.patternFrameB = null;
+            this.patternFrameC = null;
+          }
+
+          // Select A, B, C frames ensuring they're all different
+          if (!this.patternFrameA || allFrames.length === 0) {
             this.patternFrameA = this.selectRandom(allFrames);
           }
-          if (!this.patternFrameB) {
+          if (!this.patternFrameB || allFrames.length === 0) {
             const candidates = allFrames.filter(f => f.pose !== this.patternFrameA?.pose);
-            this.patternFrameB = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            this.patternFrameB = candidates.length > 0
+              ? this.selectRandom(candidates)
+              : (allFrames.length > 1 ? allFrames[1] : this.selectRandom(allFrames));
           }
-          if (!this.patternFrameC) {
+          if (!this.patternFrameC || allFrames.length === 0) {
             const candidates = allFrames.filter(f =>
               f.pose !== this.patternFrameA?.pose && f.pose !== this.patternFrameB?.pose
             );
-            this.patternFrameC = this.selectRandom(candidates.length > 0 ? candidates : allFrames);
+            this.patternFrameC = candidates.length > 0
+              ? this.selectRandom(candidates)
+              : (allFrames.length > 2 ? allFrames[2] : this.selectRandom(allFrames));
           }
+
+          // A-B-A-C pattern
           const abacMap = [this.patternFrameA, this.patternFrameB, this.patternFrameA, this.patternFrameC];
-          this.triggerFrame(abacMap[this.patternIndex], 'CUT', true);
+          const selectedFrame = abacMap[this.patternIndex];
+          if (selectedFrame) {
+            this.triggerFrame(selectedFrame, 'CUT', true);
+          }
         }
         break;
 
@@ -958,14 +1015,21 @@ export class GolemMixer {
         break;
 
       case 'GROOVE':
-        const dir = this.kineticState.barCounter % 2 === 0 ? 'left' : 'right';
-        pool = this.gatherFrames(d =>
-          d.framesByEnergy.mid.filter(f => f.direction === dir)
-        );
+        {
+          const dir = this.kineticState.barCounter % 2 === 0 ? 'left' : 'right';
+          pool = this.gatherFrames(d =>
+            d.framesByEnergy.mid.filter(f => f.direction === dir)
+          );
+          // Fallback if no directional frames
+          if (pool.length === 0) {
+            pool = this.gatherFrames(d => d.framesByEnergy.mid);
+          }
+        }
         break;
 
       case 'EMOTE':
         pool = this.gatherFrames(d => d.closeups);
+        if (pool.length === 0) pool = this.gatherFrames(d => d.framesByEnergy.high);
         this.transitionMode = 'ZOOM_IN';
         break;
 
