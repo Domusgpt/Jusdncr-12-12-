@@ -14,11 +14,12 @@ import React, { useState } from 'react';
 import {
   Layers, Radio, Volume2, VolumeX, Play, Pause,
   Zap, Brain, Music, Disc, Grid3X3, Activity,
-  ChevronUp, ChevronDown, Settings, RefreshCw
+  ChevronUp, ChevronDown, Settings, RefreshCw, Image
 } from 'lucide-react';
 import type {
   EngineMode, SequenceMode, PatternType, MixMode, MixerTelemetry, EffectsState
 } from '../engine/GolemMixer';
+import type { GeneratedFrame } from '../types';
 
 // =============================================================================
 // TYPES
@@ -32,6 +33,7 @@ interface DeckState {
   opacity: number;
   frameCount: number;
   rigName?: string;
+  frames?: GeneratedFrame[]; // For thumbnail display
 }
 
 interface GolemMixerPanelProps {
@@ -141,7 +143,8 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
   isOpen,
   onToggle
 }) => {
-  const [activeTab, setActiveTab] = useState<'DECKS' | 'ENGINE' | 'FX'>('ENGINE');
+  const [activeTab, setActiveTab] = useState<'DECKS' | 'ENGINE'>('ENGINE');
+  const [expandedDeck, setExpandedDeck] = useState<number | null>(null);
 
   // Collapsed state - just show toggle button
   if (!isOpen) {
@@ -194,18 +197,18 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
         </div>
       </div>
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation - simplified to DECKS and ENGINE only */}
       <div className="flex border-b border-white/10">
-        {(['DECKS', 'ENGINE', 'FX'] as const).map(tab => (
+        {(['DECKS', 'ENGINE'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-2 text-xs font-bold tracking-wider transition-all
+            className={`flex-1 py-3 text-sm font-bold tracking-wider transition-all
                        ${activeTab === tab
                          ? 'bg-white/10 text-white border-b-2 border-cyan-400'
                          : 'text-white/50 hover:text-white hover:bg-white/5'}`}
           >
-            {tab}
+            {tab === 'DECKS' ? '4-CHANNEL DECKS' : 'ENGINE MODE'}
           </button>
         ))}
       </div>
@@ -216,11 +219,13 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
         {/* DECKS TAB */}
         {activeTab === 'DECKS' && (
           <div className="space-y-3">
-            <div className="text-xs text-white/40 mb-2">4-CHANNEL DECK MIXER</div>
+            <div className="text-xs text-white/40 mb-2">TAP DECK TO EXPAND / LOAD FRAMES</div>
             {decks.map(deck => (
               <DeckStrip
                 key={deck.id}
                 deck={deck}
+                isExpanded={expandedDeck === deck.id}
+                onToggleExpand={() => setExpandedDeck(expandedDeck === deck.id ? null : deck.id)}
                 onModeChange={(mode) => onDeckModeChange(deck.id, mode)}
                 onOpacityChange={(opacity) => onDeckOpacityChange(deck.id, opacity)}
                 onLoad={() => onLoadDeck(deck.id)}
@@ -402,68 +407,6 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
           </div>
         )}
 
-        {/* FX TAB */}
-        {activeTab === 'FX' && (
-          <div className="space-y-4">
-            {/* Sliders */}
-            <div className="space-y-3">
-              <FXSlider
-                label="RGB SPLIT"
-                value={effects.rgbSplit}
-                onChange={(v) => onEffectChange('rgbSplit', v)}
-                color="red"
-              />
-              <FXSlider
-                label="GLITCH"
-                value={effects.glitch}
-                onChange={(v) => onEffectChange('glitch', v)}
-                color="green"
-              />
-              <FXSlider
-                label="SCANLINES"
-                value={effects.scanlines}
-                onChange={(v) => onEffectChange('scanlines', v)}
-                color="blue"
-              />
-              <FXSlider
-                label="HUE SHIFT"
-                value={effects.hueShift}
-                onChange={(v) => onEffectChange('hueShift', v)}
-                color="purple"
-              />
-              <FXSlider
-                label="ABERRATION"
-                value={effects.aberration}
-                onChange={(v) => onEffectChange('aberration', v)}
-                color="cyan"
-              />
-            </div>
-
-            {/* Toggles */}
-            <div className="grid grid-cols-4 gap-2">
-              <FXToggle
-                label="INVERT"
-                active={effects.invert}
-                onChange={(v) => onEffectChange('invert', v)}
-              />
-              <FXToggle
-                label="B&W"
-                active={effects.grayscale}
-                onChange={(v) => onEffectChange('grayscale', v)}
-              />
-              <FXToggle
-                label="MIRROR"
-                active={effects.mirror}
-                onChange={(v) => onEffectChange('mirror', v)}
-              />
-              <FXToggle
-                label="STROBE"
-                active={effects.strobe}
-                onChange={(v) => onEffectChange('strobe', v)}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -473,79 +416,140 @@ export const GolemMixerPanel: React.FC<GolemMixerPanelProps> = ({
 // SUB-COMPONENTS
 // =============================================================================
 
-/** Deck channel strip */
+/** Deck channel strip with expandable frame thumbnails */
 const DeckStrip: React.FC<{
   deck: DeckState;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
   onModeChange: (mode: MixMode) => void;
   onOpacityChange: (opacity: number) => void;
   onLoad: () => void;
-}> = ({ deck, onModeChange, onOpacityChange, onLoad }) => {
+}> = ({ deck, isExpanded, onToggleExpand, onModeChange, onOpacityChange, onLoad }) => {
   const isActive = deck.mixMode !== 'off';
 
   return (
-    <div className={`p-3 rounded-lg border transition-all ${
+    <div className={`rounded-xl border-2 transition-all overflow-hidden ${
       isActive
         ? 'bg-white/5 border-cyan-500/30'
-        : 'bg-white/[0.02] border-white/5'
+        : 'bg-white/[0.02] border-white/10'
     }`}>
-      <div className="flex items-center gap-3">
+      {/* Main deck row - tap to expand */}
+      <div
+        className="p-3 flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all"
+        onClick={onToggleExpand}
+      >
         {/* Deck indicator */}
-        <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg
                         ${isActive ? 'bg-cyan-500/20 text-cyan-400' : 'bg-white/5 text-white/30'}`}>
           {deck.id + 1}
         </div>
 
-        {/* Mode selector */}
-        <div className="flex gap-1">
-          {MIX_MODES.map(mode => (
-            <button
-              key={mode.id}
-              onClick={() => onModeChange(mode.id)}
-              className={`px-2 py-1 rounded text-[10px] font-bold transition-all
-                         ${deck.mixMode === mode.id
-                           ? mode.id === 'off'
-                             ? 'bg-white/10 text-white/50'
-                             : 'bg-cyan-500 text-white'
-                           : 'bg-white/5 text-white/30 hover:text-white/50'}`}
-            >
-              {mode.label}
-            </button>
-          ))}
+        {/* Deck info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`text-sm font-bold ${isActive ? 'text-white' : 'text-white/40'}`}>
+              {deck.rigName || `DECK ${deck.id + 1}`}
+            </span>
+            {deck.frameCount > 0 && (
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-cyan-500/20 text-cyan-400 rounded-full">
+                {deck.frameCount} frames
+              </span>
+            )}
+          </div>
+          <div className="flex gap-1 mt-1">
+            {MIX_MODES.map(mode => (
+              <button
+                key={mode.id}
+                onClick={(e) => { e.stopPropagation(); onModeChange(mode.id); }}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all
+                           ${deck.mixMode === mode.id
+                             ? mode.id === 'off'
+                               ? 'bg-white/20 text-white/60'
+                               : 'bg-cyan-500 text-white'
+                             : 'bg-white/5 text-white/30 hover:text-white/50'}`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Opacity slider */}
-        {isActive && (
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.1"
-            value={deck.opacity}
-            onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-            className="flex-1 h-1 rounded-full appearance-none cursor-pointer bg-white/10"
-          />
-        )}
-
-        {/* Load button */}
-        <button
-          onClick={onLoad}
-          className="p-1.5 rounded bg-white/5 text-white/40 hover:text-white hover:bg-white/10
-                     transition-all"
-          title="Load rig to deck"
-        >
-          <Layers className="w-4 h-4" />
-        </button>
-
-        {/* Frame count */}
-        <span className="text-xs text-white/30 w-8 text-right">
-          {deck.frameCount}
-        </span>
+        {/* Expand indicator */}
+        <div className="text-white/30">
+          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </div>
       </div>
 
-      {/* Rig name */}
-      {deck.rigName && (
-        <div className="mt-2 text-xs text-white/40 truncate pl-11">
-          {deck.rigName}
+      {/* Expanded content - frame thumbnails */}
+      {isExpanded && (
+        <div className="px-3 pb-3 border-t border-white/10 mt-0 pt-3 animate-in slide-in-from-top-2">
+          {/* Opacity slider */}
+          {isActive && (
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-xs text-white/40 w-16">OPACITY</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={deck.opacity}
+                onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
+                className="flex-1 h-2 rounded-full appearance-none cursor-pointer bg-white/10"
+              />
+              <span className="text-xs text-cyan-400 w-8 text-right">
+                {Math.round(deck.opacity * 100)}%
+              </span>
+            </div>
+          )}
+
+          {/* Frame thumbnails */}
+          {deck.frames && deck.frames.length > 0 ? (
+            <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+              {deck.frames.slice(0, 8).map((frame, idx) => (
+                <div
+                  key={idx}
+                  className="flex-shrink-0 w-14 h-14 rounded-lg border border-white/10
+                             bg-black/30 overflow-hidden hover:border-cyan-500/50 transition-all"
+                  title={frame.pose}
+                >
+                  <img
+                    src={frame.url}
+                    alt={frame.pose}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              ))}
+              {deck.frames.length > 8 && (
+                <div className="flex-shrink-0 w-14 h-14 rounded-lg border border-white/10
+                               bg-white/5 flex items-center justify-center text-white/40 text-xs font-bold">
+                  +{deck.frames.length - 8}
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onLoad(); }}
+              className="w-full py-4 rounded-lg border-2 border-dashed border-white/20
+                         text-white/40 hover:border-cyan-500/50 hover:text-cyan-400
+                         transition-all flex items-center justify-center gap-2"
+            >
+              <Image className="w-5 h-5" />
+              <span className="text-sm font-bold">LOAD RIG FILE</span>
+            </button>
+          )}
+
+          {/* Load button if has frames */}
+          {deck.frames && deck.frames.length > 0 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onLoad(); }}
+              className="w-full mt-2 py-2 rounded-lg bg-white/5 border border-white/10
+                         text-white/60 hover:text-white hover:bg-white/10 transition-all
+                         text-xs font-bold flex items-center justify-center gap-2"
+            >
+              <Layers className="w-4 h-4" />
+              REPLACE RIG
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -594,62 +598,5 @@ const TriggerPad: React.FC<{
     </button>
   );
 };
-
-/** FX slider */
-const FXSlider: React.FC<{
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-  color: string;
-}> = ({ label, value, onChange, color }) => {
-  const colorMap: Record<string, string> = {
-    red: 'bg-red-500',
-    green: 'bg-green-500',
-    blue: 'bg-blue-500',
-    purple: 'bg-purple-500',
-    cyan: 'bg-cyan-500'
-  };
-
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-white/40 w-20">{label}</span>
-      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden relative">
-        <div
-          className={`h-full ${colorMap[color]} transition-all`}
-          style={{ width: `${value * 100}%` }}
-        />
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={value}
-          onChange={(e) => onChange(parseFloat(e.target.value))}
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-        />
-      </div>
-      <span className="text-xs text-white/40 w-8 text-right">
-        {Math.round(value * 100)}
-      </span>
-    </div>
-  );
-};
-
-/** FX toggle button */
-const FXToggle: React.FC<{
-  label: string;
-  active: boolean;
-  onChange: (v: boolean) => void;
-}> = ({ label, active, onChange }) => (
-  <button
-    onClick={() => onChange(!active)}
-    className={`py-2 rounded-lg text-xs font-bold transition-all border
-               ${active
-                 ? 'bg-cyan-500 border-cyan-400 text-white'
-                 : 'bg-white/5 border-white/10 text-white/40 hover:border-white/20'}`}
-  >
-    {label}
-  </button>
-);
 
 export default GolemMixerPanel;

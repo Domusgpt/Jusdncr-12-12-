@@ -682,12 +682,19 @@ export class GolemMixer {
         return node && energy >= node.energyRequired;
       });
 
-      if (validTransitions.length > 0 && Math.random() < 0.3) {
+      // Increased transition probability from 30% to 60% to prevent getting stuck
+      if (validTransitions.length > 0 && Math.random() < 0.6) {
         const nextNodeId = this.selectRandom(validTransitions);
         if (nextNodeId) {
           this.transitionToNode(nextNodeId, now);
         }
       }
+    }
+
+    // FALLBACK: Force frame selection on beat even if node didn't change
+    // This prevents frames from getting stuck when node transitions are rare
+    if (beatDetected && !this.kineticState.isLocked) {
+      this.selectFrameForMode();
     }
   }
 
@@ -771,8 +778,15 @@ export class GolemMixer {
       pool = this.gatherFrames(d => d.allFrames);
     }
 
-    const newFrame = this.selectRandom(pool);
-    if (newFrame && newFrame !== this.currentFrame) {
+    // Try to select a different frame than current (up to 3 attempts)
+    let newFrame = this.selectRandom(pool);
+    let attempts = 0;
+    while (newFrame && newFrame.pose === this.currentFrame?.pose && attempts < 3 && pool.length > 1) {
+      newFrame = this.selectRandom(pool);
+      attempts++;
+    }
+
+    if (newFrame && newFrame.pose !== this.currentFrame?.pose) {
       this.previousFrame = this.currentFrame;
       this.currentFrame = newFrame;
       this.transitionMode = transition;
@@ -811,36 +825,50 @@ export class GolemMixer {
 
       case 'ABAB':
         this.patternIndex = (this.patternIndex + 1) % 2;
+        // Refresh pattern frames periodically to prevent staleness
+        if (this.kineticState.barCounter % 4 === 0) {
+          this.patternFrameA = null;
+          this.patternFrameB = null;
+        }
         if (this.patternIndex === 0) {
           if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
           this.triggerFrame(this.patternFrameA, 'CUT');
-          return;
         } else {
           if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
           this.triggerFrame(this.patternFrameB, 'CUT');
-          return;
         }
+        break;
 
       case 'AABB':
         this.patternIndex = (this.patternIndex + 1) % 4;
+        // Refresh pattern frames periodically
+        if (this.patternIndex === 0 && this.kineticState.barCounter % 4 === 0) {
+          this.patternFrameA = null;
+          this.patternFrameB = null;
+        }
         if (this.patternIndex < 2) {
           if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
           this.triggerFrame(this.patternFrameA, 'CUT');
-          return;
         } else {
           if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
           this.triggerFrame(this.patternFrameB, 'CUT');
-          return;
         }
+        break;
 
       case 'ABAC':
         this.patternIndex = (this.patternIndex + 1) % 4;
-        const abacMap = [this.patternFrameA, this.patternFrameB, this.patternFrameA, this.patternFrameC];
+        // Refresh pattern frames every 8 bars
+        if (this.patternIndex === 0 && this.kineticState.barCounter % 8 === 0) {
+          this.patternFrameA = null;
+          this.patternFrameB = null;
+          this.patternFrameC = null;
+        }
         if (!this.patternFrameA) this.patternFrameA = this.selectRandom(this.gatherFrames(d => d.allFrames));
         if (!this.patternFrameB) this.patternFrameB = this.selectRandom(this.gatherFrames(d => d.allFrames));
         if (!this.patternFrameC) this.patternFrameC = this.selectRandom(this.gatherFrames(d => d.allFrames));
+        const abacMap = [this.patternFrameA, this.patternFrameB, this.patternFrameA, this.patternFrameC];
         this.triggerFrame(abacMap[this.patternIndex], 'CUT');
-        return;
+        break;
 
       case 'STUTTER':
       case 'SNARE_ROLL':

@@ -9,6 +9,7 @@ import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { GolemMixerPanel } from './GolemMixerPanel';
+import { FXPanel, FXState } from './FXPanel';
 import {
   GolemMixer, createGolemMixer,
   EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
@@ -118,10 +119,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       strobe: false
     } as EffectsState,
     decks: [
-      { id: 0, name: 'Deck 1', isActive: true, mixMode: 'sequencer' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
-      { id: 1, name: 'Deck 2', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
-      { id: 2, name: 'Deck 3', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined },
-      { id: 3, name: 'Deck 4', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined }
+      { id: 0, name: 'Deck 1', isActive: true, mixMode: 'sequencer' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 1, name: 'Deck 2', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 2, name: 'Deck 3', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 3, name: 'Deck 4', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] }
     ],
     telemetry: null as MixerTelemetry | null
   });
@@ -211,7 +212,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             isActive: true,
             mixMode: 'sequencer',
             frameCount: project.frames.length,
-            rigName: file.name.replace('.json', '')
+            rigName: file.name.replace('.json', ''),
+            frames: project.frames // Include frames for thumbnails
           } : d)
         }));
       }
@@ -273,7 +275,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           isActive: true,
           mixMode: 'sequencer',
           frameCount: state.generatedFrames.length,
-          rigName: 'Current Rig'
+          rigName: 'Current Rig',
+          frames: state.generatedFrames // Include frames for thumbnails
         } : d)
       }));
     }
@@ -1213,59 +1216,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* EFFECTS PANEL */}
-      {showEffects && (
-        <div className="absolute top-20 right-6 z-50 animate-slide-in-right pointer-events-auto">
-          <div className="bg-black/90 backdrop-blur-xl border border-brand-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(139,92,246,0.3)] w-64">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-white tracking-widest flex items-center gap-2">
-                <Wand2 size={14} className="text-brand-400" /> EFFECTS
-              </h3>
-              <button onClick={() => setShowEffects(false)} className="text-gray-500 hover:text-white">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { key: 'rgbSplit', label: 'RGB', icon: Layers },
-                { key: 'strobe', label: 'STROBE', icon: Zap },
-                { key: 'ghost', label: 'GHOST', icon: Ghost },
-                { key: 'invert', label: 'INVERT', icon: Contrast },
-                { key: 'bw', label: 'B&W', icon: CircleDot },
-                { key: 'scanlines', label: 'SCAN', icon: ScanLine },
-                { key: 'glitch', label: 'GLITCH', icon: Activity },
-                { key: 'zoom', label: 'ZOOM', icon: Move3D },
-                { key: 'shake', label: 'SHAKE', icon: Radio }
-              ].map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => toggleEffect(key as keyof typeof userEffects)}
-                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all ${
-                    userEffects[key as keyof typeof userEffects]
-                      ? 'bg-brand-500/30 border-brand-500 text-brand-300'
-                      : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon size={16} />
-                  <span className="text-[9px] font-bold">{label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-white/10">
-              <button
-                onClick={() => setUserEffects({
-                  rgbSplit: false, strobe: false, ghost: false,
-                  invert: false, bw: false, scanlines: false,
-                  glitch: false, shake: false, zoom: false
-                })}
-                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-white transition-colors"
-              >
-                RESET ALL
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* NEW MOBILE-FIRST FX PANEL */}
+      <FXPanel
+        effects={userEffects}
+        onToggleEffect={toggleEffect}
+        onResetAll={() => setUserEffects({
+          rgbSplit: false, strobe: false, ghost: false,
+          invert: false, bw: false, scanlines: false,
+          glitch: false, shake: false, zoom: false
+        })}
+        isOpen={showEffects}
+        onClose={() => setShowEffects(false)}
+        onPaddlePress={(intensity) => {
+          // Paddle activates multiple effects based on intensity
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity * 0.8);
+          flashIntensityRef.current = intensity * 0.3;
+          if (intensity > 0.7) {
+            charSkewRef.current = (Math.random() - 0.5) * intensity;
+          }
+        }}
+        onPaddleRelease={() => {
+          // Effects will decay naturally via the animation loop
+        }}
+      />
 
       {/* NEURAL DECK / FRAME INSPECTOR */}
       {showDeck && (
@@ -1361,41 +1334,170 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
              </div>
           </div>
 
-          {/* RESPONSIVE CONTROL BAR - portrait-friendly */}
-          <div className="flex flex-col items-center gap-3 pointer-events-auto w-full px-2">
-              {/* Main playback + track controls - always visible */}
-              <div className="flex items-center justify-center gap-2 sm:gap-3 bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-2xl shadow-2xl flex-wrap max-w-full">
-                   {state.audioPreviewUrl ? (
-                       <button onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }} className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${isPlaying ? 'bg-brand-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.4)]' : 'bg-white/10 text-white hover:bg-white/20'}`}>{isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}</button>
-                   ) : <div className="px-2 text-[9px] sm:text-[10px] text-gray-400 font-mono">NO TRACK</div>}
-                   <div className="h-6 w-[1px] bg-white/10 hidden sm:block" />
-                   <button onClick={() => trackInputRef.current?.click()} className="p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border border-transparent text-gray-400 hover:text-white hover:bg-white/10" title="Change Track"><Music2 size={14} /> <span className="hidden sm:inline">TRACK</span></button>
-                   <button onClick={toggleMic} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${isMicActive ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'border-transparent text-gray-400 hover:text-white'}`} title="Live Input">{isMicActive ? <Mic size={14} /> : <MicOff size={14} />} <span className="hidden sm:inline">LIVE</span></button>
-                   <button onClick={() => setShowEffects(!showEffects)} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${showEffects ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'border-transparent text-gray-400 hover:text-white'}`} title="Effects"><Wand2 size={14} /> <span className="hidden sm:inline">FX</span></button>
-                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`} title="Camera Motion"><Camera size={14} /> <span className="hidden sm:inline">CAM</span></button>
-                   <button onClick={() => setShowMixer(!showMixer)} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${showMixer ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white'}`} title="Live Mixer"><Disc3 size={14} /> <span className="hidden sm:inline">MIXER</span></button>
-                   <button onClick={() => setShowDeck(!showDeck)} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`} title="Frame Deck"><Eye size={14} /> <span className="hidden sm:inline">DECK</span></button>
-                   <button onClick={toggleChoreoMode} className={`p-2 sm:px-3 sm:py-2 rounded-full flex items-center gap-1.5 text-[10px] sm:text-xs font-bold transition-all border ${choreoMode === 'LABAN' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-orange-500/20 border-orange-500 text-orange-400'}`} title={`Mode: ${choreoMode}`}>
-                     {choreoMode === 'LABAN' ? <Brain size={14} /> : <Zap size={14} />}
-                     <span className="hidden sm:inline">{choreoMode}</span>
-                   </button>
+          {/* MOBILE-FIRST CONTROL BAR - Large touch targets (min 48px) */}
+          <div className="flex flex-col items-center gap-4 pointer-events-auto w-full px-3 pb-safe">
+
+              {/* Primary Play Button - Always visible, prominent */}
+              <div className="flex items-center gap-4">
+                  {state.audioPreviewUrl ? (
+                      <button
+                          onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
+                          className={`w-16 h-16 rounded-full flex items-center justify-center transition-all
+                                      shadow-xl active:scale-95 touch-manipulation flex-shrink-0
+                                      ${isPlaying
+                                        ? 'bg-brand-500 text-white shadow-[0_0_30px_rgba(139,92,246,0.5)]'
+                                        : 'bg-white/10 text-white hover:bg-white/20 border border-white/20'
+                                      }`}
+                      >
+                          {isPlaying ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" className="ml-1" />}
+                      </button>
+                  ) : (
+                      <button
+                          onClick={() => trackInputRef.current?.click()}
+                          className="w-16 h-16 rounded-full flex items-center justify-center bg-brand-500/20
+                                     border-2 border-dashed border-brand-500/50 text-brand-400
+                                     active:scale-95 touch-manipulation"
+                      >
+                          <Music2 size={24} />
+                      </button>
+                  )}
               </div>
-              {/* Action buttons row */}
-              <div className="flex gap-2 sm:gap-3 flex-wrap justify-center">
-                  <button onClick={onGenerateMore} className="glass-button px-4 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold text-white flex items-center gap-1.5 sm:gap-2 hover:bg-white/20"><Sparkles size={14} /> NEW VARIATIONS</button>
-                  <button onClick={onSaveProject} className="glass-button px-4 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold text-white flex items-center gap-1.5 sm:gap-2 hover:bg-white/20"><Download size={14} /> SAVE RIG</button>
-                  <button onClick={() => setShowMixer(!showMixer)} className="glass-button px-4 sm:px-6 py-2 rounded-full text-[10px] sm:text-xs font-bold text-white flex items-center gap-1.5 sm:gap-2 hover:bg-white/20 sm:hidden"><Disc3 size={14} /> MIXER</button>
+
+              {/* Control Grid - Large touch-friendly buttons */}
+              <div className="grid grid-cols-5 gap-2 w-full max-w-sm bg-black/60 backdrop-blur-xl
+                              border border-white/10 p-3 rounded-2xl shadow-2xl">
+                  {/* Track */}
+                  <button
+                      onClick={() => trackInputRef.current?.click()}
+                      className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl
+                                 bg-white/5 border border-white/10 text-white/60 hover:text-white
+                                 hover:bg-white/10 active:scale-95 transition-all min-h-[60px]"
+                  >
+                      <Music2 size={20} />
+                      <span className="text-[10px] font-bold">TRACK</span>
+                  </button>
+
+                  {/* Mic */}
+                  <button
+                      onClick={toggleMic}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
+                                  active:scale-95 transition-all min-h-[60px] border
+                                  ${isMicActive
+                                    ? 'bg-red-500/30 border-red-500 text-red-400'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                                  }`}
+                  >
+                      {isMicActive ? <Mic size={20} /> : <MicOff size={20} />}
+                      <span className="text-[10px] font-bold">LIVE</span>
+                  </button>
+
+                  {/* FX */}
+                  <button
+                      onClick={() => setShowEffects(!showEffects)}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
+                                  active:scale-95 transition-all min-h-[60px] border
+                                  ${showEffects
+                                    ? 'bg-pink-500/30 border-pink-500 text-pink-400'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                                  }`}
+                  >
+                      <Wand2 size={20} />
+                      <span className="text-[10px] font-bold">FX</span>
+                  </button>
+
+                  {/* Mixer */}
+                  <button
+                      onClick={() => setShowMixer(!showMixer)}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
+                                  active:scale-95 transition-all min-h-[60px] border
+                                  ${showMixer
+                                    ? 'bg-cyan-500/30 border-cyan-500 text-cyan-400'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                                  }`}
+                  >
+                      <Disc3 size={20} />
+                      <span className="text-[10px] font-bold">MIXER</span>
+                  </button>
+
+                  {/* Camera */}
+                  <button
+                      onClick={() => setSuperCamActive(!superCamActive)}
+                      className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
+                                  active:scale-95 transition-all min-h-[60px] border
+                                  ${superCamActive
+                                    ? 'bg-blue-500/30 border-blue-500 text-blue-400'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white hover:bg-white/10'
+                                  }`}
+                  >
+                      <Camera size={20} />
+                      <span className="text-[10px] font-bold">CAM</span>
+                  </button>
               </div>
+
+              {/* Secondary controls row */}
+              <div className="flex gap-3 flex-wrap justify-center w-full max-w-sm">
+                  {/* Mode toggle */}
+                  <button
+                      onClick={toggleChoreoMode}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
+                                  active:scale-95 transition-all border
+                                  ${choreoMode === 'LABAN'
+                                    ? 'bg-purple-500/30 border-purple-500 text-purple-300'
+                                    : 'bg-orange-500/30 border-orange-500 text-orange-300'
+                                  }`}
+                  >
+                      {choreoMode === 'LABAN' ? <Brain size={16} /> : <Zap size={16} />}
+                      <span>{choreoMode}</span>
+                  </button>
+
+                  {/* Frame Deck */}
+                  <button
+                      onClick={() => setShowDeck(!showDeck)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
+                                  active:scale-95 transition-all border
+                                  ${showDeck
+                                    ? 'bg-white/20 border-white/40 text-white'
+                                    : 'bg-white/5 border-white/10 text-white/60 hover:text-white'
+                                  }`}
+                  >
+                      <Eye size={16} />
+                      <span>FRAMES</span>
+                  </button>
+
+                  {/* Generate More */}
+                  <button
+                      onClick={onGenerateMore}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
+                                 bg-brand-500/20 border border-brand-500/50 text-brand-300
+                                 hover:bg-brand-500/30 active:scale-95 transition-all"
+                  >
+                      <Sparkles size={16} />
+                      <span>NEW</span>
+                  </button>
+
+                  {/* Save */}
+                  <button
+                      onClick={onSaveProject}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold
+                                 bg-white/5 border border-white/10 text-white/60
+                                 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
+                  >
+                      <Download size={16} />
+                      <span>SAVE</span>
+                  </button>
+              </div>
+
               {/* Beat progression indicator */}
-              <div className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
-                  <span className="tracking-widest">PROGRESSION //</span>
-                  <div className="flex gap-1">
+              <div className="flex items-center gap-3">
+                  <div className="flex gap-1.5">
                       {[0, 1, 2, 3].map(i => (
                           <div
                               key={i}
-                              className={`w-10 sm:w-14 h-1.5 rounded-full transition-all ${
+                              className={`w-12 h-2 rounded-full transition-all ${
                                   beatCounterRef.current >= i * 4
-                                      ? i === 3 ? 'bg-cyan-400' : i === 2 ? 'bg-pink-400' : 'bg-brand-500'
+                                      ? i === 3 ? 'bg-cyan-400 shadow-[0_0_8px_rgba(0,255,255,0.5)]'
+                                        : i === 2 ? 'bg-pink-400 shadow-[0_0_8px_rgba(236,72,153,0.5)]'
+                                        : 'bg-brand-500 shadow-[0_0_8px_rgba(139,92,246,0.5)]'
                                       : 'bg-white/10'
                               }`}
                           />
