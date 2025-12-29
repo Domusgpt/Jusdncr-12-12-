@@ -655,10 +655,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             setGolemState(s => ({ ...s, bpm: telemetry.bpm, telemetry }));
         }
 
-        // Use GolemMixer's frame selection if it has a valid frame
-        // IMPORTANT: Don't filter by "different pose" - let GolemMixer control transitions
-        // This allows patterns like AABB (same frame twice) to work correctly
-        if (mixerOutput.frame) {
+        // Use GolemMixer's frame selection if it actively selected a frame this cycle
+        // didSelectFrame is true when a beat was detected and triggerFrame was called
+        // This allows fallback choreography to run when GolemMixer is idle (no beat)
+        if (mixerOutput.didSelectFrame && mixerOutput.frame) {
             golemMixerHandled = true;
 
             // Only trigger visual transition if pose changed

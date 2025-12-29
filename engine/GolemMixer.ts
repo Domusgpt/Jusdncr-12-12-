@@ -122,6 +122,8 @@ export interface MixerOutput {
   effects: EffectsState;
   sequenceMode: SequenceMode;
   isTransitioning: boolean;
+  /** True when a beat was detected and frame selection happened this update */
+  didSelectFrame: boolean;
 }
 
 /** Telemetry for debug display */
@@ -419,6 +421,9 @@ export class GolemMixer {
   private frameCount = 0;
   private lastFpsTime = 0;
   private currentFps = 0;
+
+  // Frame selection tracking (for signaling to Step4Preview)
+  private frameWasSelected = false;
 
   constructor() {
     // Initialize 4 decks
@@ -1065,6 +1070,10 @@ export class GolemMixer {
       return;
     }
 
+    // Mark that frame selection happened this update cycle
+    // This signals to Step4Preview that GolemMixer is actively controlling
+    this.frameWasSelected = true;
+
     // In pattern mode, allow same frame (for AABB where A repeats)
     // But still trigger visual feedback (squash/bounce)
     const isSameFrame = frame.pose === this.currentFrame?.pose;
@@ -1148,6 +1157,9 @@ export class GolemMixer {
     const dt = Math.min((now - this.lastUpdateTime) / 1000, 0.1);
     this.lastUpdateTime = now;
 
+    // Reset frame selection flag at start of each update
+    this.frameWasSelected = false;
+
     // FPS calculation
     this.frameCount++;
     if (now - this.lastFpsTime > 1000) {
@@ -1160,6 +1172,7 @@ export class GolemMixer {
     if (this.triggerStutter && this.currentFrame) {
       this.transitionProgress = 0;
       this.transitionSpeed = 50;
+      this.frameWasSelected = true; // Stutter counts as frame selection
     }
 
     // Update based on engine mode
@@ -1180,7 +1193,8 @@ export class GolemMixer {
       physics: { ...this.physics },
       effects: { ...this.effects },
       sequenceMode: this.kineticState.sequenceMode,
-      isTransitioning: this.transitionProgress < 1.0
+      isTransitioning: this.transitionProgress < 1.0,
+      didSelectFrame: this.frameWasSelected
     };
   }
 
