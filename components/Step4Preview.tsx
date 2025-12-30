@@ -8,8 +8,10 @@ import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
-import { UnifiedMixerPanel, FXState } from './UnifiedMixerPanel';
-import { LiveDeckMixer } from './LiveDeckMixer';
+import { FXState } from './UnifiedMixerPanel';
+import { DeckMixerPanel } from './DeckMixerPanel';
+import { EnginePanel } from './EnginePanel';
+import { FXPanel } from './FXPanel';
 import { ControlDock } from './ControlDock';
 import {
   GolemMixer, createGolemMixer,
@@ -85,10 +87,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
-  const [showMixer, setShowMixer] = useState(false); // GolemMixer Drawer Visibility
-  const [showLiveMixer, setShowLiveMixer] = useState(false); // Full-screen Live Mixer
-  const [crossfaderPosition, setCrossfaderPosition] = useState(0); // A/B crossfader
+
+  // Collapsible panel states - each panel has open/expanded state
+  const [deckPanel, setDeckPanel] = useState({ open: false, expanded: false });
+  const [enginePanel, setEnginePanel] = useState({ open: false, expanded: false });
+  const [fxPanel, setFxPanel] = useState({ open: false, expanded: false });
+
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
   // GolemMixer Engine Instance
@@ -1241,15 +1245,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* UNIFIED MIXER PANEL - All controls in one place */}
-      <UnifiedMixerPanel
-        isOpen={showMixer}
-        onClose={() => setShowMixer(false)}
-        onOpenLiveMixer={() => { setShowMixer(false); setShowLiveMixer(true); }}
-        decks={golemState.decks}
-        onDeckModeChange={handleDeckModeChange}
-        onDeckOpacityChange={handleDeckOpacityChange}
-        onLoadDeck={handleLoadDeck}
+      {/* ENGINE PANEL - Collapsible engine controls (bottom-left) */}
+      <EnginePanel
+        isOpen={enginePanel.open}
+        isExpanded={enginePanel.expanded}
+        onToggleOpen={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setEnginePanel(p => ({ ...p, expanded: !p.expanded }))}
         physicsMode={choreoMode}
         onPhysicsModeChange={(mode) => {
           setChoreoMode(mode);
@@ -1261,30 +1262,16 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onPatternChange={handlePatternChange}
         sequenceMode={golemState.sequenceMode}
         onSequenceModeChange={handleSequenceModeChange}
-        bpm={golemState.bpm}
-        autoBPM={golemState.autoBPM}
-        onBPMChange={handleBPMChange}
-        onAutoBPMChange={handleAutoBPMChange}
-        onTriggerStutter={(active) => golemMixerRef.current?.setTriggerStutter(active)}
-        onTriggerReverse={(active) => golemMixerRef.current?.setTriggerReverse(active)}
-        onTriggerGlitch={(active) => golemMixerRef.current?.setTriggerGlitch(active)}
-        onTriggerBurst={(active) => golemMixerRef.current?.setTriggerBurst(active)}
-        userEffects={userEffects}
-        onToggleEffect={toggleEffect}
-        onResetEffects={resetUserEffects}
         intensity={intensity}
         onIntensityChange={(val) => {
           setIntensity(val);
-          // Apply intensity-based effects
           rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.8);
           flashIntensityRef.current = val * 0.3;
           if (val > 0.7) {
             charSkewRef.current = (Math.random() - 0.5) * val;
           }
         }}
-        mixerEffects={golemState.effects}
-        onMixerEffectChange={handleEffectChange}
-        telemetry={golemState.telemetry}
+        bpm={golemState.telemetry?.bpm}
         labanEffort={choreographyStateRef.current?.movementQualities ? {
           weight: choreographyStateRef.current.movementQualities.effort === 'PUNCH' || choreographyStateRef.current.movementQualities.effort === 'PRESS' ? 0.9 : 0.3,
           space: choreographyStateRef.current.movementQualities.effort === 'DAB' || choreographyStateRef.current.movementQualities.effort === 'FLICK' ? 0.8 : 0.4,
@@ -1293,10 +1280,31 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         } : undefined}
       />
 
-      {/* LIVE DECK MIXER - Full screen interactive mixer */}
-      <LiveDeckMixer
-        isOpen={showLiveMixer}
-        onClose={() => setShowLiveMixer(false)}
+      {/* FX PANEL - Collapsible effects controls (bottom-right) */}
+      <FXPanel
+        isOpen={fxPanel.open}
+        isExpanded={fxPanel.expanded}
+        onToggleOpen={() => setFxPanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setFxPanel(p => ({ ...p, expanded: !p.expanded }))}
+        effects={userEffects}
+        onToggleEffect={toggleEffect}
+        onResetAll={resetUserEffects}
+        onPaddlePress={(val) => {
+          rgbSplitRef.current = val * 0.8;
+          flashIntensityRef.current = val * 0.3;
+        }}
+        onPaddleRelease={() => {
+          rgbSplitRef.current = 0;
+          flashIntensityRef.current = 0;
+        }}
+      />
+
+      {/* DECK MIXER PANEL - 4-Channel deck control (bottom-center) */}
+      <DeckMixerPanel
+        isOpen={deckPanel.open}
+        isExpanded={deckPanel.expanded}
+        onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
         decks={golemState.decks.map((d, i) => ({
           id: d.id,
           frames: d.frames || [],
@@ -1306,19 +1314,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           isActive: d.isActive,
           currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
         }))}
-        activeDeckId={0}
-        crossfaderPosition={crossfaderPosition}
-        bpm={golemState.telemetry?.bpm ?? golemState.bpm}
-        bpmConfidence={golemState.telemetry?.bpmConfidence ?? 0}
         beatCounter={beatCounterRef.current}
-        isPlaying={isPlaying}
         onLoadDeck={handleLoadDeck}
         onDeckModeChange={handleDeckModeChange}
         onDeckOpacityChange={handleDeckOpacityChange}
-        onActivateDeck={(id) => {
-          // Set the clicked deck as sequencer, others stay as is
-          handleDeckModeChange(id, 'sequencer');
-        }}
         onClearDeck={(id) => {
           if (golemMixerRef.current) {
             golemMixerRef.current.loadDeck(id, [], state.subjectCategory);
@@ -1328,56 +1327,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             }));
           }
         }}
-        onCrossfaderChange={(pos) => {
-          setCrossfaderPosition(pos);
-          golemMixerRef.current?.setCrossfader(pos);
-        }}
         onSelectFrame={(deckId, frameIndex) => {
           golemMixerRef.current?.setDeckFrameIndex(deckId, frameIndex);
         }}
         onTriggerFrame={(deckId) => {
           golemMixerRef.current?.advanceDeckFrame(deckId);
         }}
-        onTapTempo={() => {
-          // Tap tempo handled in the component
-        }}
-        onBPMChange={handleBPMChange}
       />
-
-      {/* NEURAL DECK / FRAME INSPECTOR */}
-      {showDeck && (
-         <div className="absolute bottom-24 left-0 right-0 z-40 p-4 animate-slide-in-right">
-             <div className="bg-black/80 backdrop-blur-lg border-t border-white/10 p-4 overflow-x-auto">
-                 <div className="flex gap-4">
-                     {allProcessedFrames.map((f, i) => (
-                         <div 
-                            key={i} 
-                            className="relative flex-shrink-0 w-24 h-24 bg-white/5 rounded-lg border border-white/10 hover:border-brand-500 hover:bg-brand-500/20 cursor-pointer group transition-all"
-                            onMouseEnter={() => setHoveredFrame(f)}
-                            onMouseLeave={() => setHoveredFrame(null)}
-                            onClick={() => triggerTransition(f.pose, 'CUT')}
-                         >
-                             <img src={f.url} className="w-full h-full object-contain p-1" />
-                             <div className="absolute top-0 right-0 bg-black/60 text-[10px] px-1 rounded-bl text-white font-mono">{f.energy.toUpperCase()}</div>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-         </div>
-      )}
-      
-      {/* TOOLTIP FOR HOVERED FRAME */}
-      {hoveredFrame && (
-          <div className="absolute bottom-52 left-1/2 -translate-x-1/2 z-50 bg-brand-900/90 border border-brand-500/50 p-4 rounded-xl shadow-[0_0_30px_rgba(139,92,246,0.5)] backdrop-blur-xl animate-fade-in flex items-center gap-4">
-               <img src={hoveredFrame.url} className="w-16 h-16 object-contain bg-black/50 rounded-lg" />
-               <div>
-                   <div className="text-xs font-bold text-brand-300 tracking-widest uppercase">FRAME DATA</div>
-                   <div className="text-white font-mono text-sm">POSE: {hoveredFrame.pose}</div>
-                   <div className="text-white font-mono text-sm">ENERGY: {hoveredFrame.energy}</div>
-                   <div className="text-white font-mono text-sm">TYPE: {hoveredFrame.type}</div>
-               </div>
-          </div>
-      )}
 
       {/* Hidden file inputs for deck rig loading */}
       {[0, 1, 2, 3].map(deckId => (
@@ -1438,15 +1394,15 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onUploadAudio={() => trackInputRef.current?.click()}
         isMicActive={isMicActive}
         onMicToggle={toggleMic}
-        isMixerOpen={showMixer}
-        onMixerToggle={() => setShowMixer(!showMixer)}
+        isMixerOpen={enginePanel.open}
+        onMixerToggle={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
         activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
         isCamActive={superCamActive}
         onCamToggle={() => setSuperCamActive(!superCamActive)}
         choreoMode={choreoMode}
         onChoreoModeToggle={toggleChoreoMode}
-        isFrameDeckOpen={showDeck}
-        onFrameDeckToggle={() => setShowDeck(!showDeck)}
+        isFrameDeckOpen={deckPanel.open}
+        onFrameDeckToggle={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
         onGenerateMore={onGenerateMore}
         onSaveProject={onSaveProject}
         onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
