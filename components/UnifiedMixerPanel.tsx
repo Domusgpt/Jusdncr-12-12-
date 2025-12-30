@@ -56,6 +56,9 @@ interface UnifiedMixerPanelProps {
   isOpen: boolean;
   onClose: () => void;
 
+  // Live mixer
+  onOpenLiveMixer?: () => void;
+
   // Deck state
   decks: DeckState[];
   onDeckModeChange: (deckId: number, mode: MixMode) => void;
@@ -173,6 +176,7 @@ export const UnifiedMixerPanel: React.FC<UnifiedMixerPanelProps> = (props) => {
   const {
     isOpen,
     onClose,
+    onOpenLiveMixer,
     decks,
     onDeckModeChange,
     onDeckOpacityChange,
@@ -287,6 +291,23 @@ export const UnifiedMixerPanel: React.FC<UnifiedMixerPanelProps> = (props) => {
         {/* ===== DECKS TAB ===== */}
         {activeTab === 'decks' && (
           <div className="space-y-4">
+            {/* Open Full Live Mixer Button */}
+            {onOpenLiveMixer && (
+              <button
+                onClick={onOpenLiveMixer}
+                className="w-full py-4 bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-pink-500/20
+                           border-2 border-cyan-500/50 rounded-xl
+                           flex items-center justify-center gap-3
+                           text-white font-bold tracking-wider
+                           hover:from-cyan-500/30 hover:via-purple-500/30 hover:to-pink-500/30
+                           active:scale-[0.98] transition-all"
+              >
+                <Layers className="w-5 h-5 text-cyan-400" />
+                OPEN LIVE MIXER
+                <span className="text-xs text-white/50 font-normal">(Touch Pads + Crossfader)</span>
+              </button>
+            )}
+
             {/* 4-Channel Deck Grid */}
             <div>
               <div className="text-xs text-white/40 mb-2 tracking-wider">4-CHANNEL DECK SYSTEM</div>

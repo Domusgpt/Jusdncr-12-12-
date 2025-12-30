@@ -9,6 +9,7 @@ import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { UnifiedMixerPanel, FXState } from './UnifiedMixerPanel';
+import { LiveDeckMixer } from './LiveDeckMixer';
 import { ControlDock } from './ControlDock';
 import {
   GolemMixer, createGolemMixer,
@@ -86,6 +87,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
   const [showMixer, setShowMixer] = useState(false); // GolemMixer Drawer Visibility
+  const [showLiveMixer, setShowLiveMixer] = useState(false); // Full-screen Live Mixer
+  const [crossfaderPosition, setCrossfaderPosition] = useState(0); // A/B crossfader
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
   // GolemMixer Engine Instance
@@ -1242,6 +1245,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       <UnifiedMixerPanel
         isOpen={showMixer}
         onClose={() => setShowMixer(false)}
+        onOpenLiveMixer={() => { setShowMixer(false); setShowLiveMixer(true); }}
         decks={golemState.decks}
         onDeckModeChange={handleDeckModeChange}
         onDeckOpacityChange={handleDeckOpacityChange}
@@ -1287,6 +1291,57 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           time: choreographyStateRef.current.movementQualities.effort === 'SLASH' || choreographyStateRef.current.movementQualities.effort === 'PUNCH' ? 0.9 : 0.3,
           flow: choreographyStateRef.current.movementQualities.effort === 'FLOAT' || choreographyStateRef.current.movementQualities.effort === 'WRING' ? 0.2 : 0.7
         } : undefined}
+      />
+
+      {/* LIVE DECK MIXER - Full screen interactive mixer */}
+      <LiveDeckMixer
+        isOpen={showLiveMixer}
+        onClose={() => setShowLiveMixer(false)}
+        decks={golemState.decks.map((d, i) => ({
+          id: d.id,
+          frames: d.frames || [],
+          rigName: d.rigName || `Deck ${d.id + 1}`,
+          mixMode: d.mixMode,
+          opacity: d.opacity,
+          isActive: d.isActive,
+          currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
+        }))}
+        activeDeckId={0}
+        crossfaderPosition={crossfaderPosition}
+        bpm={golemState.telemetry?.bpm ?? golemState.bpm}
+        bpmConfidence={golemState.telemetry?.bpmConfidence ?? 0}
+        beatCounter={beatCounterRef.current}
+        isPlaying={isPlaying}
+        onLoadDeck={handleLoadDeck}
+        onDeckModeChange={handleDeckModeChange}
+        onDeckOpacityChange={handleDeckOpacityChange}
+        onActivateDeck={(id) => {
+          // Set the clicked deck as sequencer, others stay as is
+          handleDeckModeChange(id, 'sequencer');
+        }}
+        onClearDeck={(id) => {
+          if (golemMixerRef.current) {
+            golemMixerRef.current.loadDeck(id, [], state.subjectCategory);
+            setGolemState(s => ({
+              ...s,
+              decks: s.decks.map(d => d.id === id ? { ...d, frames: [], frameCount: 0, rigName: undefined } : d)
+            }));
+          }
+        }}
+        onCrossfaderChange={(pos) => {
+          setCrossfaderPosition(pos);
+          golemMixerRef.current?.setCrossfader(pos);
+        }}
+        onSelectFrame={(deckId, frameIndex) => {
+          golemMixerRef.current?.setDeckFrameIndex(deckId, frameIndex);
+        }}
+        onTriggerFrame={(deckId) => {
+          golemMixerRef.current?.advanceDeckFrame(deckId);
+        }}
+        onTapTempo={() => {
+          // Tap tempo handled in the component
+        }}
+        onBPMChange={handleBPMChange}
       />
 
       {/* NEURAL DECK / FRAME INSPECTOR */}

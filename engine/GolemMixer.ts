@@ -124,6 +124,15 @@ export interface MixerOutput {
   isTransitioning: boolean;
   /** True when a beat was detected and frame selection happened this update */
   didSelectFrame: boolean;
+  /** Layered frames for multi-deck blending (layer mode decks) */
+  layeredFrames: Array<{
+    frame: DeckFrame;
+    deckId: number;
+    opacity: number;
+    blendMode: 'normal' | 'additive' | 'multiply';
+  }>;
+  /** Crossfader position for A/B deck blending (0 = A, 1 = B) */
+  crossfaderPosition: number;
 }
 
 /** Telemetry for debug display */
@@ -158,9 +167,11 @@ class BPMDetector {
   private energyHistory: number[] = [];
   private beatTimes: number[] = [];
   private lastBeatTime: number = 0;
-  private readonly maxHistory = 60;
+  private readonly maxHistory = 30; // Shorter history for faster adaptation
   private readonly minInterval = 250;  // Max 240 BPM
   private readonly maxInterval = 1500; // Min 40 BPM
+  private peakHoldValue: number = 0;
+  private peakDecay: number = 0.95;
 
   detectBeat(bass: number, timestamp: number): boolean {
     this.energyHistory.push(bass);
@@ -168,9 +179,21 @@ class BPMDetector {
       this.energyHistory.shift();
     }
 
+    // Update peak with decay for adaptive threshold
+    this.peakHoldValue = Math.max(bass, this.peakHoldValue * this.peakDecay);
+
     const avg = this.energyHistory.reduce((a, b) => a + b, 0) / this.energyHistory.length;
-    const max = Math.max(...this.energyHistory);
-    const threshold = avg + (max - avg) * 0.5;
+
+    // More sensitive threshold: 30% above average, or 70% of peak if peak is strong
+    // This makes it more responsive to quieter music
+    const dynamicThreshold = Math.min(
+      avg * 1.3, // 30% above average
+      avg + (this.peakHoldValue - avg) * 0.35 // 35% of the way to peak (was 50%)
+    );
+
+    // Also require bass to be above a minimum relative to peak
+    const minThreshold = this.peakHoldValue * 0.4;
+    const threshold = Math.max(dynamicThreshold, minThreshold);
 
     const interval = timestamp - this.lastBeatTime;
 
@@ -184,7 +207,8 @@ class BPMDetector {
   }
 
   getBPM(): { bpm: number; confidence: number } {
-    if (this.beatTimes.length < 4) {
+    // Reduced from 4 to 2 beats for faster BPM detection
+    if (this.beatTimes.length < 2) {
       return { bpm: 120, confidence: 0 };
     }
 
@@ -213,6 +237,17 @@ class BPMDetector {
     this.energyHistory = [];
     this.beatTimes = [];
     this.lastBeatTime = 0;
+    this.peakHoldValue = 0;
+  }
+
+  // Allow manual tap tempo input
+  tapBeat(timestamp: number): void {
+    const interval = timestamp - this.lastBeatTime;
+    if (interval > this.minInterval && interval < this.maxInterval) {
+      this.lastBeatTime = timestamp;
+      this.beatTimes.push(timestamp);
+      if (this.beatTimes.length > 16) this.beatTimes.shift();
+    }
   }
 }
 
@@ -425,6 +460,12 @@ export class GolemMixer {
   // Frame selection tracking (for signaling to Step4Preview)
   private frameWasSelected = false;
 
+  // Crossfader for A/B deck mixing (0 = deck A, 1 = deck B)
+  private crossfaderPosition = 0;
+
+  // Current frame indices per deck (for layer mode)
+  private deckFrameIndices: number[] = [0, 0, 0, 0];
+
   constructor() {
     // Initialize 4 decks
     for (let i = 0; i < 4; i++) {
@@ -540,6 +581,41 @@ export class GolemMixer {
 
   getSequencerDecks(): GolemDeck[] {
     return this.decks.filter(d => d.isActive && d.mixMode === 'sequencer');
+  }
+
+  getLayerDecks(): GolemDeck[] {
+    return this.decks.filter(d => d.isActive && d.mixMode === 'layer');
+  }
+
+  // Crossfader control (0 = deck A, 1 = deck B)
+  setCrossfader(position: number): void {
+    this.crossfaderPosition = Math.max(0, Math.min(1, position));
+  }
+
+  getCrossfader(): number {
+    return this.crossfaderPosition;
+  }
+
+  // Set specific frame index for a deck (for layer mode control)
+  setDeckFrameIndex(deckId: number, frameIndex: number): void {
+    if (deckId >= 0 && deckId < 4) {
+      const deck = this.decks[deckId];
+      this.deckFrameIndices[deckId] = Math.max(0, Math.min(frameIndex, deck.allFrames.length - 1));
+    }
+  }
+
+  getDeckFrameIndex(deckId: number): number {
+    return this.deckFrameIndices[deckId] ?? 0;
+  }
+
+  // Advance deck frame (for manual triggering)
+  advanceDeckFrame(deckId: number): void {
+    if (deckId >= 0 && deckId < 4) {
+      const deck = this.decks[deckId];
+      if (deck.allFrames.length > 0) {
+        this.deckFrameIndices[deckId] = (this.deckFrameIndices[deckId] + 1) % deck.allFrames.length;
+      }
+    }
   }
 
   // ===========================================================================
@@ -1185,6 +1261,18 @@ export class GolemMixer {
     // Update physics
     this.updatePhysics(audio, dt);
 
+    // Gather layered frames from layer mode decks
+    const layeredFrames = this.getLayerDecks().map(deck => {
+      const frameIndex = this.deckFrameIndices[deck.id] % Math.max(1, deck.allFrames.length);
+      const frame = deck.allFrames[frameIndex];
+      return frame ? {
+        frame: { ...frame, deckId: deck.id },
+        deckId: deck.id,
+        opacity: deck.opacity,
+        blendMode: 'normal' as const
+      } : null;
+    }).filter((f): f is NonNullable<typeof f> => f !== null);
+
     return {
       frame: this.currentFrame,
       deckId: this.currentFrame?.deckId ?? 0,
@@ -1194,7 +1282,9 @@ export class GolemMixer {
       effects: { ...this.effects },
       sequenceMode: this.kineticState.sequenceMode,
       isTransitioning: this.transitionProgress < 1.0,
-      didSelectFrame: this.frameWasSelected
+      didSelectFrame: this.frameWasSelected,
+      layeredFrames,
+      crossfaderPosition: this.crossfaderPosition
     };
   }
 
