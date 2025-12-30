@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, Mic, MicOff, Disc3, Camera,
-  MoreHorizontal, Music2, Brain, Zap, Eye,
+  MoreHorizontal, Music2, Eye,
   Sparkles, Download, Video, X, Upload
 } from 'lucide-react';
 
@@ -76,26 +76,12 @@ export const ControlDock: React.FC<ControlDockProps> = ({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 pb-safe">
-      {/* MORE menu - floating above dock */}
+      {/* MORE menu - floating above dock (simplified) */}
       {showMore && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3
                        bg-black/80 backdrop-blur-xl rounded-2xl border border-white/15
                        p-3 shadow-2xl animate-in slide-in-from-bottom-2 fade-in duration-200">
           <div className="grid grid-cols-3 gap-2">
-            {/* LABAN/LEGACY toggle */}
-            <button
-              onClick={() => { onChoreoModeToggle(); setShowMore(false); }}
-              className={`flex flex-col items-center justify-center gap-1 p-3 rounded-xl
-                         transition-all active:scale-95 min-w-[72px]
-                         ${choreoMode === 'LABAN'
-                           ? 'bg-purple-500/30 border border-purple-500 text-purple-300'
-                           : 'bg-orange-500/30 border border-orange-500 text-orange-300'
-                         }`}
-            >
-              {choreoMode === 'LABAN' ? <Brain size={20} /> : <Zap size={20} />}
-              <span className="text-[10px] font-bold">{choreoMode}</span>
-            </button>
-
             {/* Frames */}
             <button
               onClick={() => { onFrameDeckToggle(); setShowMore(false); }}
@@ -151,7 +137,7 @@ export const ControlDock: React.FC<ControlDockProps> = ({
               onClick={() => setShowMore(false)}
               className="flex flex-col items-center justify-center gap-1 p-3 rounded-xl
                         bg-white/5 border border-white/10 text-white/40
-                        hover:text-white transition-all active:scale-95"
+                        hover:text-white transition-all active:scale-95 col-span-2"
             >
               <X size={20} />
               <span className="text-[10px] font-bold">CLOSE</span>

@@ -8,9 +8,7 @@ import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
-import { GolemMixerPanel } from './GolemMixerPanel';
-import { FXRail, FXState } from './FXRail';
-import { PressurePaddle } from './PressurePaddle';
+import { UnifiedMixerPanel, FXState } from './UnifiedMixerPanel';
 import { ControlDock } from './ControlDock';
 import {
   GolemMixer, createGolemMixer,
@@ -155,6 +153,24 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const toggleEffect = (effect: keyof typeof userEffects) => {
     setUserEffects(prev => ({ ...prev, [effect]: !prev[effect] }));
   };
+
+  // Reset all user effects
+  const resetUserEffects = () => {
+    setUserEffects({
+      rgbSplit: false, strobe: false, ghost: false,
+      invert: false, bw: false, scanlines: false,
+      glitch: false, shake: false, zoom: false
+    });
+  };
+
+  // Intensity state (replaces PressurePaddle)
+  const [intensity, setIntensity] = useState(0);
+  const intensityRef = useRef(0);
+
+  // Keep intensity ref in sync
+  useEffect(() => {
+    intensityRef.current = intensity;
+  }, [intensity]);
 
   // File input ref for track change
   const trackInputRef = useRef<HTMLInputElement>(null);
@@ -1222,30 +1238,55 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* FX RAIL - Left edge vertical strip */}
-      <FXRail
-        effects={userEffects}
+      {/* UNIFIED MIXER PANEL - All controls in one place */}
+      <UnifiedMixerPanel
+        isOpen={showMixer}
+        onClose={() => setShowMixer(false)}
+        decks={golemState.decks}
+        onDeckModeChange={handleDeckModeChange}
+        onDeckOpacityChange={handleDeckOpacityChange}
+        onLoadDeck={handleLoadDeck}
+        physicsMode={choreoMode}
+        onPhysicsModeChange={(mode) => {
+          setChoreoMode(mode);
+          useEnhancedModeRef.current = mode === 'LABAN';
+        }}
+        engineMode={golemState.engineMode}
+        onEngineModeChange={handleEngineModeChange}
+        activePattern={golemState.activePattern}
+        onPatternChange={handlePatternChange}
+        sequenceMode={golemState.sequenceMode}
+        onSequenceModeChange={handleSequenceModeChange}
+        bpm={golemState.bpm}
+        autoBPM={golemState.autoBPM}
+        onBPMChange={handleBPMChange}
+        onAutoBPMChange={handleAutoBPMChange}
+        onTriggerStutter={(active) => golemMixerRef.current?.setTriggerStutter(active)}
+        onTriggerReverse={(active) => golemMixerRef.current?.setTriggerReverse(active)}
+        onTriggerGlitch={(active) => golemMixerRef.current?.setTriggerGlitch(active)}
+        onTriggerBurst={(active) => golemMixerRef.current?.setTriggerBurst(active)}
+        userEffects={userEffects}
         onToggleEffect={toggleEffect}
-        onResetAll={() => setUserEffects({
-          rgbSplit: false, strobe: false, ghost: false,
-          invert: false, bw: false, scanlines: false,
-          glitch: false, shake: false, zoom: false
-        })}
-      />
-
-      {/* PRESSURE PADDLE - Right edge expression controller */}
-      <PressurePaddle
-        onPressureChange={(intensity) => {
-          // Paddle activates multiple effects based on intensity
-          rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity * 0.8);
-          flashIntensityRef.current = intensity * 0.3;
-          if (intensity > 0.7) {
-            charSkewRef.current = (Math.random() - 0.5) * intensity;
+        onResetEffects={resetUserEffects}
+        intensity={intensity}
+        onIntensityChange={(val) => {
+          setIntensity(val);
+          // Apply intensity-based effects
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.8);
+          flashIntensityRef.current = val * 0.3;
+          if (val > 0.7) {
+            charSkewRef.current = (Math.random() - 0.5) * val;
           }
         }}
-        onRelease={() => {
-          // Effects will decay naturally via the animation loop
-        }}
+        mixerEffects={golemState.effects}
+        onMixerEffectChange={handleEffectChange}
+        telemetry={golemState.telemetry}
+        labanEffort={choreographyStateRef.current?.movementQualities ? {
+          weight: choreographyStateRef.current.movementQualities.effort === 'PUNCH' || choreographyStateRef.current.movementQualities.effort === 'PRESS' ? 0.9 : 0.3,
+          space: choreographyStateRef.current.movementQualities.effort === 'DAB' || choreographyStateRef.current.movementQualities.effort === 'FLICK' ? 0.8 : 0.4,
+          time: choreographyStateRef.current.movementQualities.effort === 'SLASH' || choreographyStateRef.current.movementQualities.effort === 'PUNCH' ? 0.9 : 0.3,
+          flow: choreographyStateRef.current.movementQualities.effort === 'FLOAT' || choreographyStateRef.current.movementQualities.effort === 'WRING' ? 0.2 : 0.7
+        } : undefined}
       />
 
       {/* NEURAL DECK / FRAME INSPECTOR */}
@@ -1294,33 +1335,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           onChange={(e) => handleDeckFileChange(deckId, e)}
         />
       ))}
-
-      {/* GOLEM MIXER PANEL - 4-CHANNEL DECK MIXER */}
-      <GolemMixerPanel
-        decks={golemState.decks}
-        onDeckModeChange={handleDeckModeChange}
-        onDeckOpacityChange={handleDeckOpacityChange}
-        onLoadDeck={handleLoadDeck}
-        engineMode={golemState.engineMode}
-        onEngineModeChange={handleEngineModeChange}
-        activePattern={golemState.activePattern}
-        onPatternChange={handlePatternChange}
-        sequenceMode={golemState.sequenceMode}
-        onSequenceModeChange={handleSequenceModeChange}
-        bpm={golemState.bpm}
-        autoBPM={golemState.autoBPM}
-        onBPMChange={handleBPMChange}
-        onAutoBPMChange={handleAutoBPMChange}
-        onTriggerStutter={(active) => golemMixerRef.current?.setTriggerStutter(active)}
-        onTriggerReverse={(active) => golemMixerRef.current?.setTriggerReverse(active)}
-        onTriggerGlitch={(active) => golemMixerRef.current?.setTriggerGlitch(active)}
-        onTriggerBurst={(active) => golemMixerRef.current?.setTriggerBurst(active)}
-        effects={golemState.effects}
-        onEffectChange={handleEffectChange}
-        telemetry={golemState.telemetry}
-        isOpen={showMixer}
-        onToggle={() => setShowMixer(!showMixer)}
-      />
 
       {/* STATUS BAR - Top left, minimal */}
       <div className="absolute top-4 left-4 z-30 pointer-events-auto">
