@@ -89,9 +89,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Collapsible panel states - each panel has open/expanded state
+  // Start with ENGINE open so users can see controls immediately
   const [deckPanel, setDeckPanel] = useState({ open: false, expanded: false });
-  const [enginePanel, setEnginePanel] = useState({ open: false, expanded: false });
-  const [fxPanel, setFxPanel] = useState({ open: false, expanded: false });
+  const [enginePanel, setEnginePanel] = useState({ open: true, expanded: false });
+  const [fxPanel, setFxPanel] = useState({ open: true, expanded: false });
 
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
