@@ -289,28 +289,28 @@ export const FXPanel: React.FC<FXPanelProps> = ({
 
         {/* Effect Mapping Editor (when editing a paddle) */}
         {editingPaddle !== null && (
-          <div className="mt-3 p-2 bg-white/5 rounded-xl border border-white/10">
-            <div className="text-[9px] text-white/40 font-bold mb-2">
-              MAP FX TO PADDLE {editingPaddle + 1}
+          <div className="mt-3 p-2 bg-white/5 rounded-xl border border-pink-500/30">
+            <div className="text-[9px] text-pink-400 font-bold mb-2">
+              TAP FX TO MAP TO PADDLE {editingPaddle + 1}
             </div>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {ALL_FX.map(({ key, label, icon: Icon, color }) => {
                 const isMapped = paddleMappings[editingPaddle].includes(key);
                 return (
                   <button
                     key={key}
                     onClick={() => togglePaddleEffect(editingPaddle, key)}
-                    className={`py-2 rounded-lg text-[9px] font-bold flex items-center justify-center gap-1
+                    className={`py-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5
                                transition-all border overflow-hidden relative
                                ${isMapped
-                                 ? 'border-white/40 text-white'
-                                 : 'border-white/10 text-white/40 hover:border-white/25'
+                                 ? 'border-pink-400 text-white shadow-[0_0_10px_rgba(236,72,153,0.3)]'
+                                 : 'border-white/20 text-white/50 hover:border-pink-500/40'
                                }`}
                   >
                     {isMapped && (
-                      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-30`} />
+                      <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-40`} />
                     )}
-                    <Icon size={12} className="relative z-10" />
+                    <Icon size={14} className="relative z-10" />
                     <span className="relative z-10">{label}</span>
                   </button>
                 );
@@ -319,22 +319,22 @@ export const FXPanel: React.FC<FXPanelProps> = ({
           </div>
         )}
 
-        {/* Quick FX Toggles (expanded) */}
+        {/* 3x3 FX Grid - Always visible when expanded */}
         {isExpanded && editingPaddle === null && (
-          <div className="mt-3 pt-3 border-t border-white/10">
-            <div className="text-[9px] text-white/40 font-bold mb-2">QUICK TOGGLES</div>
-            <div className="grid grid-cols-5 gap-1">
+          <div className="mt-3 p-2 bg-white/5 rounded-xl border border-white/10">
+            <div className="text-[9px] text-white/40 font-bold mb-2">TAP TO TOGGLE FX</div>
+            <div className="grid grid-cols-3 gap-1.5">
               {ALL_FX.map(({ key, label, icon: Icon, color }) => {
                 const isActive = effects[key];
                 return (
                   <button
                     key={key}
                     onClick={() => onToggleEffect(key)}
-                    className={`py-2 rounded-lg text-[8px] font-bold flex flex-col items-center gap-0.5
+                    className={`py-2.5 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1.5
                                transition-all border overflow-hidden relative
                                ${isActive
-                                 ? 'border-white/40 text-white'
-                                 : 'border-white/10 text-white/30'
+                                 ? 'border-white/40 text-white shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                                 : 'border-white/10 text-white/40 hover:border-white/25'
                                }`}
                   >
                     {isActive && (
@@ -346,8 +346,17 @@ export const FXPanel: React.FC<FXPanelProps> = ({
                 );
               })}
             </div>
+            <button
+              onClick={onResetAll}
+              className="mt-2 w-full py-1.5 rounded-lg text-[9px] font-bold
+                        bg-red-500/20 text-red-400 border border-red-500/30
+                        hover:bg-red-500/30 transition-all"
+            >
+              RESET ALL FX
+            </button>
           </div>
         )}
+
       </div>
 
       {/* Glow accent */}
