@@ -1304,13 +1304,23 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         effects={userEffects}
         onToggleEffect={toggleEffect}
         onResetAll={resetUserEffects}
-        onPaddlePress={(val) => {
-          rgbSplitRef.current = val * 0.8;
-          flashIntensityRef.current = val * 0.3;
+        onPaddlePress={(intensity, effects) => {
+          // Apply intensity-scaled effects based on which effects are mapped to the paddle
+          if (effects.includes('rgbSplit')) rgbSplitRef.current = intensity * 0.8;
+          if (effects.includes('strobe')) flashIntensityRef.current = intensity * 0.5;
+          if (effects.includes('glitch')) charSkewRef.current = (Math.random() - 0.5) * intensity;
+          if (effects.includes('shake')) charBounceYRef.current = (Math.random() - 0.5) * intensity * 30;
+          if (effects.includes('zoom')) camZoomRef.current = BASE_ZOOM + intensity * 0.3;
+          if (effects.includes('ghost')) {} // Ghost is toggle-based, handled separately
+          if (effects.includes('scanlines')) {} // Scanlines is toggle-based
+          if (effects.includes('invert')) {} // Invert is toggle-based
+          if (effects.includes('bw')) {} // B&W is toggle-based
         }}
         onPaddleRelease={() => {
           rgbSplitRef.current = 0;
           flashIntensityRef.current = 0;
+          charSkewRef.current = 0;
+          camZoomRef.current = BASE_ZOOM;
         }}
       />
 

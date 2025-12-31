@@ -146,24 +146,25 @@ export const FXPanel: React.FC<FXPanelProps> = ({
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50
-                   bg-gradient-to-r from-pink-500/30 to-purple-500/30
-                   border border-pink-500/50 rounded-xl
-                   px-6 py-2
-                   flex items-center gap-3
-                   hover:scale-105 hover:bg-pink-500/40
+        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60]
+                   min-w-[160px] h-12
+                   bg-gradient-to-r from-pink-500/50 to-purple-500/50
+                   border-2 border-pink-400 rounded-xl
+                   px-5 py-2
+                   flex items-center justify-center gap-2
+                   hover:scale-105 hover:bg-pink-500/60
                    active:scale-95 transition-all duration-200
-                   backdrop-blur-xl font-rajdhani
-                   shadow-lg shadow-pink-500/20"
+                   backdrop-blur-md font-rajdhani
+                   shadow-xl shadow-pink-500/40"
       >
-        <Sparkles size={16} className="text-pink-400" />
-        <span className="text-xs font-bold text-pink-400">FX PADDLES</span>
+        <Sparkles size={18} className="text-pink-300" />
+        <span className="text-sm font-black text-pink-200">FX</span>
         {activeCount > 0 && (
-          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-pink-500 text-white rounded">
+          <span className="px-2 py-0.5 text-[10px] font-bold bg-pink-500 text-white rounded">
             {activeCount}
           </span>
         )}
-        <ChevronUp size={14} className="text-pink-400/60" />
+        <ChevronUp size={16} className="text-pink-300" />
       </button>
     );
   }
@@ -171,12 +172,12 @@ export const FXPanel: React.FC<FXPanelProps> = ({
   // ============ OPEN STATE - Paddles at bottom ============
   return (
     <div
-      className={`fixed bottom-16 left-1/2 -translate-x-1/2 z-50
+      className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60]
                  bg-black/95 backdrop-blur-xl
-                 border border-pink-500/40 rounded-2xl
+                 border-2 border-pink-400 rounded-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
-                 shadow-2xl shadow-pink-500/20
+                 shadow-2xl shadow-pink-500/30
                  ${isExpanded ? 'w-[95vw] max-w-[500px]' : 'w-[320px]'}`}
     >
       {/* Header */}

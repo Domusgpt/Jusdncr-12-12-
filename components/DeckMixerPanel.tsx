@@ -69,18 +69,19 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-50
-                   bg-gradient-to-b from-purple-500/30 to-pink-500/30
-                   border-y border-l border-purple-500/50
-                   rounded-l-xl py-3 px-1.5
-                   flex flex-col items-center gap-2
-                   hover:px-2.5 hover:bg-purple-500/40
+        className="fixed right-0 top-1/3 z-[60]
+                   w-12 min-h-[140px]
+                   bg-gradient-to-b from-purple-500/50 to-pink-500/50
+                   border-y-2 border-l-2 border-purple-400
+                   rounded-l-xl py-2 px-1
+                   flex flex-col items-center justify-center gap-1.5
+                   hover:w-14 hover:bg-purple-500/60
                    active:scale-95 transition-all duration-200
-                   backdrop-blur-xl font-rajdhani
-                   shadow-lg shadow-purple-500/20"
+                   backdrop-blur-md font-rajdhani
+                   shadow-xl shadow-purple-500/40"
       >
-        <Layers size={16} className="text-purple-400" />
-        <span className="text-[9px] font-bold text-purple-400"
+        <Layers size={18} className="text-purple-300" />
+        <span className="text-[10px] font-black text-purple-200"
               style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
           DECKS
         </span>
@@ -88,15 +89,14 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
         {/* Mini channel status indicators */}
         <div className="flex flex-col gap-1 mt-1">
           {decks.map((deck) => {
-            const hasFrames = deck.frames.length > 0;
             const modeColor = MODE_COLORS[deck.mixMode];
             const pulseOnBeat = deck.mixMode !== 'off' && beatCounter % 4 === 0;
 
             return (
               <div
                 key={deck.id}
-                className={`w-4 h-4 rounded text-[8px] font-black flex items-center justify-center
-                           transition-all ${modeColor.bg} ${modeColor.border} border
+                className={`w-5 h-5 rounded text-[9px] font-black flex items-center justify-center
+                           transition-all ${modeColor.bg} ${modeColor.border} border-2
                            ${pulseOnBeat ? 'scale-110 shadow-lg' : ''}`}
               >
                 <span className={modeColor.text}>{deck.id + 1}</span>
@@ -105,7 +105,7 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
           })}
         </div>
 
-        <ChevronLeft size={12} className="text-purple-400/60 mt-1" />
+        <ChevronLeft size={14} className="text-purple-300 mt-1" />
       </button>
     );
   }
@@ -113,14 +113,14 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
   // ============ OPEN STATE - Slides from right ============
   return (
     <div
-      className={`fixed right-0 top-1/2 -translate-y-1/2 z-50
+      className={`fixed right-0 top-1/3 z-[60]
                  bg-black/95 backdrop-blur-xl
-                 border-y border-l border-purple-500/40 rounded-l-2xl
+                 border-y-2 border-l-2 border-purple-400 rounded-l-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
-                 shadow-2xl shadow-purple-500/20
+                 shadow-2xl shadow-purple-500/30
                  ${isExpanded ? 'w-[320px]' : 'w-[200px]'}`}
-      style={{ maxHeight: '85vh' }}
+      style={{ maxHeight: '70vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
