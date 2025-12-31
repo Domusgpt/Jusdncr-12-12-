@@ -141,44 +141,43 @@ export const FXPanel: React.FC<FXPanelProps> = ({
     setPaddleMappings(newMappings);
   };
 
-  // ============ CLOSED STATE - Slim bar at bottom ============
+  // ============ CLOSED STATE - Small tab bottom-left ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60]
-                   min-w-[160px] h-12
-                   bg-gradient-to-r from-pink-500/50 to-purple-500/50
+        className="fixed bottom-20 left-2 z-[60]
+                   w-14 h-14
+                   bg-gradient-to-br from-pink-500/60 to-purple-500/60
                    border-2 border-pink-400 rounded-xl
-                   px-5 py-2
-                   flex items-center justify-center gap-2
-                   hover:scale-105 hover:bg-pink-500/60
+                   flex flex-col items-center justify-center gap-0.5
+                   hover:scale-110 hover:bg-pink-500/70
                    active:scale-95 transition-all duration-200
                    backdrop-blur-md font-rajdhani
                    shadow-xl shadow-pink-500/40"
       >
-        <Sparkles size={18} className="text-pink-300" />
-        <span className="text-sm font-black text-pink-200">FX</span>
+        <Sparkles size={16} className="text-pink-200" />
+        <span className="text-[9px] font-black text-pink-200">FX</span>
         {activeCount > 0 && (
-          <span className="px-2 py-0.5 text-[10px] font-bold bg-pink-500 text-white rounded">
+          <span className="absolute -top-1 -right-1 w-4 h-4 text-[8px] font-bold bg-pink-500 text-white rounded-full flex items-center justify-center">
             {activeCount}
           </span>
         )}
-        <ChevronUp size={16} className="text-pink-300" />
       </button>
     );
   }
 
-  // ============ OPEN STATE - Paddles at bottom ============
+  // ============ OPEN STATE - Compact panel bottom-left ============
   return (
     <div
-      className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60]
+      className={`fixed bottom-20 left-2 z-[60]
                  bg-black/95 backdrop-blur-xl
                  border-2 border-pink-400 rounded-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-pink-500/30
-                 ${isExpanded ? 'w-[95vw] max-w-[500px]' : 'w-[320px]'}`}
+                 ${isExpanded ? 'w-[280px]' : 'w-[200px]'}`}
+      style={{ maxHeight: '50vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
@@ -217,12 +216,12 @@ export const FXPanel: React.FC<FXPanelProps> = ({
 
             return (
               <div key={paddleIndex} className="flex flex-col items-center">
-                {/* Paddle Column */}
+                {/* Paddle Column - Compact */}
                 <div
-                  className={`relative w-full h-28 rounded-xl border-2 cursor-pointer select-none
+                  className={`relative w-full h-20 rounded-lg border-2 cursor-pointer select-none
                             overflow-hidden transition-all
                             ${isActive
-                              ? 'border-pink-400 shadow-[0_0_20px_rgba(236,72,153,0.4)]'
+                              ? 'border-pink-400 shadow-[0_0_15px_rgba(236,72,153,0.4)]'
                               : 'border-white/20 hover:border-pink-500/40'
                             }`}
                   onMouseDown={(e) => handlePaddleStart(paddleIndex, e)}

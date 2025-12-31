@@ -64,63 +64,45 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
   const [selectedDeck, setSelectedDeck] = useState<number | null>(null);
   const activeCount = decks.filter(d => d.mixMode !== 'off').length;
 
-  // ============ CLOSED STATE - Vertical tab on right edge with channel indicators ============
+  // ============ CLOSED STATE - Small tab on right edge ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed right-0 top-1/3 z-[60]
-                   w-12 min-h-[140px]
-                   bg-gradient-to-b from-purple-500/50 to-pink-500/50
+        className="fixed right-0 top-1/2 -translate-y-1/2 z-[60]
+                   w-10 h-24
+                   bg-gradient-to-b from-purple-500/60 to-pink-500/60
                    border-y-2 border-l-2 border-purple-400
                    rounded-l-xl py-2 px-1
-                   flex flex-col items-center justify-center gap-1.5
-                   hover:w-14 hover:bg-purple-500/60
+                   flex flex-col items-center justify-center gap-1
+                   hover:w-12 hover:bg-purple-500/70
                    active:scale-95 transition-all duration-200
                    backdrop-blur-md font-rajdhani
                    shadow-xl shadow-purple-500/40"
       >
-        <Layers size={18} className="text-purple-300" />
-        <span className="text-[10px] font-black text-purple-200"
-              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
-          DECKS
-        </span>
-
-        {/* Mini channel status indicators */}
-        <div className="flex flex-col gap-1 mt-1">
-          {decks.map((deck) => {
-            const modeColor = MODE_COLORS[deck.mixMode];
-            const pulseOnBeat = deck.mixMode !== 'off' && beatCounter % 4 === 0;
-
-            return (
-              <div
-                key={deck.id}
-                className={`w-5 h-5 rounded text-[9px] font-black flex items-center justify-center
-                           transition-all ${modeColor.bg} ${modeColor.border} border-2
-                           ${pulseOnBeat ? 'scale-110 shadow-lg' : ''}`}
-              >
-                <span className={modeColor.text}>{deck.id + 1}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <ChevronLeft size={14} className="text-purple-300 mt-1" />
+        <Layers size={14} className="text-purple-300" />
+        <span className="text-[8px] font-black text-purple-200">DECK</span>
+        {activeCount > 0 && (
+          <span className="w-4 h-4 text-[8px] font-bold bg-purple-500 text-white rounded-full flex items-center justify-center">
+            {activeCount}
+          </span>
+        )}
+        <ChevronLeft size={12} className="text-purple-300" />
       </button>
     );
   }
 
-  // ============ OPEN STATE - Slides from right ============
+  // ============ OPEN STATE - Compact panel on right ============
   return (
     <div
-      className={`fixed right-0 top-1/3 z-[60]
+      className={`fixed right-0 top-1/2 -translate-y-1/2 z-[60]
                  bg-black/95 backdrop-blur-xl
                  border-y-2 border-l-2 border-purple-400 rounded-l-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-purple-500/30
-                 ${isExpanded ? 'w-[320px]' : 'w-[200px]'}`}
-      style={{ maxHeight: '70vh' }}
+                 ${isExpanded ? 'w-[260px]' : 'w-[160px]'}`}
+      style={{ maxHeight: '55vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">

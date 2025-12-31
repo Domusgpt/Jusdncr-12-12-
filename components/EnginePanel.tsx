@@ -84,48 +84,45 @@ export const EnginePanel: React.FC<EnginePanelProps> = ({
   labanEffort
 }) => {
 
-  // ============ CLOSED STATE - Vertical tab on left edge ============
+  // ============ CLOSED STATE - Small tab on left edge ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed left-0 top-1/3 z-[60]
-                   w-10 min-h-[100px]
-                   bg-gradient-to-b from-cyan-500/50 to-blue-500/50
+        className="fixed left-0 top-1/2 -translate-y-1/2 z-[60]
+                   w-10 h-24
+                   bg-gradient-to-b from-cyan-500/60 to-blue-500/60
                    border-y-2 border-r-2 border-cyan-400
-                   rounded-r-xl py-3 px-1
-                   flex flex-col items-center justify-center gap-1.5
-                   hover:w-12 hover:bg-cyan-500/60
+                   rounded-r-xl py-2 px-1
+                   flex flex-col items-center justify-center gap-1
+                   hover:w-12 hover:bg-cyan-500/70
                    active:scale-95 transition-all duration-200
                    backdrop-blur-md font-rajdhani
                    shadow-xl shadow-cyan-500/40"
       >
-        <Zap size={20} className="text-cyan-300" />
-        <span className="text-[11px] font-black text-cyan-200"
-              style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}>
-          ENGINE
-        </span>
+        <Zap size={14} className="text-cyan-300" />
+        <span className="text-[8px] font-black text-cyan-200">ENG</span>
         {bpm && (
-          <span className="text-[10px] font-mono text-cyan-200 bg-black/50 px-1.5 py-0.5 rounded">
+          <span className="text-[8px] font-mono text-cyan-200 bg-black/50 px-1 py-0.5 rounded">
             {Math.round(bpm)}
           </span>
         )}
-        <ChevronRight size={16} className="text-cyan-300" />
+        <ChevronRight size={12} className="text-cyan-300" />
       </button>
     );
   }
 
-  // ============ OPEN STATE - Slides from left ============
+  // ============ OPEN STATE - Compact panel on left ============
   return (
     <div
-      className={`fixed left-0 top-1/3 z-[60]
+      className={`fixed left-0 top-1/2 -translate-y-1/2 z-[60]
                  bg-black/95 backdrop-blur-xl
                  border-y-2 border-r-2 border-cyan-400 rounded-r-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-cyan-500/30
-                 ${isExpanded ? 'w-[280px]' : 'w-[180px]'}`}
-      style={{ maxHeight: '70vh' }}
+                 ${isExpanded ? 'w-[240px]' : 'w-[160px]'}`}
+      style={{ maxHeight: '55vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">

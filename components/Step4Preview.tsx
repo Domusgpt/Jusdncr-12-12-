@@ -1363,19 +1363,15 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         isExpanded={deckPanel.expanded}
         onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
         onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
-        decks={golemState.decks.map((d, i) => {
-          // Get mode directly from GolemMixer to ensure sync
-          const mixerInfo = golemMixerRef.current?.getDeckInfo(i);
-          return {
-            id: d.id,
-            frames: d.frames || [],
-            rigName: d.rigName || `Deck ${d.id + 1}`,
-            mixMode: mixerInfo?.mixMode ?? d.mixMode,
-            opacity: d.opacity,
-            isActive: mixerInfo?.isActive ?? d.isActive,
-            currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
-          };
-        })}
+        decks={golemState.decks.map((d, i) => ({
+          id: d.id,
+          frames: d.frames || [],
+          rigName: d.rigName || `Deck ${d.id + 1}`,
+          mixMode: d.mixMode, // Use React state directly - handler keeps both in sync
+          opacity: d.opacity,
+          isActive: d.mixMode !== 'off',
+          currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
+        }))}
         beatCounter={beatCounterRef.current}
         onLoadDeck={handleLoadDeck}
         onDeckModeChange={handleDeckModeChange}
