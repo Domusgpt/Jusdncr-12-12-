@@ -608,6 +608,27 @@ export class GolemMixer {
     return this.deckFrameIndices[deckId] ?? 0;
   }
 
+  // Get deck info for UI sync
+  getDeckInfo(deckId: number): { mixMode: MixMode; isActive: boolean; frameCount: number } | null {
+    const deck = this.decks[deckId];
+    if (!deck) return null;
+    return {
+      mixMode: deck.mixMode,
+      isActive: deck.isActive,
+      frameCount: deck.allFrames.length
+    };
+  }
+
+  // Get all deck modes for debug
+  getAllDeckModes(): { id: number; mode: MixMode; active: boolean; frames: number }[] {
+    return this.decks.map(d => ({
+      id: d.id,
+      mode: d.mixMode,
+      active: d.isActive,
+      frames: d.allFrames.length
+    }));
+  }
+
   // Advance deck frame (for manual triggering)
   advanceDeckFrame(deckId: number): void {
     if (deckId >= 0 && deckId < 4) {

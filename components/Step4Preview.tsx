@@ -229,32 +229,58 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       const text = await file.text();
       const project = JSON.parse(text);
       if (project.frames && Array.isArray(project.frames)) {
-        // Load frames into GolemMixer
+        console.log(`[DECK ${deckId}] Loading ${project.frames.length} frames from ${file.name}`);
+
+        // Load frames into GolemMixer - this also sets mode to 'sequencer'
         golemMixerRef.current.loadDeck(deckId, project.frames, project.subjectCategory || 'CHARACTER');
 
-        // Preload images into poseImagesRef so they can be rendered
+        // Preload ALL images into poseImagesRef with deck-prefixed keys
+        // Key format: "${deckId}_${pose}" for deck-specific frames
+        // Also store by pose name alone for compatibility
         const newImages: Record<string, HTMLImageElement> = {};
-        project.frames.forEach((frame: GeneratedFrame) => {
-          if (!poseImagesRef.current[frame.pose]) {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.src = frame.url;
-            newImages[frame.pose] = img;
-          }
-        });
-        poseImagesRef.current = { ...poseImagesRef.current, ...newImages };
+        let loadedCount = 0;
+        const totalFrames = project.frames.length;
 
+        project.frames.forEach((frame: GeneratedFrame) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            loadedCount++;
+            if (loadedCount === totalFrames) {
+              console.log(`[DECK ${deckId}] All ${totalFrames} images loaded`);
+            }
+          };
+          img.onerror = () => {
+            console.warn(`[DECK ${deckId}] Failed to load: ${frame.pose}`);
+            loadedCount++;
+          };
+          img.src = frame.url;
+          // Store with deck-prefixed key (primary)
+          newImages[`${deckId}_${frame.pose}`] = img;
+          // Also store by pose name alone (fallback)
+          newImages[frame.pose] = img;
+        });
+
+        // Merge new images into poseImagesRef
+        poseImagesRef.current = { ...poseImagesRef.current, ...newImages };
+        console.log(`[DECK ${deckId}] poseImagesRef now has ${Object.keys(poseImagesRef.current).length} keys`);
+
+        // Update state - FORCE mode to sequencer
         setGolemState(s => ({
           ...s,
           decks: s.decks.map(d => d.id === deckId ? {
             ...d,
             isActive: true,
-            mixMode: 'sequencer',
+            mixMode: 'sequencer', // Force sequencer mode when loading
             frameCount: project.frames.length,
             rigName: file.name.replace('.json', ''),
-            frames: project.frames // Include frames for thumbnails
+            frames: project.frames
           } : d)
         }));
+
+        // Also ensure GolemMixer has the deck in sequencer mode
+        golemMixerRef.current.setDeckMode(deckId, 'sequencer');
+        console.log(`[DECK ${deckId}] Mode set to SEQUENCER`);
       }
     } catch (err) {
       console.error('Failed to load rig:', err);
@@ -344,10 +370,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [hoveredFrame, setHoveredFrame] = useState<FrameData | null>(null); // For Tooltip
 
   // --- INTERPOLATION STATE ---
-  const sourcePoseRef = useRef<string>('base'); 
-  const targetPoseRef = useRef<string>('base'); 
-  const transitionProgressRef = useRef<number>(1.0); 
-  const transitionSpeedRef = useRef<number>(10.0);   
+  const sourcePoseRef = useRef<string>('base');
+  const targetPoseRef = useRef<string>('base');
+  const sourceDeckIdRef = useRef<number>(0);
+  const targetDeckIdRef = useRef<number>(0);
+  const transitionProgressRef = useRef<number>(1.0);
+  const transitionSpeedRef = useRef<number>(10.0);
   const transitionModeRef = useRef<InterpMode>('CUT');
 
   // --- DYNAMIC CHOREOGRAPHY STATE ---
@@ -534,12 +562,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       }
   };
 
-  // Helper to trigger a Smart Transition
-  const triggerTransition = (newPose: string, mode: InterpMode, speedMultiplier: number = 1.0) => {
-      if (newPose === targetPoseRef.current) return;
-      
+  // Helper to trigger a Smart Transition with deck tracking
+  const triggerTransition = (newPose: string, mode: InterpMode, speedMultiplier: number = 1.0, deckId: number = 0) => {
+      if (newPose === targetPoseRef.current && deckId === targetDeckIdRef.current) return;
+
       sourcePoseRef.current = targetPoseRef.current;
+      sourceDeckIdRef.current = targetDeckIdRef.current;
       targetPoseRef.current = newPose;
+      targetDeckIdRef.current = deckId;
       transitionProgressRef.current = 0.0;
       transitionModeRef.current = mode;
       
@@ -699,10 +729,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         if (mixerOutput.didSelectFrame && mixerOutput.frame) {
             golemMixerHandled = true;
 
-            // Only trigger visual transition if pose changed
+            const frameDeckId = mixerOutput.frame.deckId ?? mixerOutput.deckId ?? 0;
+
+            // Only trigger visual transition if pose or deck changed
             // But always apply physics/effects for beat feedback
-            if (mixerOutput.frame.pose !== targetPoseRef.current) {
-                triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode);
+            if (mixerOutput.frame.pose !== targetPoseRef.current || frameDeckId !== targetDeckIdRef.current) {
+                triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode, 1.0, frameDeckId);
             }
 
             // Apply GolemMixer physics (always apply for beat feedback)
@@ -920,10 +952,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             rgbSplitRef.current = Math.random() * 0.8;
         }
 
-        const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
+        const drawLayer = (pose: string, deckId: number, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
-            const img = poseImagesRef.current[pose];
-            
+            // Try deck-prefixed key first, then fall back to just pose name
+            const img = poseImagesRef.current[`${deckId}_${pose}`] || poseImagesRef.current[pose];
+
             if (!img || !img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
             
             const aspect = img.width / img.height;
@@ -1000,23 +1033,23 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
         const progress = transitionProgressRef.current;
         const mode = transitionModeRef.current;
-        
+
         if (progress >= 1.0 || mode === 'CUT') {
-            drawLayer(targetPoseRef.current, 1.0, 0, 0);
+            drawLayer(targetPoseRef.current, targetDeckIdRef.current, 1.0, 0, 0);
         } else {
-            const easeT = progress * progress * (3 - 2 * progress); 
-            
+            const easeT = progress * progress * (3 - 2 * progress);
+
             if (mode === 'ZOOM_IN') {
-                 const zoomFactor = 1.0 + (easeT * 0.5); 
-                 drawLayer(sourcePoseRef.current, 1.0 - easeT, easeT * 10, 0, zoomFactor);
-                 drawLayer(targetPoseRef.current, easeT, 0, 0);
+                 const zoomFactor = 1.0 + (easeT * 0.5);
+                 drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, easeT * 10, 0, zoomFactor);
+                 drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, 0);
             } else if (mode === 'SLIDE') {
                 const dirMultiplier = targetPoseRef.current.includes('right') ? -1 : 1;
-                drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
-                drawLayer(targetPoseRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
+                drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
+                drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
             } else if (mode === 'SMOOTH' || mode === 'MORPH') {
-                drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, 0);
-                drawLayer(targetPoseRef.current, easeT, 0, 0); 
+                drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, 0, 0);
+                drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, 0);
             }
         }
             
@@ -1330,15 +1363,19 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         isExpanded={deckPanel.expanded}
         onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
         onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
-        decks={golemState.decks.map((d, i) => ({
-          id: d.id,
-          frames: d.frames || [],
-          rigName: d.rigName || `Deck ${d.id + 1}`,
-          mixMode: d.mixMode,
-          opacity: d.opacity,
-          isActive: d.isActive,
-          currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
-        }))}
+        decks={golemState.decks.map((d, i) => {
+          // Get mode directly from GolemMixer to ensure sync
+          const mixerInfo = golemMixerRef.current?.getDeckInfo(i);
+          return {
+            id: d.id,
+            frames: d.frames || [],
+            rigName: d.rigName || `Deck ${d.id + 1}`,
+            mixMode: mixerInfo?.mixMode ?? d.mixMode,
+            opacity: d.opacity,
+            isActive: mixerInfo?.isActive ?? d.isActive,
+            currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
+          };
+        })}
         beatCounter={beatCounterRef.current}
         onLoadDeck={handleLoadDeck}
         onDeckModeChange={handleDeckModeChange}

@@ -47,10 +47,15 @@ const PATTERNS: { id: PatternType; label: string; desc: string; color: string }[
   { id: 'VOGUE', label: 'VOGUE', desc: 'Pose', color: 'from-purple-500 to-pink-500' },
   { id: 'FLOW', label: 'FLOW', desc: 'Smooth', color: 'from-green-500 to-cyan-500' },
   { id: 'CHAOS', label: 'CHAOS', desc: 'Random', color: 'from-red-500 to-orange-500' },
+  { id: 'MINIMAL', label: 'MIN', desc: 'Calm', color: 'from-gray-500 to-slate-500' },
   { id: 'ABAB', label: 'ABAB', desc: 'Alt', color: 'from-blue-500 to-cyan-500' },
   { id: 'AABB', label: 'AABB', desc: 'Pair', color: 'from-indigo-500 to-purple-500' },
+  { id: 'ABAC', label: 'ABAC', desc: 'Var', color: 'from-teal-500 to-green-500' },
   { id: 'SNARE_ROLL', label: 'SNARE', desc: 'Hits', color: 'from-yellow-500 to-orange-500' },
   { id: 'GROOVE', label: 'GRV', desc: 'Mid', color: 'from-green-500 to-emerald-500' },
+  { id: 'EMOTE', label: 'EMOTE', desc: 'Face', color: 'from-pink-500 to-rose-500' },
+  { id: 'FOOTWORK', label: 'FEET', desc: 'Low', color: 'from-amber-500 to-yellow-500' },
+  { id: 'IMPACT', label: 'HIT', desc: 'Drop', color: 'from-red-600 to-orange-500' },
 ];
 
 const SEQUENCE_MODES: { id: SequenceMode; label: string; color: string }[] = [
@@ -183,12 +188,12 @@ export const EnginePanel: React.FC<EnginePanelProps> = ({
           </div>
         </div>
 
-        {/* Pattern Grid (when PATTERN mode) */}
+        {/* Pattern Grid (when PATTERN mode) - All 15 patterns */}
         {engineMode === 'PATTERN' && (
           <div className="mb-3">
-            <div className="text-[9px] text-white/40 font-bold tracking-wider mb-1.5">PATTERNS</div>
+            <div className="text-[9px] text-white/40 font-bold tracking-wider mb-1.5">PATTERNS ({PATTERNS.length})</div>
             <div className={`grid gap-1 ${isExpanded ? 'grid-cols-5' : 'grid-cols-3'}`}>
-              {PATTERNS.slice(0, isExpanded ? 10 : 6).map((p) => (
+              {PATTERNS.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => onPatternChange(p.id)}
