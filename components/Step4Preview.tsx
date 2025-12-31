@@ -229,7 +229,21 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       const text = await file.text();
       const project = JSON.parse(text);
       if (project.frames && Array.isArray(project.frames)) {
+        // Load frames into GolemMixer
         golemMixerRef.current.loadDeck(deckId, project.frames, project.subjectCategory || 'CHARACTER');
+
+        // Preload images into poseImagesRef so they can be rendered
+        const newImages: Record<string, HTMLImageElement> = {};
+        project.frames.forEach((frame: GeneratedFrame) => {
+          if (!poseImagesRef.current[frame.pose]) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = frame.url;
+            newImages[frame.pose] = img;
+          }
+        });
+        poseImagesRef.current = { ...poseImagesRef.current, ...newImages };
+
         setGolemState(s => ({
           ...s,
           decks: s.decks.map(d => d.id === deckId ? {
