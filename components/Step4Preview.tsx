@@ -1409,27 +1409,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         />
       ))}
 
-      {/* STATUS BAR - Top left, minimal */}
-      <div className="absolute top-4 left-4 z-30 pointer-events-auto">
-        <div className="bg-black/50 backdrop-blur-md border border-white/10 px-3 py-2 rounded-lg">
-          <div className="flex items-center gap-2 mb-0.5">
-            <Activity size={12} className="text-brand-400" />
-            <span className="text-[9px] font-bold text-gray-400 tracking-widest">STATUS</span>
-          </div>
-          <div className="font-mono text-[10px] text-brand-300 leading-relaxed">
-            {brainState.fps} FPS | {golemState.telemetry?.bpm ?? brainState.bpm} BPM<br/>
-            <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span>
-            {' / '}
-            <span className={golemState.engineMode === 'KINETIC' ? 'text-purple-400' : 'text-cyan-400'}>{golemState.engineMode}</span>
-            {golemState.engineMode === 'KINETIC' && (
-              <> | <span className="text-green-400">{golemState.telemetry?.currentNode ?? 'idle'}</span></>
-            )}
-            {golemState.engineMode === 'PATTERN' && (
-              <> | <span className="text-cyan-400">{golemState.activePattern}</span></>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Status info moved to ENGINE panel - no longer overlaying animation */}
 
       {/* RECORDING INDICATOR + EXPORT - Top right */}
       <div className="absolute top-4 right-4 z-30 pointer-events-auto flex gap-2 items-center">
