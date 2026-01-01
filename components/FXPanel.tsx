@@ -141,17 +141,17 @@ export const FXPanel: React.FC<FXPanelProps> = ({
     setPaddleMappings(newMappings);
   };
 
-  // ============ CLOSED STATE - Small tab bottom-left ============
+  // ============ CLOSED STATE - Small tab on LEFT edge (above EnginePanel) ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed bottom-20 left-2 z-[60]
-                   w-14 h-14
-                   bg-gradient-to-br from-pink-500/60 to-purple-500/60
-                   border-2 border-pink-400 rounded-xl
+        className="fixed left-0 top-1/3 z-[60]
+                   w-10 h-16
+                   bg-gradient-to-b from-pink-500/60 to-purple-500/60
+                   border-y-2 border-r-2 border-pink-400 rounded-r-xl
                    flex flex-col items-center justify-center gap-0.5
-                   hover:scale-110 hover:bg-pink-500/70
+                   hover:w-12 hover:bg-pink-500/70
                    active:scale-95 transition-all duration-200
                    backdrop-blur-md font-rajdhani
                    shadow-xl shadow-pink-500/40"
@@ -167,17 +167,17 @@ export const FXPanel: React.FC<FXPanelProps> = ({
     );
   }
 
-  // ============ OPEN STATE - Compact panel bottom-left ============
+  // ============ OPEN STATE - Vertical panel on LEFT edge (above EnginePanel) ============
   return (
     <div
-      className={`fixed bottom-20 left-2 z-[60]
+      className={`fixed left-0 top-1/3 -translate-y-1/4 z-[60]
                  bg-black/95 backdrop-blur-xl
-                 border-2 border-pink-400 rounded-2xl
+                 border-y-2 border-r-2 border-pink-400 rounded-r-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-pink-500/30
                  ${isExpanded ? 'w-[280px]' : 'w-[200px]'}`}
-      style={{ maxHeight: '50vh' }}
+      style={{ maxHeight: '40vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
