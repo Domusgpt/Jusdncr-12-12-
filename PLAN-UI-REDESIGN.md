@@ -364,57 +364,82 @@ Keep current ControlDock but ensure:
 5. `components/Step4Preview.tsx` → Update layout to use new components
 6. `components/ControlDock.tsx` → Minor refinements
 
-### Layout After Implementation (REVISED):
+### Layout After Implementation (REVISED v2 - Animation Zone as Controller):
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  [▶] [🎤] [BPM:128] ══════ beat ══════ [📷] [⋯]            │  <- STATUS BAR (top)
-├────┬────────────────────────────────────────────────┬──────┤
-│ FX │                                                │      │
-│ ── │                                                │ PAT  │
-│ RGB│            A N I M A T I O N                   │ JOY  │  <- PATTERN JOYSTICK
-│ STR│               Z O N E                          │  ●   │     (X/Y radial)
-│ GHO│                                                │      │
-│ INV│         (85% of screen - SACRED)               │──────│
-│ B&W│                                                │ FX   │
-│ SCN│                                                │ PAD  │  <- FX X/Y PAD
-│ GLI│                                                │  ◎   │     (quadrant effects)
-│ SHK│                                                │      │
-│ ZOO│                                                │      │
-├────┴────────────────────────────────────────────────┴──────┤
-│  [KIN|PAT] [GRV|EMT|IMP|FT] ════════ intensity ════════    │  <- ENGINE STRIP (bottom)
-│  [🎚 MIXER]  (tap to open drawer)                          │
+│  [▶] [🎤] [♫] [BPM:128] ════beat════ [📷] [⋯]              │  STATUS BAR (48px)
+├────┬───────────────────────────────────────────────────┬────┤
+│ FX │                                                   │ FX │
+│ ── │   ┌─────────────────┬─────────────────┐          │ ── │
+│ RGB│   │     LEGACY      │     KINETIC     │          │ X→ │  X-AXIS FX
+│ STR│   │      ZONE       │      ZONE       │          │────│
+│ GHO│   │                 │                 │          │    │
+│ INV│   │  D1 ─────  D2   │   D3 ─────  D4  │          │ Y↓ │  Y-AXIS FX
+│ B&W│   │  (quadrants)    │   (quadrants)   │          │    │
+│ SCN│   │                 │                 │          │    │
+│ GLI│   │  touch+drag =   │  touch+drag =   │          │    │
+│ SHK│   │  pattern joy    │  pattern joy    │          │    │
+│ ZOO│   └─────────────────┴─────────────────┘          │    │
+├────┴───────────────────────────────────────────────────┴────┤
+│  [LEG|KIN] [GRV|EMT|IMP|FT] ════ intensity ════ [▲MIXER]   │  ENGINE STRIP (56px)
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### X/Y Controllers Explained:
+### Animation Zone Touch Interactions:
 
-**Pattern Joystick (right edge, top)**
-```
-         VOGUE
-    FLOW   ↑   STUTTER
-       ╲   │   ╱
-        ╲  │  ╱
-  MINIMAL ─●─ CHAOS     <- drag toward pattern, snaps back
-        ╱  │  ╲
-       ╱   │   ╲
-   BUILD   ↓   PING
-         DROP
-```
-- PATTERN mode: All 15 patterns, CYAN glow
-- KINETIC mode: 6 patterns only, MAGENTA glow, smaller
+**1. Physics Mode (Left/Right Half):**
+- Touch LEFT half → Activates LEGACY mode while held
+- Touch RIGHT half → Activates KINETIC mode while held
+- Visual: Subtle glow shows which mode is active
 
-**FX X/Y Pad (right edge, bottom)**
+**2. Pattern Joystick (Drag):**
+- While touching, DRAG to select pattern
+- Position maps to pattern radially (like virtual joystick)
+- LEGACY side: All 15 patterns available
+- KINETIC side: 6 core patterns (PING_PONG, FLOW, STUTTER, CHAOS, VOGUE, BUILD_DROP)
+- Release: Pattern stays selected, snaps back visually
+
+**3. Deck Quadrants:**
 ```
-        SUBTLE (ghost, bw, scan)
-              ↑
-    MOTION ←  ●  → COLOR
-  (shake,zoom)    (rgb,invert)
-              ↓
-       AGGRESSIVE (strobe, glitch)
+┌─────────────┬─────────────┐
+│ D1 (top-L)  │ D2 (top-R)  │
+│ TAP = ON/OFF│             │
+│ FLICK ↑ SEQ │             │
+│ FLICK ↓ LAY │             │
+├─────────────┼─────────────┤
+│ D3 (bot-L)  │ D4 (bot-R)  │
+│             │             │
+└─────────────┴─────────────┘
 ```
-- Position = which FX cluster
-- Distance from center = intensity
-- Multi-touch for layered FX
+- Quick TAP in quadrant = Toggle deck ON/OFF
+- FLICK UP = Cycle to SEQ mode
+- FLICK DOWN = Cycle to LAY mode
+- Visual: Quadrant briefly highlights on interaction
+
+**4. FX Intensity (Touch Position):**
+- X position (left→right) = X-axis mapped FX intensity
+- Y position (top→bottom) = Y-axis mapped FX intensity
+- User assigns which effects go to X vs Y in FX Rail
+
+### FX Rail with Axis Mapping:
+
+```
+┌────┐        ┌────┐
+│ RGB│ [X]    │ X→ │  Effects assigned to X-axis
+│ STR│ [Y]    │────│
+│ GHO│ [X]    │ Y↓ │  Effects assigned to Y-axis
+│ INV│ [ ]    │    │
+│ B&W│ [Y]    │    │  Touch position in zone
+│ SCN│ [ ]    │    │  controls these intensities
+│ GLI│ [X][Y] │    │  (can be both!)
+│ SHK│ [X]    │    │
+│ ZOO│ [Y]    │    │
+└────┘        └────┘
+```
+- Tap FX to toggle ON/OFF
+- Long-press to assign to X, Y, or both axes
+- Effects with [X] respond to horizontal touch position
+- Effects with [Y] respond to vertical touch position
 
 ### MIXER Drawer (swipe up from bottom):
 ```
