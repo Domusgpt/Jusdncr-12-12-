@@ -1,8 +1,9 @@
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { Music, Play, Pause, Check, Wand2, Zap, Film, Coins, CreditCard, Image as ImageIcon, Shuffle, ChevronDown, ChevronUp, Sparkles, Rocket, Mic, Layers, Grid, Sliders, Activity, ArrowRight, Star, X } from 'lucide-react';
+import { Music, Play, Pause, Check, Wand2, Zap, Film, Coins, CreditCard, Image as ImageIcon, Shuffle, ChevronDown, ChevronUp, Sparkles, Rocket, Mic, Layers, Grid, Sliders, Activity, ArrowRight, Star, X, HelpCircle, Upload, FolderOpen, Palette } from 'lucide-react';
 import { AppState, StyleCategory, StylePreset } from '../types';
 import { STYLE_PRESETS, CREDITS_PACK_PRICE } from '../constants';
+import { HelpOverlay, HelpButton } from './HelpSystem';
 
 /* -------------------------------------------------------------------------- */
 /*                                UTILITIES                                   */
@@ -27,14 +28,17 @@ interface Step1Props {
   state: AppState;
   onUploadImage: (file: File) => void;
   onUploadAudio: (file: File) => void;
+  onImportRig?: (file: File) => void;
 }
 
-export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio }) => {
+export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio, onImportRig }) => {
   const imgInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
+  const rigInput = useRef<HTMLInputElement>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  
+
   const imageSectionRef = useRef<HTMLDivElement>(null);
   const audioSectionRef = useRef<HTMLDivElement>(null);
 
@@ -46,8 +50,47 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
     }
   };
 
+  const handleImportRig = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportRig) {
+      triggerImpulse('click', 1.5);
+      onImportRig(file);
+    }
+    e.target.value = '';
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full max-w-6xl mx-auto py-10 perspective-1000">
+    <>
+    {/* Help Overlay */}
+    <HelpOverlay pageId="step1" isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
+    <div className="relative h-full max-w-6xl mx-auto py-10 perspective-1000">
+      {/* Top action bar */}
+      <div className="flex justify-between items-center mb-8 px-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => rigInput.current?.click()}
+            className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30
+                       border border-purple-500/40 rounded-xl text-purple-300 hover:text-white
+                       transition-all font-bold"
+          >
+            <FolderOpen size={18} />
+            <span className="text-sm">IMPORT RIG</span>
+          </button>
+          <input
+            ref={rigInput}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportRig}
+          />
+        </div>
+
+        <HelpButton onClick={() => setShowHelp(true)} />
+      </div>
+
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
       {/* Image Uploader */}
       <div 
         ref={imageSectionRef}
@@ -207,7 +250,9 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
             />
          </div>
       </div>
+      </div>
     </div>
+    </>
   );
 };
 
@@ -223,8 +268,11 @@ interface Step2Props {
 
 export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCredits }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showStyles, setShowStyles] = useState(false); // Collapsed by default
+  const [surpriseMorph, setSurpriseMorph] = useState(false); // Morph toggle for Surprise Me
   const [activeCategory, setActiveCategory] = useState<StyleCategory>('Cinematic');
-  
+
   const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic', 'Abstract'];
 
   const filteredStyles = useMemo(() => {
@@ -236,6 +284,15 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
     const randomStyle = STYLE_PRESETS[Math.floor(Math.random() * STYLE_PRESETS.length)];
     setActiveCategory(randomStyle.category);
     onUpdate('selectedStyleId', randomStyle.id);
+
+    // If morph mode enabled, also pick a secondary style with random intensity
+    if (surpriseMorph) {
+      const otherStyles = STYLE_PRESETS.filter(s => s.id !== randomStyle.id);
+      const secondaryStyle = otherStyles[Math.floor(Math.random() * otherStyles.length)];
+      const randomIntensity = Math.floor(Math.random() * 60) + 20; // 20-80%
+      onUpdate('secondaryStyleId', secondaryStyle.id);
+      onUpdate('morphIntensity', randomIntensity);
+    }
   };
 
   const MOTION_OPTIONS = [
@@ -247,10 +304,13 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
   ];
 
   return (
+    <>
+    <HelpOverlay pageId="step2" isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
     <div className="max-w-6xl mx-auto py-8 px-4 perspective-1000">
-      
+
       {/* Header */}
-      <div className="flex justify-between items-end mb-8 animate-slide-in-right">
+      <div className="flex justify-between items-start mb-8 animate-slide-in-right">
         <div>
            <h2 className="text-4xl font-black text-white flex items-center gap-3 glitch-hover">
               <span className="bg-brand-500/20 text-brand-300 p-2 rounded-lg border border-brand-500/30">
@@ -260,15 +320,30 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
            </h2>
            <p className="text-brand-100/60 mt-2 font-mono tracking-widest text-xs uppercase">Configure your quantum simulation parameters</p>
         </div>
-        
+
         <div className="flex flex-col gap-2 items-end">
-            <button 
-                onClick={randomizeStyle}
-                onMouseEnter={() => triggerImpulse('hover', 0.5)}
-                className="glass-button px-5 py-2.5 rounded-full text-sm font-bold text-white flex items-center gap-2 hover:bg-white/10"
-            >
-                <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
-            </button>
+            <HelpButton onClick={() => setShowHelp(true)} />
+
+            {/* Surprise Me with Morph Toggle */}
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setSurpriseMorph(!surpriseMorph)}
+                    className={`px-3 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5
+                        ${surpriseMorph
+                            ? 'bg-purple-500/30 text-purple-300 border border-purple-500'
+                            : 'bg-white/5 text-gray-500 border border-white/10 hover:text-white'}`}
+                    title="Enable morphing with Surprise Me"
+                >
+                    <Layers size={12} /> MORPH
+                </button>
+                <button
+                    onClick={randomizeStyle}
+                    onMouseEnter={() => triggerImpulse('hover', 0.5)}
+                    className="glass-button px-5 py-2.5 rounded-full text-sm font-bold text-white flex items-center gap-2 hover:bg-white/10"
+                >
+                    <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
+                </button>
+            </div>
             
             {/* UNIFIED 3-WAY QUALITY TOGGLE */}
             <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
@@ -323,34 +398,51 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
         </div>
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
-        {categories.map((cat, idx) => (
+      {/* Collapsible Styles Section */}
+      <div className="glass-panel rounded-3xl overflow-hidden border border-white/10 mb-8">
           <button
-            key={cat}
-            onClick={() => { triggerImpulse('click', 0.4); setActiveCategory(cat); }}
-            onMouseEnter={() => triggerImpulse('hover', 0.1)}
-            className={`
-              px-6 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 border relative overflow-hidden group
-              ${activeCategory === cat 
-                ? 'bg-white/10 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.2)]' 
-                : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
-            `}
+            onClick={() => setShowStyles(!showStyles)}
+            className="w-full p-4 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors"
           >
-            <span className="relative z-10 flex items-center gap-2">
-                {cat === 'Cinematic' && <Film size={14}/>}
-                {cat === 'Digital/Glitch' && <Zap size={14}/>}
-                {cat === 'Artistic' && <Wand2 size={14}/>}
-                {cat === 'Anime/2D' && <Layers size={14}/>}
-                {cat.toUpperCase()}
-            </span>
-            {activeCategory === cat && <div className="absolute inset-0 bg-white/5 animate-pulse-fast" />}
+              <div className="flex items-center gap-3">
+                  <Palette size={20} className="text-brand-300" />
+                  <span className="font-bold text-white tracking-widest text-sm">
+                    STYLE PRESETS {config.selectedStyleId && `(${STYLE_PRESETS.find(s => s.id === config.selectedStyleId)?.name || 'Selected'})`}
+                  </span>
+              </div>
+              {showStyles ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
           </button>
-        ))}
-      </div>
 
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showStyles ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="p-6 border-t border-white/5 bg-black/20">
+              {/* Category Tabs */}
+              <div className="flex flex-wrap gap-2 mb-6">
+                {categories.map((cat, idx) => (
+                  <button
+                    key={cat}
+                    onClick={() => { triggerImpulse('click', 0.4); setActiveCategory(cat); }}
+                    onMouseEnter={() => triggerImpulse('hover', 0.1)}
+                    className={`
+                      px-4 py-2 rounded-lg font-bold text-xs tracking-wide transition-all duration-300 border relative overflow-hidden group
+                      ${activeCategory === cat
+                        ? 'bg-white/10 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                        : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
+                    `}
+                  >
+                    <span className="relative z-10 flex items-center gap-2">
+                        {cat === 'Cinematic' && <Film size={12}/>}
+                        {cat === 'Digital/Glitch' && <Zap size={12}/>}
+                        {cat === 'Artistic' && <Wand2 size={12}/>}
+                        {cat === 'Anime/2D' && <Layers size={12}/>}
+                        {cat.toUpperCase()}
+                    </span>
+                    {activeCategory === cat && <div className="absolute inset-0 bg-white/5 animate-pulse-fast" />}
+                  </button>
+                ))}
+              </div>
+
+              {/* Style Grid */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {filteredStyles.map((style, idx) => (
           <div
             key={style.id}
@@ -392,6 +484,9 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-white/10 to-transparent h-1/4 w-full -translate-y-full group-hover:translate-y-[400%] transition-transform duration-1000 ease-in-out" />
           </div>
         ))}
+              </div>
+            </div>
+          </div>
       </div>
 
       {/* STUDIO CONTROLS (Expandable) */}
@@ -524,5 +619,6 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
           </div>
       </div>
     </div>
+    </>
   );
 };
