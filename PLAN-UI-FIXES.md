@@ -78,6 +78,26 @@ Controls inside box               Controls at screen edges
 - Ensure touch targets are 44-48px minimum
 - Pattern strip scrolls horizontally with momentum
 
+### 6. JOYSTICK PATTERN SELECTION
+**Problem**: Joystick pattern selection not properly spaced
+**Solution**:
+- PATTERN mode joystick: 15 patterns spaced evenly (360°/15 = 24° per pattern)
+- KINETIC mode joystick: 6 patterns spaced evenly (360°/6 = 60° per pattern)
+
+```
+PATTERN MODE (15 patterns):          KINETIC MODE (6 patterns):
+        PING_PONG                           PING_PONG
+    MINIMAL   BUILD_DROP                 VOGUE     FLOW
+  IMPACT        STUTTER               BUILD_DROP    STUTTER
+ FOOTWORK        VOGUE                    CHAOS
+  EMOTE          FLOW
+   GROOVE       CHAOS
+     SNARE   ABAC
+       AABB ABAB
+```
+
+Each pattern gets equal angular slice of the joystick circle.
+
 ---
 
 ## Implementation Order
@@ -108,6 +128,12 @@ Controls inside box               Controls at screen edges
 2. Ensure no unwanted horizontal scroll
 3. Verify touch targets
 
+### Phase 6: Fix Joystick Pattern Selection
+1. Calculate angle-to-pattern mapping for 15 patterns (24° each)
+2. Calculate angle-to-pattern mapping for 6 patterns (60° each)
+3. Update AnimationZoneController to use proper angular spacing
+4. Show visual feedback of which pattern is being hovered
+
 ---
 
 ## Files to Modify
@@ -115,8 +141,9 @@ Controls inside box               Controls at screen edges
 1. `components/Steps.tsx` - Director page layout, presets, surprise me
 2. `components/FXRail.tsx` - Left edge positioning
 3. `components/EngineStrip.tsx` - Bottom edge positioning
-4. `components/StatusBar.tsx` - Top edge positioning
-5. `components/Step4Preview.tsx` - Container layout
+4. `components/AnimationZoneController.tsx` - Joystick pattern selection
+5. `components/StatusBar.tsx` - Top edge positioning
+6. `components/Step4Preview.tsx` - Container layout
 
 ---
 
@@ -128,3 +155,5 @@ Controls inside box               Controls at screen edges
 - [ ] Controls positioned at screen edges over visualizer
 - [ ] Portrait mode works without issues
 - [ ] All touch targets 44px+ minimum
+- [ ] Joystick selects 15 patterns evenly spaced in PATTERN mode
+- [ ] Joystick selects 6 patterns evenly spaced in KINETIC mode
