@@ -9,10 +9,12 @@ import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { FXState } from './UnifiedMixerPanel';
-import { DeckMixerPanel } from './DeckMixerPanel';
-import { EnginePanel } from './EnginePanel';
-import { FXPanel } from './FXPanel';
-import { ControlDock } from './ControlDock';
+// New UI Components
+import { StatusBar } from './StatusBar';
+import { FXRail, FXAxisMapping, FXKey } from './FXRail';
+import { EngineStrip } from './EngineStrip';
+import { MixerDrawer } from './MixerDrawer';
+import { AnimationZoneController } from './AnimationZoneController';
 import {
   GolemMixer, createGolemMixer,
   EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
@@ -88,11 +90,15 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  // Collapsible panel states - each panel has open/expanded state
-  // Start with ENGINE open so users can see controls immediately
-  const [deckPanel, setDeckPanel] = useState({ open: false, expanded: false });
-  const [enginePanel, setEnginePanel] = useState({ open: true, expanded: false });
-  const [fxPanel, setFxPanel] = useState({ open: true, expanded: false });
+  // New UI panel states
+  const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
+
+  // FX X/Y axis mapping state
+  const [fxAxisMapping, setFxAxisMapping] = useState<FXAxisMapping>({
+    x: ['rgbSplit', 'shake'],
+    y: ['glitch', 'zoom']
+  });
+  const [fxIntensity, setFxIntensity] = useState({ x: 0, y: 0 });
 
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
@@ -170,6 +176,41 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       glitch: false, shake: false, zoom: false
     });
   };
+
+  // Handle FX intensity from touch position
+  const handleFXIntensityChange = useCallback((intensity: { x: number; y: number }) => {
+    setFxIntensity(intensity);
+
+    // Apply X-axis mapped effects
+    fxAxisMapping.x.forEach(fx => {
+      if (userEffects[fx]) {
+        if (fx === 'rgbSplit') rgbSplitRef.current = intensity.x * 0.8;
+        if (fx === 'shake') charBounceYRef.current = (Math.random() - 0.5) * intensity.x * 30;
+        if (fx === 'zoom') camZoomRef.current = BASE_ZOOM + intensity.x * 0.3;
+        if (fx === 'glitch') charSkewRef.current = (Math.random() - 0.5) * intensity.x;
+      }
+    });
+
+    // Apply Y-axis mapped effects
+    fxAxisMapping.y.forEach(fx => {
+      if (userEffects[fx]) {
+        if (fx === 'rgbSplit') rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity.y * 0.8);
+        if (fx === 'shake') charBounceYRef.current = Math.max(charBounceYRef.current, (Math.random() - 0.5) * intensity.y * 30);
+        if (fx === 'zoom') camZoomRef.current = Math.max(camZoomRef.current, BASE_ZOOM + intensity.y * 0.3);
+        if (fx === 'glitch') charSkewRef.current = Math.max(charSkewRef.current, (Math.random() - 0.5) * intensity.y);
+        if (fx === 'strobe') flashIntensityRef.current = intensity.y * 0.5;
+      }
+    });
+
+    // Reset effects when no touch
+    if (intensity.x === 0 && intensity.y === 0) {
+      rgbSplitRef.current = 0;
+      charBounceYRef.current = 0;
+      charSkewRef.current = 0;
+      camZoomRef.current = BASE_ZOOM;
+      flashIntensityRef.current = 0;
+    }
+  }, [fxAxisMapping, userEffects]);
 
   // Intensity state (replaces PressurePaddle)
   const [intensity, setIntensity] = useState(0);
@@ -1293,12 +1334,66 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* ENGINE PANEL - Collapsible engine controls (bottom-left) */}
-      <EnginePanel
-        isOpen={enginePanel.open}
-        isExpanded={enginePanel.expanded}
-        onToggleOpen={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setEnginePanel(p => ({ ...p, expanded: !p.expanded }))}
+      {/* ============ NEW UI COMPONENTS ============ */}
+
+      {/* STATUS BAR - Top (Play, Mic, BPM, Beat, Cam, More) */}
+      <StatusBar
+        isPlaying={isPlaying}
+        hasAudio={!!state.audioPreviewUrl}
+        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
+        onUploadAudio={() => trackInputRef.current?.click()}
+        isMicActive={isMicActive}
+        onMicToggle={toggleMic}
+        isCamActive={superCamActive}
+        onCamToggle={() => setSuperCamActive(!superCamActive)}
+        bpm={golemState.telemetry?.bpm ?? 120}
+        beatCounter={beatCounterRef.current}
+        isFrameDeckOpen={false}
+        onFrameDeckToggle={() => {}}
+        onGenerateMore={onGenerateMore}
+        onSaveProject={onSaveProject}
+        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
+        isRecording={isRecording}
+      />
+
+      {/* FX RAIL - Left edge (9 toggles with X/Y axis mapping) */}
+      <FXRail
+        effects={userEffects}
+        onToggleEffect={(effect) => toggleEffect(effect as keyof typeof userEffects)}
+        onResetAll={resetUserEffects}
+        axisMapping={fxAxisMapping}
+        onAxisMappingChange={setFxAxisMapping}
+        fxIntensity={fxIntensity}
+      />
+
+      {/* ANIMATION ZONE CONTROLLER - Touch overlay */}
+      <AnimationZoneController
+        onPhysicsModeChange={(mode) => {
+          setChoreoMode(mode === 'LEGACY' ? 'LEGACY' : 'LABAN');
+          useEnhancedModeRef.current = mode === 'LABAN';
+        }}
+        currentPhysicsMode={choreoMode === 'LEGACY' ? 'LEGACY' : 'LABAN'}
+        onPatternChange={handlePatternChange}
+        currentPattern={golemState.activePattern}
+        engineMode={golemState.engineMode}
+        decks={golemState.decks.map(d => ({
+          id: d.id,
+          mixMode: d.mixMode,
+          isActive: d.mixMode !== 'off'
+        }))}
+        onDeckToggle={(deckId) => {
+          const deck = golemState.decks[deckId];
+          if (deck) {
+            const newMode: MixMode = deck.mixMode === 'off' ? 'sequencer' : 'off';
+            handleDeckModeChange(deckId, newMode);
+          }
+        }}
+        onDeckModeChange={handleDeckModeChange}
+        onFXIntensityChange={handleFXIntensityChange}
+      />
+
+      {/* ENGINE STRIP - Bottom (Physics, Engine mode, Sequence, Intensity, Mixer toggle) */}
+      <EngineStrip
         physicsMode={choreoMode}
         onPhysicsModeChange={(mode) => {
           setChoreoMode(mode);
@@ -1306,73 +1401,33 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }}
         engineMode={golemState.engineMode}
         onEngineModeChange={handleEngineModeChange}
-        activePattern={golemState.activePattern}
-        onPatternChange={handlePatternChange}
         sequenceMode={golemState.sequenceMode}
         onSequenceModeChange={handleSequenceModeChange}
         intensity={intensity}
         onIntensityChange={(val) => {
           setIntensity(val);
-          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.8);
-          flashIntensityRef.current = val * 0.3;
-          if (val > 0.7) {
-            charSkewRef.current = (Math.random() - 0.5) * val;
-          }
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.008);
+          flashIntensityRef.current = val * 0.003;
         }}
-        bpm={golemState.telemetry?.bpm}
-        labanEffort={choreographyStateRef.current?.movementQualities ? {
-          weight: choreographyStateRef.current.movementQualities.effort === 'PUNCH' || choreographyStateRef.current.movementQualities.effort === 'PRESS' ? 0.9 : 0.3,
-          space: choreographyStateRef.current.movementQualities.effort === 'DAB' || choreographyStateRef.current.movementQualities.effort === 'FLICK' ? 0.8 : 0.4,
-          time: choreographyStateRef.current.movementQualities.effort === 'SLASH' || choreographyStateRef.current.movementQualities.effort === 'PUNCH' ? 0.9 : 0.3,
-          flow: choreographyStateRef.current.movementQualities.effort === 'FLOAT' || choreographyStateRef.current.movementQualities.effort === 'WRING' ? 0.2 : 0.7
-        } : undefined}
+        isMixerOpen={isMixerDrawerOpen}
+        onMixerToggle={() => setIsMixerDrawerOpen(!isMixerDrawerOpen)}
+        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
+        currentPattern={golemState.activePattern}
       />
 
-      {/* FX PANEL - Collapsible effects controls (bottom-right) */}
-      <FXPanel
-        isOpen={fxPanel.open}
-        isExpanded={fxPanel.expanded}
-        onToggleOpen={() => setFxPanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setFxPanel(p => ({ ...p, expanded: !p.expanded }))}
-        effects={userEffects}
-        onToggleEffect={toggleEffect}
-        onResetAll={resetUserEffects}
-        onPaddlePress={(intensity, effects) => {
-          // Apply intensity-scaled effects based on which effects are mapped to the paddle
-          if (effects.includes('rgbSplit')) rgbSplitRef.current = intensity * 0.8;
-          if (effects.includes('strobe')) flashIntensityRef.current = intensity * 0.5;
-          if (effects.includes('glitch')) charSkewRef.current = (Math.random() - 0.5) * intensity;
-          if (effects.includes('shake')) charBounceYRef.current = (Math.random() - 0.5) * intensity * 30;
-          if (effects.includes('zoom')) camZoomRef.current = BASE_ZOOM + intensity * 0.3;
-          if (effects.includes('ghost')) {} // Ghost is toggle-based, handled separately
-          if (effects.includes('scanlines')) {} // Scanlines is toggle-based
-          if (effects.includes('invert')) {} // Invert is toggle-based
-          if (effects.includes('bw')) {} // B&W is toggle-based
-        }}
-        onPaddleRelease={() => {
-          rgbSplitRef.current = 0;
-          flashIntensityRef.current = 0;
-          charSkewRef.current = 0;
-          camZoomRef.current = BASE_ZOOM;
-        }}
-      />
-
-      {/* DECK MIXER PANEL - 4-Channel deck control (bottom-center) */}
-      <DeckMixerPanel
-        isOpen={deckPanel.open}
-        isExpanded={deckPanel.expanded}
-        onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
+      {/* MIXER DRAWER - Bottom sheet (4 decks) */}
+      <MixerDrawer
+        isOpen={isMixerDrawerOpen}
+        onClose={() => setIsMixerDrawerOpen(false)}
         decks={golemState.decks.map((d, i) => ({
           id: d.id,
           frames: d.frames || [],
-          rigName: d.rigName || `Deck ${d.id + 1}`,
-          mixMode: d.mixMode, // Use React state directly - handler keeps both in sync
+          rigName: d.rigName,
+          mixMode: d.mixMode,
           opacity: d.opacity,
           isActive: d.mixMode !== 'off',
           currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
         }))}
-        beatCounter={beatCounterRef.current}
         onLoadDeck={handleLoadDeck}
         onDeckModeChange={handleDeckModeChange}
         onDeckOpacityChange={handleDeckOpacityChange}
@@ -1387,9 +1442,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }}
         onSelectFrame={(deckId, frameIndex) => {
           golemMixerRef.current?.setDeckFrameIndex(deckId, frameIndex);
-        }}
-        onTriggerFrame={(deckId) => {
-          golemMixerRef.current?.advanceDeckFrame(deckId);
         }}
       />
 
@@ -1424,29 +1476,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         </button>
       </div>
 
-      {/* CONTROL DOCK - Bottom bar */}
-      <ControlDock
-        isPlaying={isPlaying}
-        hasAudio={!!state.audioPreviewUrl}
-        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
-        onUploadAudio={() => trackInputRef.current?.click()}
-        isMicActive={isMicActive}
-        onMicToggle={toggleMic}
-        isMixerOpen={enginePanel.open}
-        onMixerToggle={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
-        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
-        isCamActive={superCamActive}
-        onCamToggle={() => setSuperCamActive(!superCamActive)}
-        choreoMode={choreoMode}
-        onChoreoModeToggle={toggleChoreoMode}
-        isFrameDeckOpen={deckPanel.open}
-        onFrameDeckToggle={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
-        onGenerateMore={onGenerateMore}
-        onSaveProject={onSaveProject}
-        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
-        isRecording={isRecording}
-        beatCounter={beatCounterRef.current}
-      />
+      {/* ControlDock replaced by StatusBar (top) + EngineStrip (bottom) */}
       
     </div>
   );
