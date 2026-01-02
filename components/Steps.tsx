@@ -270,37 +270,41 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
                 <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
             </button>
             
-            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-1 py-1 rounded-full border border-white/10">
+            {/* UNIFIED 3-WAY QUALITY TOGGLE */}
+            <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
                 <button
-                    onClick={() => onUpdate('useTurbo', true)}
+                    onClick={() => { onUpdate('useTurbo', true); onUpdate('superMode', false); }}
                     onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${config.useTurbo ? 'bg-brand-500 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
+                        ${config.useTurbo && !config.superMode
+                            ? 'bg-brand-500 text-white shadow-lg'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Rocket size={12} /> TURBO
+                    <Rocket size={11} /> TURBO
                 </button>
+                <div className="w-px h-6 bg-white/10" />
                 <button
-                    onClick={() => onUpdate('useTurbo', false)}
+                    onClick={() => { onUpdate('useTurbo', false); onUpdate('superMode', false); }}
                     onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${!config.useTurbo ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
+                        ${!config.useTurbo && !config.superMode
+                            ? 'bg-purple-600 text-white shadow-lg'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
                 >
-                    <Sparkles size={12} /> QUALITY
+                    <Sparkles size={11} /> QUALITY
+                </button>
+                <div className="w-px h-6 bg-white/10" />
+                <button
+                    onClick={() => { onUpdate('superMode', true); onUpdate('useTurbo', false); }}
+                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
+                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
+                        ${config.superMode
+                            ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg'
+                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+                >
+                    <Star size={11} fill={config.superMode ? "white" : "none"} /> SUPER
                 </button>
             </div>
-            
-            {/* SUPER MODE TOGGLE */}
-            <button
-                onClick={() => onUpdate('superMode', !config.superMode)}
-                onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                className={`
-                    px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
-                    ${config.superMode
-                        ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]'
-                        : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
-                `}
-            >
-                <Star size={12} fill={config.superMode ? "white" : "none"} />
-                {config.superMode ? "SUPER MODE ACTIVE (15 FRAMES + LIP SYNC)" : "ENABLE SUPER MODE (PAID)"}
-            </button>
 
             {/* CUTOUT MODE TOGGLE */}
             <button
@@ -403,8 +407,8 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
               {showAdvanced ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
           </button>
           
-          <div className={`transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-white/5 bg-black/20">
+          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showAdvanced ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-white/5 bg-black/20 overflow-y-auto max-h-[600px]">
                   
                   {/* LEFT COL: MOTION & GENERATION */}
                   <div className="space-y-6">

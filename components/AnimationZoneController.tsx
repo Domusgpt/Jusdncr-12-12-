@@ -2,14 +2,15 @@
  * AnimationZoneController - Touch overlay for animation zone
  *
  * Handles all touch interactions in the animation area:
- * - Left half: LEGACY mode activation + pattern joystick
- * - Right half: KINETIC mode activation + pattern joystick
+ * - Left half: PATTERN mode + full pattern joystick (15 patterns)
+ * - Right half: KINETIC mode + reduced pattern joystick (6 patterns)
  * - Quadrants: Deck control (tap=on/off, flick up/down=mode cycle)
  * - Touch position: FX intensity (X/Y axes)
+ * - LEGACY/LABAN is separate toggle, NOT controlled by touch zones
  */
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
-import type { PatternType, MixMode } from '../engine/GolemMixer';
+import React, { useRef, useState, useCallback } from 'react';
+import type { PatternType, MixMode, EngineMode } from '../engine/GolemMixer';
 
 // Pattern arrangements for joystick
 const KINETIC_PATTERNS: PatternType[] = [
@@ -29,14 +30,13 @@ interface DeckState {
 }
 
 interface AnimationZoneControllerProps {
-  // Physics/Engine mode
-  onPhysicsModeChange: (mode: 'LEGACY' | 'LABAN') => void;
-  currentPhysicsMode: 'LEGACY' | 'LABAN';
+  // Engine mode (PATTERN = left side, KINETIC = right side)
+  onEngineModeChange: (mode: EngineMode) => void;
+  engineMode: EngineMode;
 
   // Pattern selection
   onPatternChange: (pattern: PatternType) => void;
   currentPattern: PatternType;
-  engineMode: 'KINETIC' | 'PATTERN';
 
   // Deck control
   decks: DeckState[];
@@ -56,11 +56,10 @@ interface AnimationZoneControllerProps {
 }
 
 export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = ({
-  onPhysicsModeChange,
-  currentPhysicsMode,
+  onEngineModeChange,
+  engineMode,
   onPatternChange,
   currentPattern,
-  engineMode,
   decks,
   onDeckToggle,
   onDeckModeChange,
@@ -142,11 +141,11 @@ export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = (
       hasMoved: false
     });
 
-    // Activate physics mode based on side
+    // Activate engine mode based on side (LEFT = PATTERN, RIGHT = KINETIC)
     if (side === 'left') {
-      onPhysicsModeChange('LEGACY');
+      onEngineModeChange('PATTERN');
     } else {
-      onPhysicsModeChange('LABAN');
+      onEngineModeChange('KINETIC');
     }
 
     // Set initial FX intensity
@@ -155,7 +154,7 @@ export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = (
     // Show joystick
     setShowJoystick(true);
     setJoystickPos({ x: 0, y: 0 });
-  }, [getSide, getQuadrant, onPhysicsModeChange, onFXIntensityChange, calculateFXIntensity]);
+  }, [getSide, getQuadrant, onEngineModeChange, onFXIntensityChange, calculateFXIntensity]);
 
   // Handle touch/mouse move
   const handleMove = useCallback((clientX: number, clientY: number) => {
@@ -313,11 +312,11 @@ export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = (
       {/* Visual feedback - side zones */}
       <div className="absolute inset-0 pointer-events-none flex">
         <div className={`flex-1 transition-colors duration-150
-                        ${touchState.side === 'left' ? 'bg-amber-500/10' : ''}`}>
+                        ${touchState.side === 'left' ? 'bg-cyan-500/10' : ''}`}>
           {touchState.side === 'left' && (
             <div className="absolute top-2 left-1/4 -translate-x-1/2
-                           text-[10px] text-amber-400/80 font-bold">
-              LEGACY
+                           text-[10px] text-cyan-400/80 font-bold">
+              PATTERN
             </div>
           )}
         </div>

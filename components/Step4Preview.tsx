@@ -1368,14 +1368,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
       {/* ANIMATION ZONE CONTROLLER - Touch overlay */}
       <AnimationZoneController
-        onPhysicsModeChange={(mode) => {
-          setChoreoMode(mode === 'LEGACY' ? 'LEGACY' : 'LABAN');
-          useEnhancedModeRef.current = mode === 'LABAN';
-        }}
-        currentPhysicsMode={choreoMode === 'LEGACY' ? 'LEGACY' : 'LABAN'}
+        onEngineModeChange={handleEngineModeChange}
+        engineMode={golemState.engineMode}
         onPatternChange={handlePatternChange}
         currentPattern={golemState.activePattern}
-        engineMode={golemState.engineMode}
         decks={golemState.decks.map(d => ({
           id: d.id,
           mixMode: d.mixMode,
@@ -1392,7 +1388,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onFXIntensityChange={handleFXIntensityChange}
       />
 
-      {/* ENGINE STRIP - Bottom (Physics, Engine mode, Sequence, Intensity, Mixer toggle) */}
+      {/* ENGINE STRIP - Bottom (Physics, Patterns, Intensity, Mixer toggle) */}
       <EngineStrip
         physicsMode={choreoMode}
         onPhysicsModeChange={(mode) => {
@@ -1401,8 +1397,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }}
         engineMode={golemState.engineMode}
         onEngineModeChange={handleEngineModeChange}
-        sequenceMode={golemState.sequenceMode}
-        onSequenceModeChange={handleSequenceModeChange}
+        currentPattern={golemState.activePattern}
+        onPatternChange={handlePatternChange}
         intensity={intensity}
         onIntensityChange={(val) => {
           setIntensity(val);
@@ -1412,7 +1408,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         isMixerOpen={isMixerDrawerOpen}
         onMixerToggle={() => setIsMixerDrawerOpen(!isMixerDrawerOpen)}
         activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
-        currentPattern={golemState.activePattern}
       />
 
       {/* MIXER DRAWER - Bottom sheet (4 decks) */}
@@ -1459,20 +1454,25 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
       {/* Status info moved to ENGINE panel - no longer overlaying animation */}
 
-      {/* RECORDING INDICATOR + EXPORT - Top right */}
-      <div className="absolute top-4 right-4 z-30 pointer-events-auto flex gap-2 items-center">
+      {/* RECORDING INDICATOR + HTML EXPORT - Below StatusBar */}
+      <div className="absolute top-16 right-2 z-30 pointer-events-auto flex flex-col gap-2 items-end">
         {isRecording && (
           <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse">
             <div className="w-2 h-2 bg-red-500 rounded-full" />
             <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
           </div>
         )}
+        {/* HTML PLAYER DOWNLOAD - More visible */}
         <button
           onClick={handleExportWidget}
-          className="bg-black/50 backdrop-blur-md border border-white/10 p-2 rounded-lg text-white/60 hover:text-white transition-colors"
-          title="Download Standalone Widget"
+          className="bg-gradient-to-r from-cyan-500/20 to-purple-500/20 backdrop-blur-md
+                     border border-cyan-500/30 px-3 py-2 rounded-xl
+                     text-white/80 hover:text-white hover:border-cyan-400/50
+                     transition-all flex items-center gap-2 shadow-lg"
+          title="Download Standalone HTML Player"
         >
-          <Download size={18} />
+          <Download size={16} />
+          <span className="text-[10px] font-bold tracking-wider">.HTML</span>
         </button>
       </div>
 
