@@ -307,94 +307,96 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
     <>
     <HelpOverlay pageId="step2" isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
-    <div className="max-w-6xl mx-auto py-8 px-4 perspective-1000">
+    <div className="max-w-6xl mx-auto py-6 px-4 perspective-1000 overflow-x-hidden">
 
-      {/* Header */}
-      <div className="flex justify-between items-start mb-8 animate-slide-in-right">
-        <div>
-           <h2 className="text-4xl font-black text-white flex items-center gap-3 glitch-hover">
-              <span className="bg-brand-500/20 text-brand-300 p-2 rounded-lg border border-brand-500/30">
-                  <Wand2 size={28} />
-              </span>
-              DIRECTOR_MODE
-           </h2>
-           <p className="text-brand-100/60 mt-2 font-mono tracking-widest text-xs uppercase">Configure your quantum simulation parameters</p>
+      {/* Header - Vertical Stack for Mobile */}
+      <div className="mb-6 animate-slide-in-right">
+        {/* Title Row */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl md:text-4xl font-black text-white flex items-center gap-2 md:gap-3 glitch-hover">
+            <span className="bg-brand-500/20 text-brand-300 p-1.5 md:p-2 rounded-lg border border-brand-500/30">
+                <Wand2 size={20} className="md:w-7 md:h-7" />
+            </span>
+            DIRECTOR_MODE
+          </h2>
+          <HelpButton onClick={() => setShowHelp(true)} />
         </div>
 
-        <div className="flex flex-col gap-2 items-end">
-            <HelpButton onClick={() => setShowHelp(true)} />
+        <p className="text-brand-100/60 font-mono tracking-widest text-[10px] md:text-xs uppercase mb-4">
+          Configure your quantum simulation parameters
+        </p>
 
-            {/* Surprise Me with Morph Toggle */}
-            <div className="flex items-center gap-2">
-                <button
-                    onClick={() => setSurpriseMorph(!surpriseMorph)}
-                    className={`px-3 py-2 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5
-                        ${surpriseMorph
-                            ? 'bg-purple-500/30 text-purple-300 border border-purple-500'
-                            : 'bg-white/5 text-gray-500 border border-white/10 hover:text-white'}`}
-                    title="Enable morphing with Surprise Me"
-                >
-                    <Layers size={12} /> MORPH
-                </button>
-                <button
-                    onClick={randomizeStyle}
-                    onMouseEnter={() => triggerImpulse('hover', 0.5)}
-                    className="glass-button px-5 py-2.5 rounded-full text-sm font-bold text-white flex items-center gap-2 hover:bg-white/10"
-                >
-                    <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
-                </button>
-            </div>
-            
-            {/* UNIFIED 3-WAY QUALITY TOGGLE */}
-            <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
-                <button
-                    onClick={() => { onUpdate('useTurbo', true); onUpdate('superMode', false); }}
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
-                        ${config.useTurbo && !config.superMode
-                            ? 'bg-brand-500 text-white shadow-lg'
-                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
-                >
-                    <Rocket size={11} /> TURBO
-                </button>
-                <div className="w-px h-6 bg-white/10" />
-                <button
-                    onClick={() => { onUpdate('useTurbo', false); onUpdate('superMode', false); }}
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
-                        ${!config.useTurbo && !config.superMode
-                            ? 'bg-purple-600 text-white shadow-lg'
-                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
-                >
-                    <Sparkles size={11} /> QUALITY
-                </button>
-                <div className="w-px h-6 bg-white/10" />
-                <button
-                    onClick={() => { onUpdate('superMode', true); onUpdate('useTurbo', false); }}
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-3 py-2 text-[10px] font-bold transition-all flex items-center gap-1.5
-                        ${config.superMode
-                            ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg'
-                            : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
-                >
-                    <Star size={11} fill={config.superMode ? "white" : "none"} /> SUPER
-                </button>
-            </div>
-
-            {/* CUTOUT MODE TOGGLE */}
+        {/* Controls - Stacked Vertically */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1: Surprise Me + Morph Toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-                onClick={() => onUpdate('cutoutMode', !config.cutoutMode)}
-                onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                className={`
-                    px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
-                    ${config.cutoutMode
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                        : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
-                `}
+              onClick={() => setSurpriseMorph(!surpriseMorph)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2
+                ${surpriseMorph
+                  ? 'bg-purple-500/30 text-purple-300 border-2 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:text-white hover:bg-white/10'}`}
+              title="Enable morphing with Surprise Me"
             >
-                <Layers size={12} />
-                {config.cutoutMode ? "CUTOUT MODE: Character over Visualizer" : "CUTOUT MODE (Remove Background)"}
+              <Layers size={14} /> MORPH
             </button>
+            <button
+              onClick={randomizeStyle}
+              onMouseEnter={() => triggerImpulse('hover', 0.5)}
+              className="flex-1 min-w-[140px] glass-button px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:bg-white/10 border border-white/10"
+            >
+              <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
+            </button>
+          </div>
+
+          {/* Row 2: Quality Mode Toggle */}
+          <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
+            <button
+              onClick={() => { onUpdate('useTurbo', true); onUpdate('superMode', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${config.useTurbo && !config.superMode
+                  ? 'bg-brand-500 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Rocket size={12} /> TURBO
+            </button>
+            <div className="w-px h-8 bg-white/10" />
+            <button
+              onClick={() => { onUpdate('useTurbo', false); onUpdate('superMode', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${!config.useTurbo && !config.superMode
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Sparkles size={12} /> QUALITY
+            </button>
+            <div className="w-px h-8 bg-white/10" />
+            <button
+              onClick={() => { onUpdate('superMode', true); onUpdate('useTurbo', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${config.superMode
+                  ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Star size={12} fill={config.superMode ? "white" : "none"} /> SUPER
+            </button>
+          </div>
+
+          {/* Row 3: Cutout Mode */}
+          <button
+            onClick={() => onUpdate('cutoutMode', !config.cutoutMode)}
+            onMouseEnter={() => triggerImpulse('hover', 0.2)}
+            className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border
+              ${config.cutoutMode
+                ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                : 'bg-black/40 text-gray-500 border-white/10 hover:border-white/20 hover:text-white'}`}
+          >
+            <Layers size={14} />
+            {config.cutoutMode ? "CUTOUT: Over Visualizer" : "CUTOUT MODE"}
+          </button>
         </div>
       </div>
 
