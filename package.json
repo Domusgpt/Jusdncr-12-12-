@@ -24,6 +24,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md}\"",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
+    "costs:generate": "node scripts/costs/calculator.mjs",
     "typecheck": "tsc --noEmit",
     "validate": "npm run typecheck && npm run lint && npm run test"
   },
