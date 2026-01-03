@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Play, Pause, Video, Settings, Mic, MicOff, Maximize2, Minimize2, Upload, X, Loader2, Sliders, Package, Music, ChevronDown, ChevronUp, Activity, Download, FileVideo, Radio, Star, Camera, Volume2, VolumeX, Sparkles, CircleDot, Monitor, Smartphone, Square, Eye, Zap, Brain, Layers, Ghost, Contrast, ScanLine, Move3D, Wand2, Music2, Disc3 } from 'lucide-react';
+import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -8,8 +8,15 @@ import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
-import { MixerUI } from './MixerUI';
-import { EngineType, PatternType, EffectsRackState } from '../engine/LiveMixer';
+import { FXState } from './UnifiedMixerPanel';
+import { DeckMixerPanel } from './DeckMixerPanel';
+import { EnginePanel } from './EnginePanel';
+import { FXPanel } from './FXPanel';
+import { ControlDock } from './ControlDock';
+import {
+  GolemMixer, createGolemMixer,
+  EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
+} from '../engine/GolemMixer';
 
 interface Step4Props {
   state: AppState;
@@ -80,35 +87,55 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showDeck, setShowDeck] = useState(false); // Neural Deck Visibility
-  const [showEffects, setShowEffects] = useState(false); // Effects Panel Visibility
-  const [showMixer, setShowMixer] = useState(false); // LiveMixer Visibility
+
+  // Collapsible panel states - each panel has open/expanded state
+  // Start with ENGINE open so users can see controls immediately
+  const [deckPanel, setDeckPanel] = useState({ open: false, expanded: false });
+  const [enginePanel, setEnginePanel] = useState({ open: true, expanded: false });
+  const [fxPanel, setFxPanel] = useState({ open: true, expanded: false });
+
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
-  // LiveMixer State
-  const [mixerState, setMixerState] = useState({
-    deckAEngine: 'REACTIVE' as EngineType,
-    deckAPattern: 'PING_PONG' as PatternType,
-    deckBEngine: 'FLOW' as EngineType,
-    deckBPattern: 'FLOW' as PatternType,
-    crossfader: 0,
+  // GolemMixer Engine Instance
+  const golemMixerRef = useRef<GolemMixer | null>(null);
+
+  // Initialize GolemMixer
+  useEffect(() => {
+    if (!golemMixerRef.current) {
+      golemMixerRef.current = createGolemMixer();
+    }
+  }, []);
+
+  // GolemMixer UI State
+  const [golemState, setGolemState] = useState({
+    engineMode: 'KINETIC' as EngineMode,
+    activePattern: 'PING_PONG' as PatternType,
+    sequenceMode: 'GROOVE' as SequenceMode,
+    bpm: 120,
+    autoBPM: true,
     effects: {
       rgbSplit: 0,
       flash: 0,
       glitch: 0,
-      zoomPulse: 0,
+      scanlines: 0,
+      hueShift: 0,
+      aberration: 0,
       invert: false,
       grayscale: false,
       mirror: false,
       strobe: false
-    } as EffectsRackState
+    } as EffectsState,
+    decks: [
+      { id: 0, name: 'Deck 1', isActive: true, mixMode: 'sequencer' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 1, name: 'Deck 2', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 2, name: 'Deck 3', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] },
+      { id: 3, name: 'Deck 4', isActive: false, mixMode: 'off' as MixMode, opacity: 1, frameCount: 0, rigName: undefined as string | undefined, frames: [] as GeneratedFrame[] }
+    ],
+    telemetry: null as MixerTelemetry | null
   });
 
-  const availableEngines: EngineType[] = ['REACTIVE', 'CHAOS', 'MINIMAL', 'FLOW', 'FLUID', 'SEQUENCE', 'PATTERN'];
-  const availablePatterns: PatternType[] = [
-    'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS', 'MINIMAL',
-    'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE', 'EMOTE', 'FOOTWORK', 'IMPACT'
-  ];
+  // Deck file input refs for loading rigs
+  const deckInputRefs = useRef<(HTMLInputElement | null)[]>([null, null, null, null]);
   const [exportRes, setExportRes] = useState<Resolution>('1080p');
 
   // User-controlled effects state
@@ -135,6 +162,24 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     setUserEffects(prev => ({ ...prev, [effect]: !prev[effect] }));
   };
 
+  // Reset all user effects
+  const resetUserEffects = () => {
+    setUserEffects({
+      rgbSplit: false, strobe: false, ghost: false,
+      invert: false, bw: false, scanlines: false,
+      glitch: false, shake: false, zoom: false
+    });
+  };
+
+  // Intensity state (replaces PressurePaddle)
+  const [intensity, setIntensity] = useState(0);
+  const intensityRef = useRef(0);
+
+  // Keep intensity ref in sync
+  useEffect(() => {
+    intensityRef.current = intensity;
+  }, [intensity]);
+
   // File input ref for track change
   const trackInputRef = useRef<HTMLInputElement>(null);
   const handleTrackChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,6 +194,158 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       }
     }
   };
+
+  // === GOLEM MIXER HANDLERS ===
+  const handleDeckModeChange = (deckId: number, mode: MixMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setDeckMode(deckId, mode);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === deckId ? { ...d, mixMode: mode, isActive: mode !== 'off' } : d)
+      }));
+    }
+  };
+
+  const handleDeckOpacityChange = (deckId: number, opacity: number) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setDeckOpacity(deckId, opacity);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === deckId ? { ...d, opacity } : d)
+      }));
+    }
+  };
+
+  const handleLoadDeck = (deckId: number) => {
+    // Trigger file input for this deck
+    deckInputRefs.current[deckId]?.click();
+  };
+
+  const handleDeckFileChange = async (deckId: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !golemMixerRef.current) return;
+
+    try {
+      const text = await file.text();
+      const project = JSON.parse(text);
+      if (project.frames && Array.isArray(project.frames)) {
+        console.log(`[DECK ${deckId}] Loading ${project.frames.length} frames from ${file.name}`);
+
+        // Load frames into GolemMixer - this also sets mode to 'sequencer'
+        golemMixerRef.current.loadDeck(deckId, project.frames, project.subjectCategory || 'CHARACTER');
+
+        // Preload ALL images into poseImagesRef with deck-prefixed keys
+        // Key format: "${deckId}_${pose}" for deck-specific frames
+        // Also store by pose name alone for compatibility
+        const newImages: Record<string, HTMLImageElement> = {};
+        let loadedCount = 0;
+        const totalFrames = project.frames.length;
+
+        project.frames.forEach((frame: GeneratedFrame) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            loadedCount++;
+            if (loadedCount === totalFrames) {
+              console.log(`[DECK ${deckId}] All ${totalFrames} images loaded`);
+            }
+          };
+          img.onerror = () => {
+            console.warn(`[DECK ${deckId}] Failed to load: ${frame.pose}`);
+            loadedCount++;
+          };
+          img.src = frame.url;
+          // Store with deck-prefixed key (primary)
+          newImages[`${deckId}_${frame.pose}`] = img;
+          // Also store by pose name alone (fallback)
+          newImages[frame.pose] = img;
+        });
+
+        // Merge new images into poseImagesRef
+        poseImagesRef.current = { ...poseImagesRef.current, ...newImages };
+        console.log(`[DECK ${deckId}] poseImagesRef now has ${Object.keys(poseImagesRef.current).length} keys`);
+
+        // Update state - FORCE mode to sequencer
+        setGolemState(s => ({
+          ...s,
+          decks: s.decks.map(d => d.id === deckId ? {
+            ...d,
+            isActive: true,
+            mixMode: 'sequencer', // Force sequencer mode when loading
+            frameCount: project.frames.length,
+            rigName: file.name.replace('.json', ''),
+            frames: project.frames
+          } : d)
+        }));
+
+        // Also ensure GolemMixer has the deck in sequencer mode
+        golemMixerRef.current.setDeckMode(deckId, 'sequencer');
+        console.log(`[DECK ${deckId}] Mode set to SEQUENCER`);
+      }
+    } catch (err) {
+      console.error('Failed to load rig:', err);
+    }
+  };
+
+  const handleEngineModeChange = (mode: EngineMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setEngineMode(mode);
+      setGolemState(s => ({ ...s, engineMode: mode }));
+    }
+  };
+
+  const handlePatternChange = (pattern: PatternType) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setPattern(pattern);
+      setGolemState(s => ({ ...s, activePattern: pattern }));
+    }
+  };
+
+  const handleSequenceModeChange = (mode: SequenceMode) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setSequenceMode(mode);
+      setGolemState(s => ({ ...s, sequenceMode: mode }));
+    }
+  };
+
+  const handleBPMChange = (bpm: number) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setBPM(bpm);
+      setGolemState(s => ({ ...s, bpm }));
+    }
+  };
+
+  const handleAutoBPMChange = (auto: boolean) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setAutoBPM(auto);
+      setGolemState(s => ({ ...s, autoBPM: auto }));
+    }
+  };
+
+  const handleEffectChange = <K extends keyof EffectsState>(key: K, value: EffectsState[K]) => {
+    if (golemMixerRef.current) {
+      golemMixerRef.current.setEffect(key, value);
+      setGolemState(s => ({ ...s, effects: { ...s.effects, [key]: value } }));
+    }
+  };
+
+  // Load current frames into deck 0 when frames change
+  useEffect(() => {
+    if (golemMixerRef.current && state.generatedFrames.length > 0) {
+      golemMixerRef.current.loadDeck(0, state.generatedFrames, state.subjectCategory);
+      setGolemState(s => ({
+        ...s,
+        decks: s.decks.map(d => d.id === 0 ? {
+          ...d,
+          isActive: true,
+          mixMode: 'sequencer',
+          frameCount: state.generatedFrames.length,
+          rigName: 'Current Rig',
+          frames: state.generatedFrames // Include frames for thumbnails
+        } : d)
+      }));
+    }
+  }, [state.generatedFrames, state.subjectCategory]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -173,10 +370,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [hoveredFrame, setHoveredFrame] = useState<FrameData | null>(null); // For Tooltip
 
   // --- INTERPOLATION STATE ---
-  const sourcePoseRef = useRef<string>('base'); 
-  const targetPoseRef = useRef<string>('base'); 
-  const transitionProgressRef = useRef<number>(1.0); 
-  const transitionSpeedRef = useRef<number>(10.0);   
+  const sourcePoseRef = useRef<string>('base');
+  const targetPoseRef = useRef<string>('base');
+  const sourceDeckIdRef = useRef<number>(0);
+  const targetDeckIdRef = useRef<number>(0);
+  const transitionProgressRef = useRef<number>(1.0);
+  const transitionSpeedRef = useRef<number>(10.0);
   const transitionModeRef = useRef<InterpMode>('CUT');
 
   // --- DYNAMIC CHOREOGRAPHY STATE ---
@@ -363,12 +562,14 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       }
   };
 
-  // Helper to trigger a Smart Transition
-  const triggerTransition = (newPose: string, mode: InterpMode, speedMultiplier: number = 1.0) => {
-      if (newPose === targetPoseRef.current) return;
-      
+  // Helper to trigger a Smart Transition with deck tracking
+  const triggerTransition = (newPose: string, mode: InterpMode, speedMultiplier: number = 1.0, deckId: number = 0) => {
+      if (newPose === targetPoseRef.current && deckId === targetDeckIdRef.current) return;
+
       sourcePoseRef.current = targetPoseRef.current;
+      sourceDeckIdRef.current = targetDeckIdRef.current;
       targetPoseRef.current = newPose;
+      targetDeckIdRef.current = deckId;
       transitionProgressRef.current = 0.0;
       transitionModeRef.current = mode;
       
@@ -500,7 +701,60 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     // --- ENHANCED CHOREOGRAPHY MODE ---
     // Use motion grammar and Laban effort for frame selection when enabled
-    if (choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
+    // NOTE: This is now a fallback if GolemMixer doesn't handle the transition
+
+    // --- GOLEM MIXER ENGINE ---
+    // Call GolemMixer.update() to get frame selection from KINETIC or PATTERN mode
+    let golemMixerHandled = false;
+    if (golemMixerRef.current && golemState.engineMode) {
+        const audioData = {
+            bass,
+            mid,
+            high,
+            energy,
+            timestamp: now
+        };
+
+        const mixerOutput = golemMixerRef.current.update(audioData);
+
+        // Update telemetry
+        const telemetry = golemMixerRef.current.getTelemetry();
+        if (telemetry.bpm !== golemState.bpm || telemetry.barCounter !== (golemState.telemetry?.barCounter ?? -1)) {
+            setGolemState(s => ({ ...s, bpm: telemetry.bpm, telemetry }));
+        }
+
+        // Use GolemMixer's frame selection if it actively selected a frame this cycle
+        // didSelectFrame is true when a beat was detected and triggerFrame was called
+        // This allows fallback choreography to run when GolemMixer is idle (no beat)
+        if (mixerOutput.didSelectFrame && mixerOutput.frame) {
+            golemMixerHandled = true;
+
+            const frameDeckId = mixerOutput.frame.deckId ?? mixerOutput.deckId ?? 0;
+
+            // Only trigger visual transition if pose or deck changed
+            // But always apply physics/effects for beat feedback
+            if (mixerOutput.frame.pose !== targetPoseRef.current || frameDeckId !== targetDeckIdRef.current) {
+                triggerTransition(mixerOutput.frame.pose, mixerOutput.transitionMode as InterpMode, 1.0, frameDeckId);
+            }
+
+            // Apply GolemMixer physics (always apply for beat feedback)
+            charSquashRef.current = mixerOutput.physics.squash;
+            charBounceYRef.current = mixerOutput.physics.bounce * bass * -30;
+            targetTiltRef.current = mixerOutput.physics.tilt;
+            camZoomRef.current = BASE_ZOOM + (mixerOutput.physics.zoom * 0.3);
+
+            // Apply GolemMixer effects
+            if (mixerOutput.effects.flash > 0) flashIntensityRef.current = mixerOutput.effects.flash;
+            if (mixerOutput.effects.rgbSplit > 0) rgbSplitRef.current = mixerOutput.effects.rgbSplit;
+            if (mixerOutput.effects.glitch > 0.5) charSkewRef.current = (Math.random() - 0.5) * mixerOutput.effects.glitch;
+
+            // Update beat counter from GolemMixer
+            beatCounterRef.current = telemetry.barCounter;
+        }
+    }
+
+    // Only use Laban/enhanced choreography if GolemMixer didn't handle it
+    if (!golemMixerHandled && choreoState && useEnhancedModeRef.current && choreoState.shouldTransition) {
         const currentPose = targetPoseRef.current;
         const selection = selectFrame(choreoState, currentPose);
 
@@ -535,11 +789,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     // --- MAIN GROOVE ENGINE (Beat-focused, legacy fallback) ---
     const beatThreshold = 0.55; // Slightly higher threshold for cleaner beat detection
 
-    // Only use legacy groove engine if enhanced mode didn't trigger a transition
+    // Only use legacy groove engine if neither GolemMixer nor enhanced mode triggered a transition
     const useEnhancedTransition = choreoState && useEnhancedModeRef.current && choreoState.shouldTransition;
 
     // Increased cooldown from 300ms to 400ms - more deliberate timing
-    if (!useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
+    if (!golemMixerHandled && !useEnhancedTransition && !scratchModeRef.current && (now - lastBeatTimeRef.current) > 400) {
         if (bass > beatThreshold) {
             lastBeatTimeRef.current = now;
             beatCounterRef.current = (beatCounterRef.current + 1) % 16;
@@ -698,10 +952,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             rgbSplitRef.current = Math.random() * 0.8;
         }
 
-        const drawLayer = (pose: string, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
+        const drawLayer = (pose: string, deckId: number, opacity: number, blurAmount: number, skewOffset: number, extraScale: number = 1.0) => {
             const frame = [...framesByEnergy.low, ...framesByEnergy.mid, ...framesByEnergy.high, ...closeupFrames].find(f => f.pose === pose);
-            const img = poseImagesRef.current[pose];
-            
+            // Try deck-prefixed key first, then fall back to just pose name
+            const img = poseImagesRef.current[`${deckId}_${pose}`] || poseImagesRef.current[pose];
+
             if (!img || !img.complete || img.naturalWidth === 0 || img.naturalHeight === 0) return;
             
             const aspect = img.width / img.height;
@@ -778,23 +1033,23 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
         const progress = transitionProgressRef.current;
         const mode = transitionModeRef.current;
-        
+
         if (progress >= 1.0 || mode === 'CUT') {
-            drawLayer(targetPoseRef.current, 1.0, 0, 0);
+            drawLayer(targetPoseRef.current, targetDeckIdRef.current, 1.0, 0, 0);
         } else {
-            const easeT = progress * progress * (3 - 2 * progress); 
-            
+            const easeT = progress * progress * (3 - 2 * progress);
+
             if (mode === 'ZOOM_IN') {
-                 const zoomFactor = 1.0 + (easeT * 0.5); 
-                 drawLayer(sourcePoseRef.current, 1.0 - easeT, easeT * 10, 0, zoomFactor);
-                 drawLayer(targetPoseRef.current, easeT, 0, 0);
+                 const zoomFactor = 1.0 + (easeT * 0.5);
+                 drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, easeT * 10, 0, zoomFactor);
+                 drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, 0);
             } else if (mode === 'SLIDE') {
                 const dirMultiplier = targetPoseRef.current.includes('right') ? -1 : 1;
-                drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
-                drawLayer(targetPoseRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
+                drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, 0, easeT * 0.5 * dirMultiplier);
+                drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, (1.0 - easeT) * -0.5 * dirMultiplier);
             } else if (mode === 'SMOOTH' || mode === 'MORPH') {
-                drawLayer(sourcePoseRef.current, 1.0 - easeT, 0, 0);
-                drawLayer(targetPoseRef.current, easeT, 0, 0); 
+                drawLayer(sourcePoseRef.current, sourceDeckIdRef.current, 1.0 - easeT, 0, 0);
+                drawLayer(targetPoseRef.current, targetDeckIdRef.current, easeT, 0, 0);
             }
         }
             
@@ -1038,165 +1293,160 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* EFFECTS PANEL */}
-      {showEffects && (
-        <div className="absolute top-20 right-6 z-50 animate-slide-in-right pointer-events-auto">
-          <div className="bg-black/90 backdrop-blur-xl border border-brand-500/30 rounded-2xl p-4 shadow-[0_0_30px_rgba(139,92,246,0.3)] w-64">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-white tracking-widest flex items-center gap-2">
-                <Wand2 size={14} className="text-brand-400" /> EFFECTS
-              </h3>
-              <button onClick={() => setShowEffects(false)} className="text-gray-500 hover:text-white">
-                <X size={16} />
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { key: 'rgbSplit', label: 'RGB', icon: Layers },
-                { key: 'strobe', label: 'STROBE', icon: Zap },
-                { key: 'ghost', label: 'GHOST', icon: Ghost },
-                { key: 'invert', label: 'INVERT', icon: Contrast },
-                { key: 'bw', label: 'B&W', icon: CircleDot },
-                { key: 'scanlines', label: 'SCAN', icon: ScanLine },
-                { key: 'glitch', label: 'GLITCH', icon: Activity },
-                { key: 'zoom', label: 'ZOOM', icon: Move3D },
-                { key: 'shake', label: 'SHAKE', icon: Radio }
-              ].map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  onClick={() => toggleEffect(key as keyof typeof userEffects)}
-                  className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-all ${
-                    userEffects[key as keyof typeof userEffects]
-                      ? 'bg-brand-500/30 border-brand-500 text-brand-300'
-                      : 'bg-white/5 border-white/10 text-gray-500 hover:bg-white/10 hover:text-white'
-                  }`}
-                >
-                  <Icon size={16} />
-                  <span className="text-[9px] font-bold">{label}</span>
-                </button>
-              ))}
-            </div>
-            <div className="mt-3 pt-3 border-t border-white/10">
-              <button
-                onClick={() => setUserEffects({
-                  rgbSplit: false, strobe: false, ghost: false,
-                  invert: false, bw: false, scanlines: false,
-                  glitch: false, shake: false, zoom: false
-                })}
-                className="w-full py-2 text-xs font-bold text-gray-400 hover:text-white transition-colors"
-              >
-                RESET ALL
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* NEURAL DECK / FRAME INSPECTOR */}
-      {showDeck && (
-         <div className="absolute bottom-24 left-0 right-0 z-40 p-4 animate-slide-in-right">
-             <div className="bg-black/80 backdrop-blur-lg border-t border-white/10 p-4 overflow-x-auto">
-                 <div className="flex gap-4">
-                     {allProcessedFrames.map((f, i) => (
-                         <div 
-                            key={i} 
-                            className="relative flex-shrink-0 w-24 h-24 bg-white/5 rounded-lg border border-white/10 hover:border-brand-500 hover:bg-brand-500/20 cursor-pointer group transition-all"
-                            onMouseEnter={() => setHoveredFrame(f)}
-                            onMouseLeave={() => setHoveredFrame(null)}
-                            onClick={() => triggerTransition(f.pose, 'CUT')}
-                         >
-                             <img src={f.url} className="w-full h-full object-contain p-1" />
-                             <div className="absolute top-0 right-0 bg-black/60 text-[10px] px-1 rounded-bl text-white font-mono">{f.energy.toUpperCase()}</div>
-                         </div>
-                     ))}
-                 </div>
-             </div>
-         </div>
-      )}
-      
-      {/* TOOLTIP FOR HOVERED FRAME */}
-      {hoveredFrame && (
-          <div className="absolute bottom-52 left-1/2 -translate-x-1/2 z-50 bg-brand-900/90 border border-brand-500/50 p-4 rounded-xl shadow-[0_0_30px_rgba(139,92,246,0.5)] backdrop-blur-xl animate-fade-in flex items-center gap-4">
-               <img src={hoveredFrame.url} className="w-16 h-16 object-contain bg-black/50 rounded-lg" />
-               <div>
-                   <div className="text-xs font-bold text-brand-300 tracking-widest uppercase">FRAME DATA</div>
-                   <div className="text-white font-mono text-sm">POSE: {hoveredFrame.pose}</div>
-                   <div className="text-white font-mono text-sm">ENERGY: {hoveredFrame.energy}</div>
-                   <div className="text-white font-mono text-sm">TYPE: {hoveredFrame.type}</div>
-               </div>
-          </div>
-      )}
-
-      {/* LIVE MIXER PANEL */}
-      <MixerUI
-        deckAEngine={mixerState.deckAEngine}
-        deckAPattern={mixerState.deckAPattern}
-        onDeckAEngineChange={(engine) => setMixerState(s => ({ ...s, deckAEngine: engine }))}
-        onDeckAPatternChange={(pattern) => setMixerState(s => ({ ...s, deckAPattern: pattern }))}
-        deckBEngine={mixerState.deckBEngine}
-        deckBPattern={mixerState.deckBPattern}
-        onDeckBEngineChange={(engine) => setMixerState(s => ({ ...s, deckBEngine: engine }))}
-        onDeckBPatternChange={(pattern) => setMixerState(s => ({ ...s, deckBPattern: pattern }))}
-        crossfader={mixerState.crossfader}
-        onCrossfaderChange={(value) => setMixerState(s => ({ ...s, crossfader: value }))}
-        effects={mixerState.effects}
-        onEffectChange={(effect, value) => setMixerState(s => ({
-          ...s,
-          effects: { ...s.effects, [effect]: value }
-        }))}
-        availableEngines={availableEngines}
-        availablePatterns={availablePatterns}
-        isOpen={showMixer}
-        onToggle={() => setShowMixer(!showMixer)}
+      {/* ENGINE PANEL - Collapsible engine controls (bottom-left) */}
+      <EnginePanel
+        isOpen={enginePanel.open}
+        isExpanded={enginePanel.expanded}
+        onToggleOpen={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setEnginePanel(p => ({ ...p, expanded: !p.expanded }))}
+        physicsMode={choreoMode}
+        onPhysicsModeChange={(mode) => {
+          setChoreoMode(mode);
+          useEnhancedModeRef.current = mode === 'LABAN';
+        }}
+        engineMode={golemState.engineMode}
+        onEngineModeChange={handleEngineModeChange}
+        activePattern={golemState.activePattern}
+        onPatternChange={handlePatternChange}
+        sequenceMode={golemState.sequenceMode}
+        onSequenceModeChange={handleSequenceModeChange}
+        intensity={intensity}
+        onIntensityChange={(val) => {
+          setIntensity(val);
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.8);
+          flashIntensityRef.current = val * 0.3;
+          if (val > 0.7) {
+            charSkewRef.current = (Math.random() - 0.5) * val;
+          }
+        }}
+        bpm={golemState.telemetry?.bpm}
+        labanEffort={choreographyStateRef.current?.movementQualities ? {
+          weight: choreographyStateRef.current.movementQualities.effort === 'PUNCH' || choreographyStateRef.current.movementQualities.effort === 'PRESS' ? 0.9 : 0.3,
+          space: choreographyStateRef.current.movementQualities.effort === 'DAB' || choreographyStateRef.current.movementQualities.effort === 'FLICK' ? 0.8 : 0.4,
+          time: choreographyStateRef.current.movementQualities.effort === 'SLASH' || choreographyStateRef.current.movementQualities.effort === 'PUNCH' ? 0.9 : 0.3,
+          flow: choreographyStateRef.current.movementQualities.effort === 'FLOAT' || choreographyStateRef.current.movementQualities.effort === 'WRING' ? 0.2 : 0.7
+        } : undefined}
       />
 
-      <div className="absolute inset-0 pointer-events-none z-30 p-6 flex flex-col justify-between">
-          <div className="flex justify-between items-start">
-             <div className="bg-black/40 backdrop-blur-md border border-white/10 p-3 rounded-lg pointer-events-auto">
-                 <div className="flex items-center gap-2 mb-1"><Activity size={14} className="text-brand-400" /><span className="text-[10px] font-bold text-gray-300 tracking-widest">NEURAL STATUS</span></div>
-                 <div className="font-mono text-xs text-brand-300">
-                   FPS: {brainState.fps} | BPM: {brainState.bpm}<br/>
-                   MODE: <span className={choreoMode === 'LABAN' ? 'text-purple-400' : 'text-orange-400'}>{choreoMode}</span><br/>
-                   {choreoMode === 'LABAN' && <>EFFORT: {brainState.effort}<br/></>}
-                   STYLE: {brainState.danceStyle} | {brainState.phraseSection}
-                 </div>
-             </div>
-             <div className="flex gap-2 pointer-events-auto items-center">
-                 {isRecording && <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse"><div className="w-2 h-2 bg-red-500 rounded-full" /><span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span></div>}
-                 <button onClick={() => isRecording ? stopRecording() : setShowExportMenu(true)} className={`glass-button px-4 py-2 rounded-lg text-white flex items-center gap-2 ${isRecording ? 'bg-red-500/50 border-red-500' : ''}`}><CircleDot size={18} className={isRecording ? 'text-white' : 'text-red-400'} /><span className="text-xs font-bold">{isRecording ? 'STOP REC' : 'REC VIDEO'}</span></button>
-                 <button className="glass-button p-2 rounded-lg text-white" onClick={handleExportWidget} title="Download Standalone Widget"><Download size={20} /></button>
-             </div>
-          </div>
+      {/* FX PANEL - Collapsible effects controls (bottom-right) */}
+      <FXPanel
+        isOpen={fxPanel.open}
+        isExpanded={fxPanel.expanded}
+        onToggleOpen={() => setFxPanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setFxPanel(p => ({ ...p, expanded: !p.expanded }))}
+        effects={userEffects}
+        onToggleEffect={toggleEffect}
+        onResetAll={resetUserEffects}
+        onPaddlePress={(intensity, effects) => {
+          // Apply intensity-scaled effects based on which effects are mapped to the paddle
+          if (effects.includes('rgbSplit')) rgbSplitRef.current = intensity * 0.8;
+          if (effects.includes('strobe')) flashIntensityRef.current = intensity * 0.5;
+          if (effects.includes('glitch')) charSkewRef.current = (Math.random() - 0.5) * intensity;
+          if (effects.includes('shake')) charBounceYRef.current = (Math.random() - 0.5) * intensity * 30;
+          if (effects.includes('zoom')) camZoomRef.current = BASE_ZOOM + intensity * 0.3;
+          if (effects.includes('ghost')) {} // Ghost is toggle-based, handled separately
+          if (effects.includes('scanlines')) {} // Scanlines is toggle-based
+          if (effects.includes('invert')) {} // Invert is toggle-based
+          if (effects.includes('bw')) {} // B&W is toggle-based
+        }}
+        onPaddleRelease={() => {
+          rgbSplitRef.current = 0;
+          flashIntensityRef.current = 0;
+          charSkewRef.current = 0;
+          camZoomRef.current = BASE_ZOOM;
+        }}
+      />
 
-          <div className="flex flex-col items-center gap-4 pointer-events-auto w-full max-w-2xl mx-auto">
-              <div className="flex items-center gap-4 bg-black/60 backdrop-blur-xl border border-white/10 p-2 rounded-full shadow-2xl">
-                   {state.audioPreviewUrl ? (
-                       <button onClick={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPlaying ? 'bg-brand-500 text-white shadow-[0_0_20px_rgba(139,92,246,0.4)]' : 'bg-white/10 text-white hover:bg-white/20'}`}>{isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1" />}</button>
-                   ) : <div className="px-4 text-[10px] text-gray-400 font-mono">NO TRACK LOADED</div>}
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => trackInputRef.current?.click()} className="px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border border-transparent text-gray-400 hover:text-white hover:bg-white/10"><Music2 size={16} /> CHANGE TRACK</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={toggleMic} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${isMicActive ? 'bg-red-500/20 border-red-500 text-red-400 animate-pulse' : 'border-transparent text-gray-400 hover:text-white'}`}>{isMicActive ? <Mic size={16} /> : <MicOff size={16} />} LIVE INPUT</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setShowEffects(!showEffects)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showEffects ? 'bg-pink-500/20 border-pink-500 text-pink-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Wand2 size={16} /> FX</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setSuperCamActive(!superCamActive)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${superCamActive ? 'bg-blue-500/20 border-blue-500 text-blue-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Camera size={16} /> CAM</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setShowMixer(!showMixer)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showMixer ? 'bg-cyan-500/20 border-cyan-500 text-cyan-400' : 'border-transparent text-gray-400 hover:text-white'}`}><Disc3 size={16} /> MIXER</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={() => setShowDeck(!showDeck)} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${showDeck ? 'bg-white/20 border-white/30 text-white' : 'border-transparent text-gray-400 hover:text-white'}`}><Eye size={16} /> DECK</button>
-                   <div className="h-8 w-[1px] bg-white/10" />
-                   <button onClick={toggleChoreoMode} className={`px-4 py-2 rounded-full flex items-center gap-2 text-xs font-bold transition-all border ${choreoMode === 'LABAN' ? 'bg-purple-500/20 border-purple-500 text-purple-400' : 'bg-orange-500/20 border-orange-500 text-orange-400'}`}>
-                     {choreoMode === 'LABAN' ? <Brain size={16} /> : <Zap size={16} />}
-                     {choreoMode}
-                   </button>
-              </div>
-              <div className="flex gap-3">
-                  <button onClick={onGenerateMore} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Package size={14} /> NEW VARIATIONS</button>
-                  <button onClick={onSaveProject} className="glass-button px-6 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 hover:bg-white/20"><Download size={14} /> SAVE RIG</button>
-              </div>
+      {/* DECK MIXER PANEL - 4-Channel deck control (bottom-center) */}
+      <DeckMixerPanel
+        isOpen={deckPanel.open}
+        isExpanded={deckPanel.expanded}
+        onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
+        onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
+        decks={golemState.decks.map((d, i) => ({
+          id: d.id,
+          frames: d.frames || [],
+          rigName: d.rigName || `Deck ${d.id + 1}`,
+          mixMode: d.mixMode, // Use React state directly - handler keeps both in sync
+          opacity: d.opacity,
+          isActive: d.mixMode !== 'off',
+          currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
+        }))}
+        beatCounter={beatCounterRef.current}
+        onLoadDeck={handleLoadDeck}
+        onDeckModeChange={handleDeckModeChange}
+        onDeckOpacityChange={handleDeckOpacityChange}
+        onClearDeck={(id) => {
+          if (golemMixerRef.current) {
+            golemMixerRef.current.loadDeck(id, [], state.subjectCategory);
+            setGolemState(s => ({
+              ...s,
+              decks: s.decks.map(d => d.id === id ? { ...d, frames: [], frameCount: 0, rigName: undefined } : d)
+            }));
+          }
+        }}
+        onSelectFrame={(deckId, frameIndex) => {
+          golemMixerRef.current?.setDeckFrameIndex(deckId, frameIndex);
+        }}
+        onTriggerFrame={(deckId) => {
+          golemMixerRef.current?.advanceDeckFrame(deckId);
+        }}
+      />
+
+      {/* Hidden file inputs for deck rig loading */}
+      {[0, 1, 2, 3].map(deckId => (
+        <input
+          key={deckId}
+          ref={el => { deckInputRefs.current[deckId] = el; }}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={(e) => handleDeckFileChange(deckId, e)}
+        />
+      ))}
+
+      {/* Status info moved to ENGINE panel - no longer overlaying animation */}
+
+      {/* RECORDING INDICATOR + EXPORT - Top right */}
+      <div className="absolute top-4 right-4 z-30 pointer-events-auto flex gap-2 items-center">
+        {isRecording && (
+          <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse">
+            <div className="w-2 h-2 bg-red-500 rounded-full" />
+            <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
           </div>
+        )}
+        <button
+          onClick={handleExportWidget}
+          className="bg-black/50 backdrop-blur-md border border-white/10 p-2 rounded-lg text-white/60 hover:text-white transition-colors"
+          title="Download Standalone Widget"
+        >
+          <Download size={18} />
+        </button>
       </div>
+
+      {/* CONTROL DOCK - Bottom bar */}
+      <ControlDock
+        isPlaying={isPlaying}
+        hasAudio={!!state.audioPreviewUrl}
+        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
+        onUploadAudio={() => trackInputRef.current?.click()}
+        isMicActive={isMicActive}
+        onMicToggle={toggleMic}
+        isMixerOpen={enginePanel.open}
+        onMixerToggle={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
+        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
+        isCamActive={superCamActive}
+        onCamToggle={() => setSuperCamActive(!superCamActive)}
+        choreoMode={choreoMode}
+        onChoreoModeToggle={toggleChoreoMode}
+        isFrameDeckOpen={deckPanel.open}
+        onFrameDeckToggle={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
+        onGenerateMore={onGenerateMore}
+        onSaveProject={onSaveProject}
+        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
+        isRecording={isRecording}
+        beatCounter={beatCounterRef.current}
+      />
       
     </div>
   );
