@@ -174,13 +174,9 @@ export const generatePlayerHTML = (
         }
         .drawer-tab.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
 
-        /* ============ LEGACY UI STYLES - Keep visible ============ */
+        /* ============ LEGACY UI STYLES - Hidden (new UI above) ============ */
         #ui {
-            position: absolute; bottom: 0; left: 0; right: 0; z-index: 100;
-            display: flex; flex-direction: column; gap: 8px; align-items: center;
-            padding: 12px; padding-bottom: max(12px, env(safe-area-inset-bottom));
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
-            transition: opacity 0.3s, transform 0.3s;
+            display: none !important; /* Hidden - replaced by StatusBar, FXRail, EngineStrip */
         }
         #ui.hidden { opacity: 0; pointer-events: none; transform: translateY(100%); }
         .ui-row {
@@ -416,6 +412,154 @@ export const generatePlayerHTML = (
     </div>
 
     <div id="deck"></div>
+
+    <!-- ============ STATUS BAR - TOP ============ -->
+    <div id="statusBar">
+        <div class="bar-inner">
+            <div class="left">
+                <button id="btnPlay2" class="status-btn" title="Play/Pause">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button id="btnMic2" class="status-btn" title="Microphone">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                </button>
+                <button id="btnUpload2" class="status-btn" title="Upload Audio">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </button>
+            </div>
+            <div class="center">
+                <div class="bpm-display">
+                    <span class="bpm-value" id="bpmValue2">120</span>
+                    <span class="bpm-label">BPM</span>
+                </div>
+                <div class="beat-bars">
+                    <div class="beat-bar downbeat" data-beat="0"></div>
+                    <div class="beat-bar" data-beat="1"></div>
+                    <div class="beat-bar" data-beat="2"></div>
+                    <div class="beat-bar" data-beat="3"></div>
+                </div>
+            </div>
+            <div class="right">
+                <button id="btnCam2" class="status-btn active" title="Camera Motion">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
+                <button id="btnMore" class="status-btn" title="More Options">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ FX RAIL - LEFT ============ -->
+    <div id="fxRail">
+        <button class="fx-btn" data-fx="rgbSplit" title="RGB Split">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><circle cx="8" cy="12" r="3" fill="#f00" opacity="0.7"/><circle cx="12" cy="8" r="3" fill="#0f0" opacity="0.7"/><circle cx="16" cy="12" r="3" fill="#00f" opacity="0.7"/></svg>
+            <span>RGB</span>
+        </button>
+        <button class="fx-btn" data-fx="glitch" title="Glitch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M4 4h16M4 12h10M4 20h16"/></svg>
+            <span>GLCH</span>
+        </button>
+        <button class="fx-btn" data-fx="pixelate" title="Pixelate">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>
+            <span>PXLT</span>
+        </button>
+        <button class="fx-btn" data-fx="bloom" title="Bloom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/></svg>
+            <span>BLOOM</span>
+        </button>
+        <button class="fx-btn" data-fx="invert" title="Invert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20" fill="currentColor"/></svg>
+            <span>INVT</span>
+        </button>
+        <button class="fx-btn" data-fx="vhs" title="VHS">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>
+            <span>VHS</span>
+        </button>
+        <button class="fx-btn" data-fx="scan" title="Scanlines">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="width:14px;height:14px"><line x1="0" y1="4" x2="24" y2="4"/><line x1="0" y1="8" x2="24" y2="8"/><line x1="0" y1="12" x2="24" y2="12"/><line x1="0" y1="16" x2="24" y2="16"/><line x1="0" y1="20" x2="24" y2="20"/></svg>
+            <span>SCAN</span>
+        </button>
+        <button class="fx-btn" data-fx="mirror" title="Mirror">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 3v18M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+            <span>MIRR</span>
+        </button>
+        <button class="fx-btn" data-fx="kaleid" title="Kaleidoscope">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8.5" x2="22" y2="15.5"/><line x1="22" y1="8.5" x2="2" y2="15.5"/></svg>
+            <span>KALD</span>
+        </button>
+        <div class="fx-intensity">
+            <div class="fx-intensity-bar"><div class="fx-intensity-fill x" id="fxIntensityX" style="width:0%"></div></div>
+            <div class="fx-intensity-bar"><div class="fx-intensity-fill y" id="fxIntensityY" style="width:0%"></div></div>
+            <div class="fx-intensity-label">MOUSE XY</div>
+        </div>
+    </div>
+
+    <!-- ============ ENGINE STRIP - BOTTOM ============ -->
+    <div id="engineStrip">
+        <div class="strip-inner">
+            <div class="pattern-row" id="patternRow">
+                <!-- Patterns will be populated by JS -->
+            </div>
+            <div class="controls-row">
+                <div class="mode-toggle" id="physicsToggle2">
+                    <button class="mode-btn cyan active" data-physics="LEGACY">LEGACY</button>
+                    <button class="mode-btn cyan" data-physics="LABAN">LABAN</button>
+                </div>
+                <div class="mode-toggle" id="engineToggle2">
+                    <button class="mode-btn active" data-mode="PATTERN">PATTERN</button>
+                    <button class="mode-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
+                <input type="range" class="intensity-slider" id="intensitySlider" min="0" max="100" value="50" title="Intensity">
+                <button class="mixer-toggle" id="btnMixer2" title="Open Mixer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>
+                    <span>MIXER</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MIXER DRAWER ============ -->
+    <div id="mixerDrawer">
+        <div class="drawer-handle"></div>
+        <div class="drawer-content">
+            <div class="drawer-tabs">
+                <button class="drawer-tab active" data-tab="decks">DECKS</button>
+                <button class="drawer-tab" data-tab="engine">ENGINE</button>
+                <button class="drawer-tab" data-tab="fx">FX</button>
+            </div>
+            <div id="drawerDecks" class="drawer-tab-content">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">4-CHANNEL DECK SYSTEM</div>
+                    <div class="deck-grid" id="drawerDeckGrid">
+                        <!-- Deck channels populated by JS -->
+                    </div>
+                </div>
+            </div>
+            <div id="drawerEngine" class="drawer-tab-content" style="display:none;">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">LABAN EFFORT</div>
+                    <div id="labanEffortGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+                        <div class="effort-item"><div class="effort-label">WEIGHT</div><div class="effort-value" id="effortWeight2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">SPACE</div><div class="effort-value" id="effortSpace2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">TIME</div><div class="effort-value" id="effortTime2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">FLOW</div><div class="effort-value" id="effortFlow2">0.5</div></div>
+                    </div>
+                </div>
+            </div>
+            <div id="drawerFx" class="drawer-tab-content" style="display:none;">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">TRIGGER PADS</div>
+                    <div class="trigger-pads">
+                        <button class="trigger-pad" data-trigger="stutter">[Q] STUTTER</button>
+                        <button class="trigger-pad" data-trigger="reverse">[W] REVERSE</button>
+                        <button class="trigger-pad" data-trigger="glitch">[E] GLITCH</button>
+                        <button class="trigger-pad" data-trigger="burst">[R] BURST</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- GOLEM MIXER PANEL -->
     <div id="mixerPanel">
@@ -1980,6 +2124,220 @@ export const generatePlayerHTML = (
                 }
             }
         }, 50);
+
+        // ============ NEW UI HANDLERS (StatusBar, FXRail, EngineStrip, MixerDrawer) ============
+
+        // --- STATUS BAR HANDLERS ---
+        const btnPlay2 = document.getElementById('btnPlay2');
+        const btnMic2 = document.getElementById('btnMic2');
+        const btnUpload2 = document.getElementById('btnUpload2');
+        const btnCam2 = document.getElementById('btnCam2');
+        const btnMore = document.getElementById('btnMore');
+        const bpmValue2 = document.getElementById('bpmValue2');
+        const beatBars = document.querySelectorAll('.beat-bar');
+
+        // Play button (syncs with btnPlay)
+        btnPlay2.onclick = () => {
+            audioCtx.resume();
+            if(audioEl.paused) {
+                connectAudioElement();
+                audioEl.play();
+                btnPlay2.classList.add('active');
+                btnPlay2.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+                if(micStream) btnMic2.click();
+            } else {
+                audioEl.pause();
+                btnPlay2.classList.remove('active');
+                btnPlay2.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+            }
+        };
+
+        // Mic button (syncs with btnMic)
+        btnMic2.onclick = async () => {
+            audioCtx.resume();
+            if (!micStream) {
+                try {
+                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const src = audioCtx.createMediaStreamSource(micStream);
+                    src.connect(analyser);
+                    audioEl.pause();
+                    btnPlay2.classList.remove('active');
+                    btnPlay2.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                    btnMic2.classList.add('mic-active');
+                    STATE.syntheticBeat = false;
+                } catch(e) {
+                    let errorMsg = "Microphone access failed.";
+                    if (e.name === 'NotAllowedError') errorMsg = "Microphone access denied.";
+                    else if (e.name === 'NotFoundError') errorMsg = "No microphone found.";
+                    const useSynthetic = confirm(errorMsg + "\\n\\nWould you like to use SYNTHETIC BEAT mode instead?");
+                    if (useSynthetic) {
+                        STATE.syntheticBeat = true;
+                        btnMic2.classList.add('synth-active');
+                    }
+                }
+            } else {
+                micStream.getTracks().forEach(t => t.stop());
+                micStream = null;
+                STATE.syntheticBeat = false;
+                btnMic2.classList.remove('mic-active', 'synth-active');
+            }
+        };
+
+        // Upload audio button
+        btnUpload2.onclick = () => audioInput.click();
+
+        // Camera toggle (syncs with btnCam)
+        btnCam2.onclick = () => {
+            STATE.dynamicCam = !STATE.dynamicCam;
+            btnCam2.classList.toggle('active');
+        };
+
+        // More options (could show a dropdown menu)
+        btnMore.onclick = () => {
+            toggleHelp();
+        };
+
+        // --- FX RAIL HANDLERS ---
+        const fxRail = document.getElementById('fxRail');
+        const fxIntensityX = document.getElementById('fxIntensityX');
+        const fxIntensityY = document.getElementById('fxIntensityY');
+
+        // FX toggle buttons
+        document.querySelectorAll('#fxRail .fx-btn').forEach(btn => {
+            btn.onclick = () => {
+                const fx = btn.dataset.fx;
+                if (fx) {
+                    STATE.fx[fx] = !STATE.fx[fx];
+                    btn.classList.toggle('active', STATE.fx[fx]);
+                }
+            };
+        });
+
+        // Update FX intensity from mouse position
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            if (fxIntensityX) fxIntensityX.style.width = (x * 100) + '%';
+            if (fxIntensityY) fxIntensityY.style.width = (y * 100) + '%';
+        });
+
+        // --- ENGINE STRIP HANDLERS ---
+        const patternRow = document.getElementById('patternRow');
+        const intensitySlider = document.getElementById('intensitySlider');
+        const btnMixer2 = document.getElementById('btnMixer2');
+        const mixerDrawer = document.getElementById('mixerDrawer');
+
+        // Populate pattern buttons
+        const STRIP_PATTERNS = ['PING_PONG','BUILD_DROP','STUTTER','VOGUE','FLOW','CHAOS','ABAB','AABB','ABAC','SNARE_ROLL','GROOVE','EMOTE','FOOTWORK','IMPACT','MINIMAL'];
+        STRIP_PATTERNS.forEach((pat, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'pattern-btn' + (i === 0 ? ' active' : '');
+            btn.dataset.pattern = pat;
+            btn.textContent = pat.replace('_', ' ').substring(0, 6);
+            btn.onclick = () => {
+                STATE.pattern = pat;
+                patternRow.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                // Sync with mixer panel pattern grid
+                patternGrid.querySelectorAll('.pattern-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.pattern === pat);
+                });
+            };
+            patternRow.appendChild(btn);
+        });
+
+        // Physics toggle (LEGACY/LABAN)
+        document.querySelectorAll('#physicsToggle2 .mode-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#physicsToggle2 .mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.physicsStyle = btn.dataset.physics;
+                // Sync with mixer panel physics toggle
+                document.querySelectorAll('.physics-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.physics === STATE.physicsStyle);
+                });
+                const labanDisplay = document.getElementById('labanDisplay');
+                if (labanDisplay) labanDisplay.style.display = STATE.physicsStyle === 'LABAN' ? 'block' : 'none';
+            };
+        });
+
+        // Engine toggle (PATTERN/KINETIC)
+        document.querySelectorAll('#engineToggle2 .mode-btn').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('#engineToggle2 .mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                STATE.engineMode = btn.dataset.mode;
+                // Sync with mixer panel engine toggle
+                document.querySelectorAll('.engine-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.mode === STATE.engineMode);
+                });
+            };
+        });
+
+        // Intensity slider
+        intensitySlider.oninput = (e) => {
+            STATE.energyMultiplier = e.target.value / 50;
+            energySlider.value = e.target.value;
+        };
+
+        // --- MIXER DRAWER HANDLERS ---
+        btnMixer2.onclick = () => {
+            mixerDrawer.classList.toggle('open');
+            btnMixer2.classList.toggle('active');
+        };
+
+        // Drawer tab navigation
+        document.querySelectorAll('.drawer-tab').forEach(tab => {
+            tab.onclick = () => {
+                document.querySelectorAll('.drawer-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.drawer-tab-content').forEach(c => c.style.display = 'none');
+                tab.classList.add('active');
+                const contentId = 'drawer' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+                const content = document.getElementById(contentId);
+                if (content) content.style.display = 'block';
+            };
+        });
+
+        // Swipe to close drawer
+        let drawerTouchStartY = 0;
+        mixerDrawer.addEventListener('touchstart', (e) => {
+            drawerTouchStartY = e.touches[0].clientY;
+        });
+        mixerDrawer.addEventListener('touchmove', (e) => {
+            const deltaY = e.touches[0].clientY - drawerTouchStartY;
+            if (deltaY > 50) {
+                mixerDrawer.classList.remove('open');
+                btnMixer2.classList.remove('active');
+            }
+        });
+
+        // Update beat bars on beat
+        function updateBeatBars(beatIndex) {
+            beatBars.forEach((bar, i) => {
+                bar.classList.remove('active', 'downbeat');
+                if (i === beatIndex % 4) {
+                    bar.classList.add(i === 0 ? 'downbeat' : 'active');
+                }
+            });
+            // Also update BPM value
+            if (bpmValue2) bpmValue2.textContent = STATE.bpm;
+        }
+
+        // Override updateBPM to also update new UI
+        const originalUpdateBPM = updateBPM;
+        updateBPM = function(bass, now) {
+            originalUpdateBPM(bass, now);
+            updateBeatBars(STATE.beatInBar);
+        };
+
+        // Prevent clicks on new UI from toggling visibility
+        [document.getElementById('statusBar'), document.getElementById('fxRail'),
+         document.getElementById('engineStrip'), document.getElementById('mixerDrawer')].forEach(el => {
+            if (el) {
+                el.addEventListener('click', (e) => e.stopPropagation());
+                el.addEventListener('touchstart', (e) => e.stopPropagation());
+            }
+        });
     </script>
 </body>
 </html>`;
