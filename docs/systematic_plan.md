@@ -5,7 +5,7 @@
 - Produce transparent cost models and calculators for per-generation economics.
 - Upgrade the HTML/offline player with mic input, reactive playback, and broader platform compatibility.
 - Package the player into trusted, portable formats (PWA, widget, extension, desktop wrapper).
-- Add watermarking, QR-enabled sharing, and social hooks to drive conversions.
+- Add watermarking and social sharing to drive conversions.
 - Maintain compliance, observability, and launch-readiness.
 
 ## Guiding Principles
@@ -37,6 +37,12 @@
 - Server-side watermark overlay in export pipeline (videos/thumbnails) gated by tier; ensure deterministic positioning and opacity.
 - Add share/deep-link buttons with UTM tags, copy-link, QR codes for previews/paywall upgrades, and preview thumbnail generation.
 - QA watermark visibility across outputs and share previews; ensure QR payloads never leak private IDs.
+- Publish assumptions, formulas, and target margins; tie to feature flags/limits.
+
+### Phase 3 — Watermarking & Sharing
+- Server-side watermark overlay in export pipeline (videos/thumbnails) gated by tier; ensure deterministic positioning and opacity.
+- Add share/deep-link buttons with UTM tags, copy-link, and preview thumbnail generation.
+- QA watermark visibility across outputs and share previews.
 
 ### Phase 4 — HTML/Offline Player Evolution
 - Mic Input: integrate `MediaDevices.getUserMedia` + Web Audio graph with analyzer; permission UX and fallback.
@@ -60,6 +66,7 @@
 - End-to-end smoke tests: checkout, credit decrement/exhaustion, mic permission flows, overlay modes.
 - Cross-browser testing (Chrome/Firefox/Safari + mobile PWA) for mic/accessibility.
 - Document pricing math, limits, refund/failed-payment handling, terminology updates (Golem/DKG), and distribution options.
+- Document pricing math, limits, refund/failed-payment handling, and distribution options.
 - Prepare release notes and deployment runbook for Firebase Hosting + Firestore updates.
 
 ## Deliverables per Phase

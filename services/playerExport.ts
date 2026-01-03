@@ -470,12 +470,45 @@ export const generatePlayerHTML = (
         #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; gap: 8px; }
         #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px; white-space: nowrap; }
         #helpOverlay .desc { color: rgba(255,255,255,0.6); text-align: right; }
+
+        /* Gesture gate for autoplay/mic policies */
+        #gestureGate {
+            position: fixed; inset: 0; z-index: 600; display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.92); backdrop-filter: blur(12px);
+        }
+        #gestureGate .inner {
+            background: rgba(20,20,25,0.96); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 20px; max-width: 420px;
+            text-align: center; display: flex; flex-direction: column; gap: 12px;
+        }
+        #gestureGate button { padding: 12px 16px; border-radius: 12px; border: none; background: linear-gradient(135deg,#8b5cf6,#14b8a6); color: white; font-weight: 800; cursor: pointer; }
+        #gestureGate .muted { font-size: 12px; color: rgba(255,255,255,0.6); }
+
+        /* Layout presets */
+        body.preset-overlay { width: 320px; height: 240px; border-radius: 16px; overflow: hidden; }
+        body.preset-overlay #statusBar { transform: scale(0.9); transform-origin: top center; }
+        body.preset-widget { width: 640px; height: 480px; }
+        body.preset-background { pointer-events: none; }
+
+        /* Input adapter pill */
+        #adapterTray { position: fixed; right: 12px; top: 70px; z-index: 120; display: flex; gap: 6px; flex-wrap: wrap; max-width: 320px; }
+        .adapter-pill { background: rgba(255,255,255,0.08); color: #e4e4e7; border: 1px solid rgba(255,255,255,0.15); padding: 8px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .adapter-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: #8b5cf6; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
+        .adapter-pill.active { background: linear-gradient(135deg, #8b5cf6, #14b8a6); border-color: rgba(255,255,255,0.25); color: #fff; }
     </style>
 </head>
 <body>
 
     <canvas id="bgCanvas"></canvas>
     <canvas id="charCanvas"></canvas>
+
+    <div id="gestureGate">
+        <div class="inner">
+            <div style="font-weight:900; font-size:18px; color:#0ff;">Tap to arm audio + mic</div>
+            <div class="muted">Browsers block autoplay until you interact. We'll resume the audio context, ask for mic permission, and fall back to synthetic beats if blocked.</div>
+            <button id="gestureStart">START SESSION</button>
+            <div class="muted">If you're embedding this player, forward a <code>postMessage</code> with <strong>{ type: 'jusdnce:start' }</strong> after a user tap.</div>
+        </div>
+    </div>
     
     <div id="loader">
         <div class="spinner"></div>
@@ -531,6 +564,18 @@ export const generatePlayerHTML = (
             </div>
         </div>
     </div>
+
+    <div id="adapterTray">
+        <div class="adapter-pill" data-adapter="file"><span class="dot"></span>File / MP4</div>
+        <div class="adapter-pill" data-adapter="system"><span class="dot"></span>System Audio</div>
+        <div class="adapter-pill" data-adapter="spotify"><span class="dot"></span>Spotify SDK</div>
+        <div class="adapter-pill" data-adapter="apple"><span class="dot"></span>Apple Music</div>
+        <div class="adapter-pill" data-adapter="pandora"><span class="dot"></span>Pandora</div>
+        <div class="adapter-pill" data-adapter="youtube"><span class="dot"></span>YouTube / MediaSession</div>
+        <div class="adapter-pill" data-adapter="background"><span class="dot"></span>Reactive BG</div>
+    </div>
+
+    <input id="fileAdapter" type="file" accept="audio/*,video/mp4,video/webm" style="display:none" />
 
     <!-- ============ FX RAIL - LEFT ============ -->
     <div id="fxRail">
@@ -1291,6 +1336,133 @@ export const generatePlayerHTML = (
         audioEl.crossOrigin = "anonymous";
         audioEl.loop = true;
 
+        const PlayerBridge = {
+            onLevel: null,
+            onBeat: null,
+            postToHost(payload) {
+                try { if (window.parent && window.parent !== window) window.parent.postMessage(payload, '*'); } catch (e) { console.warn('postMessage failed', e); }
+            },
+            start: () => resolveGesture && resolveGesture(),
+            pause: () => audioEl.pause(),
+            setLayoutPreset: (preset) => setLayoutPreset && setLayoutPreset(preset),
+            selectAdapter: (adapter) => activateAdapter && activateAdapter(adapter),
+            load: (url) => loadExternalUrl && loadExternalUrl(url)
+        };
+        window.JusdncePlayer = PlayerBridge;
+
+        const gestureGate = document.getElementById('gestureGate');
+        const gestureStart = document.getElementById('gestureStart');
+        const adapterTray = document.getElementById('adapterTray');
+        const fileAdapterInput = document.getElementById('fileAdapter');
+        let gestureResolved = false;
+
+        function resolveGesture() {
+            if (gestureResolved) return;
+            gestureResolved = true;
+            gestureGate.style.display = 'none';
+            audioCtx.resume();
+            PlayerBridge.postToHost({ type: 'jusdnce:armed' });
+        }
+
+        gestureStart.onclick = () => resolveGesture();
+
+        function setLayoutPreset(preset) {
+            document.body.classList.remove('preset-overlay', 'preset-widget', 'preset-background');
+            if (preset) document.body.classList.add(`preset-${preset}`);
+            document.body.style.pointerEvents = preset === 'background' ? 'none' : 'auto';
+            PlayerBridge.postToHost({ type: 'jusdnce:layout', preset });
+        }
+
+        function setMediaStream(stream, label = 'mic') {
+            if (sourceNode) sourceNode.disconnect();
+            sourceNode = audioCtx.createMediaStreamSource(stream);
+            sourceNode.connect(analyser);
+            sourceNode.connect(audioCtx.destination);
+            micStream = stream;
+            STATE.syntheticBeat = false;
+            audioEl.pause();
+            PlayerBridge.postToHost({ type: 'jusdnce:input', input: label });
+        }
+
+        async function requestMicrophone() {
+            resolveGesture();
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Microphone is unavailable in this browser. Falling back to synthetic beat mode.');
+                STATE.syntheticBeat = true;
+                return null;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: true } });
+                setMediaStream(stream, 'mic');
+                return stream;
+            } catch (e) {
+                console.warn('Microphone request failed', e);
+                alert('Microphone permission was blocked. Enable the mic or use an adapter.');
+                STATE.syntheticBeat = true;
+                return null;
+            }
+        }
+
+        async function captureSystemAudio() {
+            resolveGesture();
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+                const audioTracks = stream.getAudioTracks();
+                if (audioTracks.length === 0) throw new Error('No system audio track available');
+                const audioOnly = new MediaStream(audioTracks);
+                stream.getVideoTracks().forEach(t => t.stop());
+                setMediaStream(audioOnly, 'system');
+            } catch (e) {
+                console.warn('System audio capture failed', e);
+                alert('System audio capture is blocked or unsupported. Try file upload or mic.');
+            }
+        }
+
+        function loadExternalUrl(url) {
+            resolveGesture();
+            connectAudioElement();
+            audioEl.src = url;
+            audioEl.play();
+            STATE.syntheticBeat = false;
+            PlayerBridge.postToHost({ type: 'jusdnce:input', input: 'media', url });
+        }
+
+        function hookExternalSdk(adapter) {
+            const shim = { type: adapter, status: 'listening' };
+            PlayerBridge.postToHost({ type: 'jusdnce:adapter', adapter, shim });
+            const mediaSession = navigator.mediaSession;
+            if (mediaSession && mediaSession.metadata) {
+                mediaSession.setActionHandler?.('play', () => resolveGesture());
+            }
+        }
+
+        function activateAdapter(adapter) {
+            document.querySelectorAll('.adapter-pill').forEach(pill => pill.classList.toggle('active', pill.dataset.adapter === adapter));
+            if (adapter === 'file') fileAdapterInput.click();
+            else if (adapter === 'system') captureSystemAudio();
+            else if (adapter === 'background') setLayoutPreset('background');
+            else hookExternalSdk(adapter);
+        }
+
+        fileAdapterInput.onchange = () => {
+            const file = fileAdapterInput.files?.[0];
+            if (!file) return;
+            const url = URL.createObjectURL(file);
+            loadExternalUrl(url);
+        };
+
+        adapterTray.querySelectorAll('.adapter-pill').forEach(pill => pill.addEventListener('click', () => activateAdapter(pill.dataset.adapter)));
+
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (!data || typeof data !== 'object') return;
+            if (data.type === 'jusdnce:start') resolveGesture();
+            if (data.type === 'jusdnce:layout') setLayoutPreset(data.preset);
+            if (data.type === 'jusdnce:adapter') activateAdapter(data.adapter);
+            if (data.type === 'jusdnce:load' && data.url) loadExternalUrl(data.url);
+            if (data.type === 'jusdnce:mic') requestMicrophone();
+        });
+
         function connectAudioElement() {
             if(!sourceNode) {
                 sourceNode = audioCtx.createMediaElementSource(audioEl);
@@ -1362,6 +1534,9 @@ export const generatePlayerHTML = (
                 high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
                 energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
             }
+
+            PlayerBridge.onLevel?.({ bass, mid, high, energy });
+            PlayerBridge.postToHost({ type: 'jusdnce:levels', payload: { bass, mid, high, energy, t: now } });
 
             // Update BPM detection (function defined in mixer handlers)
             if (typeof updateBPM === 'function') updateBPM(bass, now);
@@ -1469,12 +1644,15 @@ export const generatePlayerHTML = (
                 STATE.lastBeat = now;
                 STATE.beatCount = (STATE.beatCount + 1) % 16;
                 const beat = STATE.beatCount;
-                
+
                 let phase = 'WARMUP';
                 if(beat >= 4 && beat < 8) phase = 'SWING_LEFT';
                 else if(beat >= 8 && beat < 12) phase = 'SWING_RIGHT';
                 else if(beat >= 12) phase = 'DROP';
-                
+
+                PlayerBridge.onBeat?.({ beat, phase, time: now });
+                PlayerBridge.postToHost({ type: 'jusdnce:beat', payload: { beat, phase, time: now } });
+
                 // Chaos Mode triggers FX
                 if (phase === 'DROP' && Math.random() > 0.7) STATE.filterMode = Math.random() > 0.5 ? 'INVERT' : 'BW';
                 else STATE.filterMode = 'NORMAL';
@@ -1684,7 +1862,6 @@ export const generatePlayerHTML = (
         const fileInput = document.getElementById('fileInput');
 
         btnMic.onclick = async () => {
-            // If synthetic mode is active, toggle it off
             if (STATE.syntheticBeat) {
                 STATE.syntheticBeat = false;
                 btnMic.classList.remove('active');
@@ -1693,7 +1870,6 @@ export const generatePlayerHTML = (
                 return;
             }
 
-            // If mic is active, turn it off
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
                 btnMic.classList.remove('active');
@@ -1702,60 +1878,18 @@ export const generatePlayerHTML = (
                 return;
             }
 
-            // Check for secure context and offer synthetic mode as alternative
-            const canUseMic = window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
-
-            if (!canUseMic) {
-                // Offer synthetic beat mode as alternative
-                const useSynthetic = confirm("Microphone requires HTTPS or localhost.\\n\\nWould you like to use SYNTHETIC BEAT mode instead?\\n\\nThis generates rhythmic patterns without audio input.");
-                if (useSynthetic) {
-                    STATE.syntheticBeat = true;
-                    btnMic.classList.add('active');
-                    btnMic.style.background = 'linear-gradient(135deg, #00ff88, #00ccff)';
-                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#000"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
-                }
-                return;
-            }
-
-            // Try to get microphone access
-            audioCtx.resume();
-            try {
-                micStream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: false,
-                        noiseSuppression: false,
-                        autoGainControl: false
-                    }
-                });
-                const micNode = audioCtx.createMediaStreamSource(micStream);
-                if(sourceNode) sourceNode.disconnect();
-                sourceNode = micNode;
-                sourceNode.connect(analyser);
-                if(audioEl) {
-                    audioEl.pause();
-                    btnPlay.classList.remove('active');
-                    btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-                }
+            const stream = await requestMicrophone();
+            if (stream) {
                 btnMic.classList.add('active');
+                btnMic.style.background = '';
                 btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/></svg>';
-                if (typeof resetUITimeout === 'function') resetUITimeout();
-            } catch(e) {
-                console.error("Mic error:", e);
-                // Offer synthetic mode as fallback on any error
-                let errorMsg = "Microphone access failed.";
-                if (e.name === 'NotAllowedError') errorMsg = "Microphone access denied.";
-                else if (e.name === 'NotFoundError') errorMsg = "No microphone found.";
-
-                const useSynthetic = confirm(errorMsg + "\\n\\nWould you like to use SYNTHETIC BEAT mode instead?\\n\\nThis generates rhythmic patterns without audio input.");
-                if (useSynthetic) {
-                    STATE.syntheticBeat = true;
-                    btnMic.classList.add('active');
-                    btnMic.style.background = 'linear-gradient(135deg, #00ff88, #00ccff)';
-                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#000"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
-                }
+            } else {
+                STATE.syntheticBeat = true;
+                btnMic.classList.add('active');
+                btnMic.style.background = 'linear-gradient(135deg, #00ff88, #00ccff)';
+                btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#000"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
             }
         };
-        
         btnPlay.onclick = () => {
             audioCtx.resume();
             if(audioEl.paused) {
