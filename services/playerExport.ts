@@ -852,7 +852,11 @@ export const generatePlayerHTML = (
                 invert: false, grayscale: false, mirror: false, strobe: false,
                 pixelate: false, scanlines: false,
                 hue: 0, saturation: 100, contrast: 100
-            }
+            },
+            // Synthetic beat mode (fallback when no audio/mic)
+            syntheticBeat: false,
+            synthBPM: 120,
+            synthPhase: 0
         };
 
         // --- 5. INITIALIZATION LOGIC ---
@@ -985,14 +989,38 @@ export const generatePlayerHTML = (
             const w = window.innerWidth;
             const h = window.innerHeight;
             
-            // Audio Data
-            const freq = new Uint8Array(analyser.frequencyBinCount);
-            analyser.getByteFrequencyData(freq);
-            
-            const bass = freq.slice(0,5).reduce((a,b)=>a+b,0)/(5*255);
-            const mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
-            const high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
-            const energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
+            // Audio Data - with synthetic fallback
+            let bass, mid, high, energy;
+
+            if (STATE.syntheticBeat) {
+                // Synthetic beat generation - creates rhythmic patterns without audio
+                const beatInterval = 60000 / STATE.synthBPM; // ms per beat
+                STATE.synthPhase = (now % beatInterval) / beatInterval; // 0-1 phase
+                const beatPhase = STATE.synthPhase;
+
+                // Kick on beats 1 and 3 (0, 0.5 in a 2-beat cycle)
+                const kickPhase = (now % (beatInterval * 2)) / (beatInterval * 2);
+                const isKick = kickPhase < 0.05 || (kickPhase > 0.5 && kickPhase < 0.55);
+                // Snare on beats 2 and 4
+                const isSnare = (kickPhase > 0.25 && kickPhase < 0.3) || (kickPhase > 0.75 && kickPhase < 0.8);
+                // Hi-hat on every 8th
+                const hhPhase = (now % (beatInterval / 2)) / (beatInterval / 2);
+                const isHiHat = hhPhase < 0.1;
+
+                // Generate smooth audio-like values
+                bass = isKick ? 0.9 - beatPhase * 0.5 : Math.max(0, 0.2 - beatPhase * 0.2);
+                mid = isSnare ? 0.7 - beatPhase * 0.3 : 0.15 + Math.sin(now * 0.003) * 0.1;
+                high = isHiHat ? 0.5 : 0.1 + Math.sin(now * 0.007) * 0.05;
+                energy = bass * 0.5 + mid * 0.3 + high * 0.2;
+            } else {
+                const freq = new Uint8Array(analyser.frequencyBinCount);
+                analyser.getByteFrequencyData(freq);
+
+                bass = freq.slice(0,5).reduce((a,b)=>a+b,0)/(5*255);
+                mid = freq.slice(5,30).reduce((a,b)=>a+b,0)/(25*255);
+                high = freq.slice(30,100).reduce((a,b)=>a+b,0)/(70*255);
+                energy = (bass * 0.5 + mid * 0.3 + high * 0.2);
+            }
 
             // Update BPM detection (function defined in mixer handlers)
             if (typeof updateBPM === 'function') updateBPM(bass, now);
@@ -1315,54 +1343,74 @@ export const generatePlayerHTML = (
         const fileInput = document.getElementById('fileInput');
 
         btnMic.onclick = async () => {
-            // Check for secure context (HTTPS required for mic)
-            if (!window.isSecureContext) {
-                alert("Mic input requires HTTPS!\\n\\nTo use microphone input:\\n1. Host this file on a web server with HTTPS\\n2. Or open via localhost\\n3. Or use file:// with browser flags (not recommended)");
+            // If synthetic mode is active, toggle it off
+            if (STATE.syntheticBeat) {
+                STATE.syntheticBeat = false;
+                btnMic.classList.remove('active');
+                btnMic.style.background = '';
+                btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
                 return;
             }
 
-            // Check for getUserMedia support
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                alert("Your browser doesn't support microphone input.\\n\\nTry using Chrome, Firefox, or Edge.");
-                return;
-            }
-
-            audioCtx.resume();
+            // If mic is active, turn it off
             if(micStream) {
                 micStream.getTracks().forEach(t=>t.stop()); micStream=null;
                 btnMic.classList.remove('active');
                 btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>';
                 if(sourceNode) { sourceNode.disconnect(); sourceNode=null; }
-            } else {
-                try {
-                    micStream = await navigator.mediaDevices.getUserMedia({
-                        audio: {
-                            echoCancellation: false,
-                            noiseSuppression: false,
-                            autoGainControl: false
-                        }
-                    });
-                    const micNode = audioCtx.createMediaStreamSource(micStream);
-                    if(sourceNode) sourceNode.disconnect();
-                    sourceNode = micNode;
-                    sourceNode.connect(analyser);
-                    if(audioEl) {
-                        audioEl.pause();
-                        btnPlay.classList.remove('active');
-                        btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-                    }
+                return;
+            }
+
+            // Check for secure context and offer synthetic mode as alternative
+            const canUseMic = window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+
+            if (!canUseMic) {
+                // Offer synthetic beat mode as alternative
+                const useSynthetic = confirm("Microphone requires HTTPS or localhost.\\n\\nWould you like to use SYNTHETIC BEAT mode instead?\\n\\nThis generates rhythmic patterns without audio input.");
+                if (useSynthetic) {
+                    STATE.syntheticBeat = true;
                     btnMic.classList.add('active');
-                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/></svg>';
-                    if (typeof resetUITimeout === 'function') resetUITimeout();
-                } catch(e) {
-                    console.error("Mic error:", e);
-                    if (e.name === 'NotAllowedError') {
-                        alert("Microphone access denied.\\n\\nPlease allow microphone access in your browser settings.");
-                    } else if (e.name === 'NotFoundError') {
-                        alert("No microphone found.\\n\\nPlease connect a microphone and try again.");
-                    } else {
-                        alert("Could not access microphone: " + e.message);
+                    btnMic.style.background = 'linear-gradient(135deg, #00ff88, #00ccff)';
+                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#000"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
+                }
+                return;
+            }
+
+            // Try to get microphone access
+            audioCtx.resume();
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: false,
+                        noiseSuppression: false,
+                        autoGainControl: false
                     }
+                });
+                const micNode = audioCtx.createMediaStreamSource(micStream);
+                if(sourceNode) sourceNode.disconnect();
+                sourceNode = micNode;
+                sourceNode.connect(analyser);
+                if(audioEl) {
+                    audioEl.pause();
+                    btnPlay.classList.remove('active');
+                    btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                }
+                btnMic.classList.add('active');
+                btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#ef4444"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="2"/></svg>';
+                if (typeof resetUITimeout === 'function') resetUITimeout();
+            } catch(e) {
+                console.error("Mic error:", e);
+                // Offer synthetic mode as fallback on any error
+                let errorMsg = "Microphone access failed.";
+                if (e.name === 'NotAllowedError') errorMsg = "Microphone access denied.";
+                else if (e.name === 'NotFoundError') errorMsg = "No microphone found.";
+
+                const useSynthetic = confirm(errorMsg + "\\n\\nWould you like to use SYNTHETIC BEAT mode instead?\\n\\nThis generates rhythmic patterns without audio input.");
+                if (useSynthetic) {
+                    STATE.syntheticBeat = true;
+                    btnMic.classList.add('active');
+                    btnMic.style.background = 'linear-gradient(135deg, #00ff88, #00ccff)';
+                    btnMic.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:#000"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
                 }
             }
         };

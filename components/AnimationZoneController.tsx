@@ -361,37 +361,84 @@ export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = (
             transform: 'translate(-50%, -50%)'
           }}
         >
-          {/* Base ring */}
-          <div className={`w-32 h-32 rounded-full border-2
-                          ${touchState.side === 'left' ? 'border-amber-500/30' : 'border-purple-500/30'}
-                          flex items-center justify-center`}>
-            {/* Pattern labels around the ring */}
-            {patterns.slice(0, 8).map((p, i) => {
-              const angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
-              const x = Math.cos(angle) * 50;
-              const y = Math.sin(angle) * 50;
+          {/* Base ring - sized based on pattern count */}
+          <div className={`rounded-full border-2 relative
+                          ${touchState.side === 'left' ? 'border-cyan-500/30' : 'border-pink-500/30'}
+                          flex items-center justify-center`}
+               style={{
+                 width: patterns.length > 8 ? '180px' : '140px',
+                 height: patterns.length > 8 ? '180px' : '140px'
+               }}>
+
+            {/* Pattern labels around the ring - ALL patterns evenly spaced */}
+            {patterns.map((p, i) => {
+              // Calculate angle: 360°/N degrees per pattern, starting from top (-PI/2)
+              const anglePerPattern = (Math.PI * 2) / patterns.length;
+              const angle = (i * anglePerPattern) - Math.PI / 2;
+              const radius = patterns.length > 8 ? 70 : 55;
+              const x = Math.cos(angle) * radius;
+              const y = Math.sin(angle) * radius;
+              const isSelected = currentPattern === p;
+
               return (
                 <div
                   key={p}
-                  className={`absolute text-[7px] font-bold transition-opacity
-                             ${currentPattern === p ? 'text-white opacity-100' : 'text-white/40 opacity-60'}`}
-                  style={{ transform: `translate(${x}px, ${y}px)` }}
+                  className={`absolute text-center transition-all duration-100
+                             ${isSelected
+                               ? 'text-white font-black scale-110'
+                               : 'text-white/40 font-bold'}`}
+                  style={{
+                    transform: `translate(${x}px, ${y}px)`,
+                    fontSize: patterns.length > 8 ? '6px' : '8px'
+                  }}
                 >
-                  {p.slice(0, 4)}
+                  <span className={`${isSelected ? 'px-1.5 py-0.5 rounded bg-white/20' : ''}`}>
+                    {p.replace('_', '').slice(0, 3)}
+                  </span>
                 </div>
               );
             })}
 
+            {/* Center circle with pattern count indicator */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={`w-16 h-16 rounded-full border
+                             ${touchState.side === 'left'
+                               ? 'border-cyan-500/20 bg-cyan-500/5'
+                               : 'border-pink-500/20 bg-pink-500/5'}
+                             flex items-center justify-center`}>
+                <span className="text-[8px] text-white/30 font-mono">
+                  {patterns.length === 15 ? '24°' : '60°'}
+                </span>
+              </div>
+            </div>
+
             {/* Joystick knob */}
             <div
-              className={`w-8 h-8 rounded-full shadow-lg transition-colors
+              className={`absolute w-8 h-8 rounded-full shadow-lg transition-colors z-10
                          ${touchState.side === 'left'
-                           ? 'bg-amber-500 shadow-amber-500/50'
-                           : 'bg-purple-500 shadow-purple-500/50'}`}
+                           ? 'bg-cyan-500 shadow-cyan-500/50'
+                           : 'bg-pink-500 shadow-pink-500/50'}`}
               style={{
-                transform: `translate(${joystickPos.x}px, ${joystickPos.y}px)`
+                transform: `translate(calc(-50% + ${joystickPos.x}px), calc(-50% + ${joystickPos.y}px))`,
+                left: '50%',
+                top: '50%'
               }}
             />
+
+            {/* Direction line from center to knob */}
+            {(joystickPos.x !== 0 || joystickPos.y !== 0) && (
+              <svg className="absolute inset-0 pointer-events-none" style={{ overflow: 'visible' }}>
+                <line
+                  x1="50%"
+                  y1="50%"
+                  x2={`calc(50% + ${joystickPos.x}px)`}
+                  y2={`calc(50% + ${joystickPos.y}px)`}
+                  stroke={touchState.side === 'left' ? 'rgba(6, 182, 212, 0.4)' : 'rgba(236, 72, 153, 0.4)'}
+                  strokeWidth="2"
+                  strokeDasharray="4 2"
+                />
+              </svg>
+            )}
           </div>
         </div>
       )}

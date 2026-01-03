@@ -285,6 +285,9 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
     setActiveCategory(randomStyle.category);
     onUpdate('selectedStyleId', randomStyle.id);
 
+    // Expand styles to show selection
+    setShowStyles(true);
+
     // If morph mode enabled, also pick a secondary style with random intensity
     if (surpriseMorph) {
       const otherStyles = STYLE_PRESETS.filter(s => s.id !== randomStyle.id);
@@ -292,6 +295,12 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
       const randomIntensity = Math.floor(Math.random() * 60) + 20; // 20-80%
       onUpdate('secondaryStyleId', secondaryStyle.id);
       onUpdate('morphIntensity', randomIntensity);
+
+      // Expand Studio Controls to show morph settings
+      setShowAdvanced(true);
+
+      // Visual feedback - shift hue based on morph blend
+      triggerColorShift(randomIntensity * 3);
     }
   };
 
@@ -400,51 +409,62 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
         </div>
       </div>
 
-      {/* Collapsible Styles Section */}
-      <div className="glass-panel rounded-3xl overflow-hidden border border-white/10 mb-8">
+      {/* Style Presets Section - Categories Always Visible */}
+      <div className="glass-panel rounded-2xl overflow-hidden border border-white/10 mb-6">
+        {/* Header with selected style name */}
+        <div className="p-3 flex items-center gap-3 bg-white/5 border-b border-white/5">
+          <Palette size={18} className="text-brand-300" />
+          <span className="font-bold text-white tracking-widest text-xs">
+            STYLE PRESETS
+          </span>
+          {config.selectedStyleId && (
+            <span className="text-brand-300 text-xs font-mono ml-auto">
+              {STYLE_PRESETS.find(s => s.id === config.selectedStyleId)?.name}
+            </span>
+          )}
+        </div>
+
+        {/* Category Tabs - ALWAYS VISIBLE */}
+        <div className="flex flex-wrap gap-1.5 p-3 bg-black/30">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                triggerImpulse('click', 0.4);
+                setActiveCategory(cat);
+                if (!showStyles) setShowStyles(true); // Auto-expand when category clicked
+              }}
+              onMouseEnter={() => triggerImpulse('hover', 0.1)}
+              className={`
+                px-3 py-1.5 rounded-lg font-bold text-[10px] tracking-wide transition-all duration-300 border
+                ${activeCategory === cat
+                  ? 'bg-white/15 border-white/30 text-white shadow-[0_0_10px_rgba(255,255,255,0.15)]'
+                  : 'bg-black/30 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
+              `}
+            >
+              <span className="flex items-center gap-1.5">
+                {cat === 'Cinematic' && <Film size={10}/>}
+                {cat === 'Digital/Glitch' && <Zap size={10}/>}
+                {cat === 'Artistic' && <Wand2 size={10}/>}
+                {cat === 'Anime/2D' && <Layers size={10}/>}
+                {cat === 'Abstract' && <Activity size={10}/>}
+                {cat.toUpperCase()}
+              </span>
+            </button>
+          ))}
+
+          {/* Expand/Collapse Button */}
           <button
             onClick={() => setShowStyles(!showStyles)}
-            className="w-full p-4 flex items-center justify-between bg-white/5 hover:bg-white/10 transition-colors"
+            className="ml-auto px-2 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors"
           >
-              <div className="flex items-center gap-3">
-                  <Palette size={20} className="text-brand-300" />
-                  <span className="font-bold text-white tracking-widest text-sm">
-                    STYLE PRESETS {config.selectedStyleId && `(${STYLE_PRESETS.find(s => s.id === config.selectedStyleId)?.name || 'Selected'})`}
-                  </span>
-              </div>
-              {showStyles ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+            {showStyles ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
           </button>
+        </div>
 
-          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showStyles ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
-            <div className="p-6 border-t border-white/5 bg-black/20">
-              {/* Category Tabs */}
-              <div className="flex flex-wrap gap-2 mb-6">
-                {categories.map((cat, idx) => (
-                  <button
-                    key={cat}
-                    onClick={() => { triggerImpulse('click', 0.4); setActiveCategory(cat); }}
-                    onMouseEnter={() => triggerImpulse('hover', 0.1)}
-                    className={`
-                      px-4 py-2 rounded-lg font-bold text-xs tracking-wide transition-all duration-300 border relative overflow-hidden group
-                      ${activeCategory === cat
-                        ? 'bg-white/10 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.2)]'
-                        : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
-                    `}
-                  >
-                    <span className="relative z-10 flex items-center gap-2">
-                        {cat === 'Cinematic' && <Film size={12}/>}
-                        {cat === 'Digital/Glitch' && <Zap size={12}/>}
-                        {cat === 'Artistic' && <Wand2 size={12}/>}
-                        {cat === 'Anime/2D' && <Layers size={12}/>}
-                        {cat.toUpperCase()}
-                    </span>
-                    {activeCategory === cat && <div className="absolute inset-0 bg-white/5 animate-pulse-fast" />}
-                  </button>
-                ))}
-              </div>
-
-              {/* Style Grid */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Collapsible Style Grid - Only this part collapses */}
+        <div className={`transition-all duration-400 ease-in-out overflow-hidden ${showStyles ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="p-3 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 bg-black/20 overflow-y-auto max-h-[400px]">
         {filteredStyles.map((style, idx) => (
           <div
             key={style.id}
@@ -486,9 +506,8 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-white/10 to-transparent h-1/4 w-full -translate-y-full group-hover:translate-y-[400%] transition-transform duration-1000 ease-in-out" />
           </div>
         ))}
-              </div>
-            </div>
           </div>
+        </div>
       </div>
 
       {/* STUDIO CONTROLS (Expandable) */}

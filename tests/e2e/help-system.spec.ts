@@ -40,8 +40,8 @@ test.describe('Help System', () => {
     const helpButton = page.locator('button:has-text("HELP")');
     await expect(helpButton).toBeVisible();
 
-    // Look for IMPORT RIG button
-    const importRigButton = page.locator('button:has-text("IMPORT RIG")');
+    // Look for IMPORT RIG button (use first match)
+    const importRigButton = page.locator('button:has-text("IMPORT RIG")').first();
     await expect(importRigButton).toBeVisible();
 
     console.log('✓ Step 1 has HELP and IMPORT RIG buttons visible');
@@ -95,8 +95,8 @@ test.describe('Help System', () => {
     await nextButton.click();
     await page.waitForTimeout(300);
 
-    // Verify third section (Import Rig)
-    await expect(page.locator('text=Import Rig')).toBeVisible();
+    // Verify third section (Import Rig) - use heading inside help overlay
+    await expect(page.locator('h3:has-text("Import Rig")')).toBeVisible();
 
     // Click Done to close
     const doneButton = page.locator('button:has-text("Done")');
@@ -119,16 +119,17 @@ test.describe('Help System', () => {
     await page.locator('button:has-text("HELP")').click();
     await page.waitForTimeout(500);
 
-    // Verify overlay is open
-    await expect(page.locator('text=STEP 1: ASSETS')).toBeVisible();
+    // Verify overlay is open - use the h2 inside the overlay
+    const overlayTitle = page.locator('.fixed h2:has-text("STEP 1: ASSETS")');
+    await expect(overlayTitle).toBeVisible();
 
-    // Click X button (the close button)
-    const closeButton = page.locator('button').filter({ has: page.locator('svg') }).first();
+    // Click X button (the close button in the overlay)
+    const closeButton = page.locator('.fixed button').filter({ has: page.locator('svg') }).first();
     await closeButton.click();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
 
-    // Verify overlay is closed
-    await expect(page.locator('text=STEP 1: ASSETS')).not.toBeVisible();
+    // Verify overlay is closed - the fixed overlay should be gone
+    await expect(overlayTitle).not.toBeVisible();
 
     console.log('✓ Step 1 help overlay X button closes overlay');
   });
@@ -198,8 +199,8 @@ test.describe('Help System', () => {
       await progressDots.nth(2).click();
       await page.waitForTimeout(300);
 
-      // Verify we jumped to section 3 (Import Rig)
-      await expect(page.locator('text=Import Rig')).toBeVisible();
+      // Verify we jumped to section 3 (Import Rig) - use heading in overlay
+      await expect(page.locator('h3:has-text("Import Rig")')).toBeVisible();
 
       await page.screenshot({
         path: 'tests/screenshots/help-progress-dots.png',
