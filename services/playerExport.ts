@@ -96,6 +96,88 @@ export const generatePlayerHTML = (
         .fx-intensity-fill.y { background: #f0f; }
         .fx-intensity-label { font-size: 6px; color: rgba(255,255,255,0.4); text-align: center; }
 
+        /* ============ BEZEL DRAWERS - SMART EDGE PANELS ============ */
+        .bezel {
+            position: fixed; top: 50%; transform: translateY(-50%); z-index: 55;
+            display: flex; flex-direction: column; align-items: center;
+            padding: 8px 2px; gap: 6px;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+            transition: all 0.25s ease;
+        }
+        .bezel-left { left: 0; border-radius: 0 8px 8px 0; border-right: 1px solid rgba(255,255,255,0.1); }
+        .bezel-right { right: 0; border-radius: 8px 0 0 8px; border-left: 1px solid rgba(255,255,255,0.1); }
+
+        /* Collapsed state - just status dots */
+        .bezel .status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: rgba(255,255,255,0.2); transition: all 0.15s;
+            cursor: pointer;
+        }
+        .bezel .status-dot.active { background: #0ff; box-shadow: 0 0 6px #0ff; }
+        .bezel .status-dot.active-y { background: #f0f; box-shadow: 0 0 6px #f0f; }
+        .bezel .status-dot.active-fx { background: #8b5cf6; box-shadow: 0 0 6px #8b5cf6; }
+
+        .bezel .status-label {
+            font-size: 7px; font-weight: 700; color: rgba(255,255,255,0.5);
+            writing-mode: vertical-rl; text-orientation: mixed;
+            letter-spacing: 1px;
+        }
+        .bezel .bezel-divider {
+            width: 12px; height: 1px; background: rgba(255,255,255,0.15); margin: 4px 0;
+        }
+
+        /* Expanded state - full controls */
+        .bezel.expanded { padding: 8px 6px; }
+        .bezel-left.expanded { width: 70px; }
+        .bezel-right.expanded { width: 80px; }
+
+        .bezel .drawer-content { display: none; flex-direction: column; gap: 4px; width: 100%; }
+        .bezel.expanded .drawer-content { display: flex; }
+        .bezel.expanded .status-dot { display: none; }
+        .bezel.expanded .status-label { display: none; }
+
+        .bezel .bezel-btn {
+            width: 100%; padding: 6px 4px; border-radius: 6px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer;
+            font-size: 8px; font-weight: 700; text-align: center;
+            transition: all 0.15s;
+        }
+        .bezel .bezel-btn:active { transform: scale(0.95); }
+        .bezel .bezel-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        .bezel .bezel-btn.cyan.active { background: #0ff; color: #000; }
+
+        .bezel .bezel-slider {
+            width: 100%; height: 4px; -webkit-appearance: none;
+            background: rgba(255,255,255,0.15); border-radius: 2px; margin: 4px 0;
+        }
+        .bezel .bezel-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 12px; height: 12px;
+            border-radius: 50%; background: #8b5cf6; cursor: pointer;
+        }
+
+        /* Mini intensity bars for collapsed state */
+        .bezel .mini-bars {
+            display: flex; flex-direction: column; gap: 2px; width: 12px;
+        }
+        .bezel .mini-bar {
+            height: 2px; background: rgba(255,255,255,0.1); border-radius: 1px; overflow: hidden;
+        }
+        .bezel .mini-bar-fill { height: 100%; transition: width 0.1s; }
+        .bezel .mini-bar-fill.x { background: #0ff; }
+        .bezel .mini-bar-fill.y { background: #f0f; }
+        .bezel.expanded .mini-bars { display: none; }
+
+        /* Hide original fxRail when bezels active - we replace it */
+        #fxRail { display: none; }
+
+        /* Responsive: on very small screens, bezels auto-collapse */
+        @media (max-width: 360px) {
+            .bezel { padding: 6px 2px; }
+            .bezel.expanded { width: 60px !important; padding: 6px 4px; }
+            .bezel .bezel-btn { font-size: 7px; padding: 5px 3px; }
+        }
+
         /* ============ ENGINE STRIP - BOTTOM ============ */
         #engineStrip {
             position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
@@ -558,6 +640,67 @@ export const generatePlayerHTML = (
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- ============ LEFT BEZEL DRAWER (FX) ============ -->
+    <div id="bezelLeft" class="bezel bezel-left">
+        <!-- Collapsed state: status dots -->
+        <div class="status-dot" data-fx="rgbSplit" title="RGB Split"></div>
+        <div class="status-dot" data-fx="glitch" title="Glitch"></div>
+        <div class="status-dot" data-fx="pixelate" title="Pixelate"></div>
+        <div class="status-dot" data-fx="bloom" title="Bloom"></div>
+        <div class="status-dot" data-fx="invert" title="Invert"></div>
+        <div class="status-dot" data-fx="vhs" title="VHS"></div>
+        <div class="status-dot" data-fx="scan" title="Scanlines"></div>
+        <div class="status-dot" data-fx="mirror" title="Mirror"></div>
+        <div class="status-dot" data-fx="kaleid" title="Kaleidoscope"></div>
+        <div class="bezel-divider"></div>
+        <div class="mini-bars">
+            <div class="mini-bar"><div class="mini-bar-fill x" id="bezelBarX" style="width:0%"></div></div>
+            <div class="mini-bar"><div class="mini-bar-fill y" id="bezelBarY" style="width:0%"></div></div>
+        </div>
+
+        <!-- Expanded state: full buttons -->
+        <div class="drawer-content">
+            <button class="bezel-btn" data-fx="rgbSplit">RGB</button>
+            <button class="bezel-btn" data-fx="glitch">GLCH</button>
+            <button class="bezel-btn" data-fx="pixelate">PXLT</button>
+            <button class="bezel-btn" data-fx="bloom">BLOOM</button>
+            <button class="bezel-btn" data-fx="invert">INVT</button>
+            <button class="bezel-btn" data-fx="vhs">VHS</button>
+            <button class="bezel-btn" data-fx="scan">SCAN</button>
+            <button class="bezel-btn" data-fx="mirror">MIRR</button>
+            <button class="bezel-btn" data-fx="kaleid">KALD</button>
+            <div class="bezel-divider"></div>
+            <div style="font-size:7px;color:rgba(255,255,255,0.4);text-align:center;">MOUSE XY</div>
+            <input type="range" class="bezel-slider" id="bezelFxIntensity" min="0" max="100" value="50" title="FX Intensity">
+        </div>
+    </div>
+
+    <!-- ============ RIGHT BEZEL DRAWER (MODE) ============ -->
+    <div id="bezelRight" class="bezel bezel-right">
+        <!-- Collapsed state: mode indicators -->
+        <div class="status-label" id="bezelPhysicsLabel">L</div>
+        <div class="bezel-divider"></div>
+        <div class="status-label" id="bezelEngineLabel">P</div>
+        <div class="bezel-divider"></div>
+        <div class="status-label" id="bezelIntLabel" style="font-size:8px;">50</div>
+        <div class="bezel-divider"></div>
+        <div class="status-dot active-fx" id="bezelMixDot" title="Mixer"></div>
+
+        <!-- Expanded state: full controls -->
+        <div class="drawer-content">
+            <button class="bezel-btn cyan active" id="bezelLegacy" data-physics="LEGACY">LEG</button>
+            <button class="bezel-btn cyan" id="bezelLaban" data-physics="LABAN">LAB</button>
+            <div class="bezel-divider"></div>
+            <button class="bezel-btn active" id="bezelPattern" data-mode="PATTERN">PAT</button>
+            <button class="bezel-btn" id="bezelKinetic" data-mode="KINETIC">KIN</button>
+            <div class="bezel-divider"></div>
+            <div style="font-size:7px;color:rgba(255,255,255,0.4);text-align:center;">INT</div>
+            <input type="range" class="bezel-slider" id="bezelIntSlider" min="0" max="100" value="50">
+            <div class="bezel-divider"></div>
+            <button class="bezel-btn active-fx" id="bezelMixBtn">MIX</button>
         </div>
     </div>
 
@@ -2152,34 +2295,68 @@ export const generatePlayerHTML = (
             }
         };
 
-        // Mic button (syncs with btnMic)
+        // Mic button (syncs with btnMic) - with secure context detection
         btnMic2.onclick = async () => {
-            audioCtx.resume();
-            if (!micStream) {
-                try {
-                    micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    const src = audioCtx.createMediaStreamSource(micStream);
-                    src.connect(analyser);
-                    audioEl.pause();
-                    btnPlay2.classList.remove('active');
-                    btnPlay2.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-                    btnMic2.classList.add('mic-active');
-                    STATE.syntheticBeat = false;
-                } catch(e) {
-                    let errorMsg = "Microphone access failed.";
-                    if (e.name === 'NotAllowedError') errorMsg = "Microphone access denied.";
-                    else if (e.name === 'NotFoundError') errorMsg = "No microphone found.";
-                    const useSynthetic = confirm(errorMsg + "\\n\\nWould you like to use SYNTHETIC BEAT mode instead?");
-                    if (useSynthetic) {
-                        STATE.syntheticBeat = true;
-                        btnMic2.classList.add('synth-active');
-                    }
-                }
-            } else {
+            // If already streaming, stop it
+            if (micStream) {
                 micStream.getTracks().forEach(t => t.stop());
                 micStream = null;
                 STATE.syntheticBeat = false;
                 btnMic2.classList.remove('mic-active', 'synth-active');
+                return;
+            }
+
+            // If synthetic beat is active, toggle it off
+            if (STATE.syntheticBeat) {
+                STATE.syntheticBeat = false;
+                btnMic2.classList.remove('synth-active');
+                return;
+            }
+
+            // Check for secure context
+            const canUseMic = window.isSecureContext && navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+
+            if (!canUseMic) {
+                // Not secure context - explain and offer synthetic
+                const useSynthetic = confirm(
+                    "🎤 Microphone requires HTTPS\\n\\n" +
+                    "This file is running locally (file:// or content://).\\n" +
+                    "Browsers only allow microphone access on HTTPS sites.\\n\\n" +
+                    "OPTIONS:\\n" +
+                    "• Upload an audio file instead\\n" +
+                    "• Use SYNTHETIC BEAT mode (tap OK)\\n" +
+                    "• Host this HTML on a web server with HTTPS"
+                );
+                if (useSynthetic) {
+                    STATE.syntheticBeat = true;
+                    btnMic2.classList.add('synth-active');
+                }
+                return;
+            }
+
+            // Try to get microphone access
+            audioCtx.resume();
+            try {
+                micStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+                });
+                const src = audioCtx.createMediaStreamSource(micStream);
+                src.connect(analyser);
+                audioEl.pause();
+                btnPlay2.classList.remove('active');
+                btnPlay2.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                btnMic2.classList.add('mic-active');
+                STATE.syntheticBeat = false;
+            } catch(e) {
+                let errorMsg = "Microphone access failed.";
+                if (e.name === 'NotAllowedError') errorMsg = "Microphone permission denied.\\n\\nCheck your browser settings.";
+                else if (e.name === 'NotFoundError') errorMsg = "No microphone found.";
+
+                const useSynthetic = confirm(errorMsg + "\\n\\nUse SYNTHETIC BEAT mode instead?");
+                if (useSynthetic) {
+                    STATE.syntheticBeat = true;
+                    btnMic2.classList.add('synth-active');
+                }
             }
         };
 
@@ -2336,6 +2513,160 @@ export const generatePlayerHTML = (
             if (el) {
                 el.addEventListener('click', (e) => e.stopPropagation());
                 el.addEventListener('touchstart', (e) => e.stopPropagation());
+            }
+        });
+
+        // ============ BEZEL DRAWER HANDLERS ============
+        const bezelLeft = document.getElementById('bezelLeft');
+        const bezelRight = document.getElementById('bezelRight');
+        const bezelBarX = document.getElementById('bezelBarX');
+        const bezelBarY = document.getElementById('bezelBarY');
+        const bezelPhysicsLabel = document.getElementById('bezelPhysicsLabel');
+        const bezelEngineLabel = document.getElementById('bezelEngineLabel');
+        const bezelIntLabel = document.getElementById('bezelIntLabel');
+        const bezelIntSlider = document.getElementById('bezelIntSlider');
+
+        // Toggle bezel expansion on tap
+        function toggleBezel(bezel, otherBezel) {
+            if (bezel.classList.contains('expanded')) {
+                bezel.classList.remove('expanded');
+            } else {
+                bezel.classList.add('expanded');
+                if (otherBezel) otherBezel.classList.remove('expanded');
+            }
+        }
+
+        // Left bezel (FX) - tap to expand
+        bezelLeft.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('bezel-btn') && !e.target.classList.contains('bezel-slider')) {
+                toggleBezel(bezelLeft, bezelRight);
+            }
+            e.stopPropagation();
+        });
+
+        // Right bezel (Mode) - tap to expand
+        bezelRight.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('bezel-btn') && !e.target.classList.contains('bezel-slider')) {
+                toggleBezel(bezelRight, bezelLeft);
+            }
+            e.stopPropagation();
+        });
+
+        // Click outside bezels to collapse
+        document.body.addEventListener('click', () => {
+            bezelLeft.classList.remove('expanded');
+            bezelRight.classList.remove('expanded');
+        });
+
+        // FX status dots - direct toggle
+        bezelLeft.querySelectorAll('.status-dot[data-fx]').forEach(dot => {
+            dot.onclick = (e) => {
+                e.stopPropagation();
+                const fx = dot.dataset.fx;
+                STATE.fx[fx] = !STATE.fx[fx];
+                dot.classList.toggle('active-fx', STATE.fx[fx]);
+                // Sync with bezel buttons
+                bezelLeft.querySelector(\`.bezel-btn[data-fx="\${fx}"]\`)?.classList.toggle('active', STATE.fx[fx]);
+            };
+        });
+
+        // FX bezel buttons
+        bezelLeft.querySelectorAll('.bezel-btn[data-fx]').forEach(btn => {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const fx = btn.dataset.fx;
+                STATE.fx[fx] = !STATE.fx[fx];
+                btn.classList.toggle('active', STATE.fx[fx]);
+                // Sync with status dots
+                bezelLeft.querySelector(\`.status-dot[data-fx="\${fx}"]\`)?.classList.toggle('active-fx', STATE.fx[fx]);
+            };
+        });
+
+        // Right bezel - Physics buttons
+        document.getElementById('bezelLegacy').onclick = (e) => {
+            e.stopPropagation();
+            STATE.physicsStyle = 'LEGACY';
+            document.getElementById('bezelLegacy').classList.add('active');
+            document.getElementById('bezelLaban').classList.remove('active');
+            bezelPhysicsLabel.textContent = 'L';
+            // Sync with other toggles
+            document.querySelectorAll('.physics-btn, #physicsToggle2 .mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.physics === 'LEGACY');
+            });
+        };
+        document.getElementById('bezelLaban').onclick = (e) => {
+            e.stopPropagation();
+            STATE.physicsStyle = 'LABAN';
+            document.getElementById('bezelLaban').classList.add('active');
+            document.getElementById('bezelLegacy').classList.remove('active');
+            bezelPhysicsLabel.textContent = 'B';
+            document.querySelectorAll('.physics-btn, #physicsToggle2 .mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.physics === 'LABAN');
+            });
+        };
+
+        // Right bezel - Engine buttons
+        document.getElementById('bezelPattern').onclick = (e) => {
+            e.stopPropagation();
+            STATE.engineMode = 'PATTERN';
+            document.getElementById('bezelPattern').classList.add('active');
+            document.getElementById('bezelKinetic').classList.remove('active');
+            bezelEngineLabel.textContent = 'P';
+            document.querySelectorAll('.engine-btn, #engineToggle2 .mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === 'PATTERN');
+            });
+        };
+        document.getElementById('bezelKinetic').onclick = (e) => {
+            e.stopPropagation();
+            STATE.engineMode = 'KINETIC';
+            document.getElementById('bezelKinetic').classList.add('active');
+            document.getElementById('bezelPattern').classList.remove('active');
+            bezelEngineLabel.textContent = 'K';
+            document.querySelectorAll('.engine-btn, #engineToggle2 .mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === 'KINETIC');
+            });
+        };
+
+        // Bezel intensity slider
+        bezelIntSlider.oninput = (e) => {
+            const val = e.target.value;
+            STATE.energyMultiplier = val / 50;
+            bezelIntLabel.textContent = val;
+            intensitySlider.value = val;
+            energySlider.value = val;
+        };
+
+        // Bezel mix button - open mixer drawer
+        document.getElementById('bezelMixBtn').onclick = (e) => {
+            e.stopPropagation();
+            mixerDrawer.classList.toggle('open');
+            btnMixer2.classList.toggle('active');
+            bezelRight.classList.remove('expanded');
+        };
+
+        // Mix dot also opens mixer
+        document.getElementById('bezelMixDot').onclick = (e) => {
+            e.stopPropagation();
+            mixerDrawer.classList.toggle('open');
+            btnMixer2.classList.toggle('active');
+        };
+
+        // Update bezel mini-bars from mouse
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX / window.innerWidth;
+            const y = e.clientY / window.innerHeight;
+            if (bezelBarX) bezelBarX.style.width = (x * 100) + '%';
+            if (bezelBarY) bezelBarY.style.width = (y * 100) + '%';
+        });
+
+        // Prevent bezels from toggling body click
+        bezelLeft.addEventListener('touchstart', (e) => e.stopPropagation());
+        bezelRight.addEventListener('touchstart', (e) => e.stopPropagation());
+
+        // Add bezels to visibility prevention list
+        [bezelLeft, bezelRight].forEach(el => {
+            if (el) {
+                el.addEventListener('click', (e) => e.stopPropagation());
             }
         });
     </script>
