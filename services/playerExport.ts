@@ -1368,7 +1368,7 @@ export const generatePlayerHTML = (
 
         function setLayoutPreset(preset) {
             document.body.classList.remove('preset-overlay', 'preset-widget', 'preset-background');
-            if (preset) document.body.classList.add(`preset-${preset}`);
+            if (preset) document.body.classList.add('preset-' + preset);
             document.body.style.pointerEvents = preset === 'background' ? 'none' : 'auto';
             PlayerBridge.postToHost({ type: 'jusdnce:layout', preset });
         }

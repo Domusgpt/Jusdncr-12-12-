@@ -231,7 +231,7 @@ export const CostInsightsModal: React.FC<{ isOpen: boolean; onClose: () => void 
                     <StatCard
                         label="Default Model"
                         value={dashboard.defaultProvider.model}
-                        helper={`${dashboard.defaultProvider.provider} · $${dashboard.defaultProvider.inputCostPer1k.toFixed(4)} in / $${dashboard.defaultProvider.outputCostPer1k.toFixed(4)} out per 1K tokens`}
+                        helper={`${dashboard.defaultProvider.provider} · $${dashboard.defaultProvider.imageGenCost.toFixed(4)} per image generation`}
                     />
                     <StatCard
                         label="Cost per Generation"
