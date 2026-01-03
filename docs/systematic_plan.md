@@ -26,10 +26,17 @@
 - Re-enable Stripe checkout + webhook/extension for credit top-ups; map products/prices to Firestore mirrors.
 - Client tasks: credit meter, purchase flow, insufficient-credit UX, promo code/tier selection.
 - Safety: daily/monthly caps aligned to cost model, webhook verification, signed client requests.
+- Align all pricing and copy to the simplified tiers in `docs/pricing_model.md` (Trial → Starter Export → Golem Packs/DKGs → Pro Monthly).
 
 ### Phase 2 — Cost Modeling & Pricing Artifacts
 - Build a calculator script/doc: per-generation cost = LLM tokens + media inference time + storage + bandwidth + Firebase reads/writes.
 - Model scenarios (5 gens/day/user, 30 days) with margin buffer; expose knobs for provider price changes.
+- Publish assumptions, formulas, and target margins; tie to feature flags/limits; keep in sync with the calculator PR already published.
+
+### Phase 3 — Watermarking & Sharing
+- Server-side watermark overlay in export pipeline (videos/thumbnails) gated by tier; ensure deterministic positioning and opacity.
+- Add share/deep-link buttons with UTM tags, copy-link, QR codes for previews/paywall upgrades, and preview thumbnail generation.
+- QA watermark visibility across outputs and share previews; ensure QR payloads never leak private IDs.
 - Publish assumptions, formulas, and target margins; tie to feature flags/limits.
 
 ### Phase 3 — Watermarking & Sharing
@@ -53,10 +60,12 @@
 - Rate limits and per-user credit caps; fraud controls (captcha/velocity checks) on signup/checkout.
 - Usage logging with cost attribution; alerts on margin compression or cost spikes.
 - Security review: webhook verification, CSP for embeds, storage rules aligning to credit enforcement.
+- Add bug-report intake (modal + Firestore + webhook) with redaction of PII by default; expose in Help menu.
 
 ### Phase 7 — Launch QA & Documentation
 - End-to-end smoke tests: checkout, credit decrement/exhaustion, mic permission flows, overlay modes.
 - Cross-browser testing (Chrome/Firefox/Safari + mobile PWA) for mic/accessibility.
+- Document pricing math, limits, refund/failed-payment handling, terminology updates (Golem/DKG), and distribution options.
 - Document pricing math, limits, refund/failed-payment handling, and distribution options.
 - Prepare release notes and deployment runbook for Firebase Hosting + Firestore updates.
 
