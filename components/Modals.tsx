@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, Lock, CreditCard, Sparkles, Shield, User, AlertTriangle, TrendingUp, DollarSign } from 'lucide-react';
-import costDashboard from '../data/costs-dashboard.json';
+import { X, Check, Lock, CreditCard, Sparkles, Shield, User } from 'lucide-react';
 import { CREDITS_PACK_PRICE, CREDITS_PER_PACK } from '../constants';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -42,16 +41,6 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title }) => {
         </div>
     );
 };
-
-type CostDashboard = typeof costDashboard;
-
-const StatCard: React.FC<{ label: string; value: string; helper?: string }> = ({ label, value, helper }) => (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col gap-1">
-        <div className="text-[11px] uppercase tracking-wide text-white/60 font-semibold">{label}</div>
-        <div className="text-lg font-bold text-white">{value}</div>
-        {helper && <div className="text-[10px] text-white/40">{helper}</div>}
-    </div>
-);
 
 export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: () => void }> = ({ isOpen, onClose, onLogin }) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -209,91 +198,6 @@ export const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                     <p className="text-gray-400">Credits have been added to your account.</p>
                 </div>
             )}
-        </Modal>
-    );
-};
-
-export const CostInsightsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-    const dashboard: CostDashboard = costDashboard;
-
-    return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Ops Cost Dashboard">
-            <div className="space-y-4 text-white">
-                <div className="flex items-start gap-2 text-sm text-white/60">
-                    <AlertTriangle size={16} className="text-amber-300 mt-0.5" />
-                    <p>
-                        Live assumptions pulled from <span className="font-semibold text-white">data/cost-assumptions.json</span>.
-                        Run <code className="px-2 py-1 bg-white/5 border border-white/10 rounded">npm run costs:generate</code> when pricing updates.
-                    </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <StatCard
-                        label="Default Model"
-                        value={dashboard.defaultProvider.model}
-                        helper={`${dashboard.defaultProvider.provider} · $${dashboard.defaultProvider.inputCostPer1k.toFixed(4)} in / $${dashboard.defaultProvider.outputCostPer1k.toFixed(4)} out per 1K tokens`}
-                    />
-                    <StatCard
-                        label="Cost per Generation"
-                        value={`$${dashboard.perGenerationCost.toFixed(4)}`}
-                        helper={`Includes tokens, ${dashboard.assumptions.assetSizeMB}MB storage/egress, Firestore reads & writes`}
-                    />
-                    <StatCard
-                        label="Per-user Monthly @ 5/day"
-                        value={`$${dashboard.perUserMonthlyCost.toFixed(2)}`}
-                        helper={`${dashboard.monthlyGenerationsPerUser} generations / user / month`}
-                    />
-                </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                            <DollarSign size={16} className="text-emerald-300" />
-                            Margin by price point
-                        </div>
-                        <span className="text-[11px] text-white/40">Break-even assumes ${dashboard.assumptions.monthlyFixedPlatformCost} monthly fixed</span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        {dashboard.marginByPrice.map((item) => (
-                            <div key={item.price} className="bg-black/40 border border-white/10 rounded-lg p-3 space-y-1">
-                                <div className="text-xs text-white/60">${item.price.toFixed(2)}/gen</div>
-                                <div className="text-xl font-bold text-white">${item.marginPerGen.toFixed(3)} margin</div>
-                                <div className="text-[11px] text-emerald-300">{item.grossMarginPct.toFixed(1)}% gross</div>
-                                <div className="text-[11px] text-white/40">Break-even: {item.breakEvenGenerations === Infinity ? 'N/A' : `${Math.ceil(item.breakEvenGenerations).toLocaleString()} gens/mo`}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <TrendingUp size={16} className="text-sky-300" />
-                        Sensitivity: low / med / high
-                    </div>
-                    <div className="space-y-2">
-                        {dashboard.scenarios.map((scenario) => (
-                            <div key={scenario.label} className="flex flex-col md:flex-row md:items-center md:justify-between bg-black/30 border border-white/5 rounded-lg p-3">
-                                <div className="text-sm font-semibold text-white">{scenario.label}</div>
-                                <div className="text-[13px] text-white/70">Cost: ${scenario.monthlyCost.toFixed(2)}</div>
-                                <div className="text-[13px] text-emerald-300">Revenue @ $0.50: ${scenario.monthlyRevenue.toFixed(2)}</div>
-                                <div className="text-[12px] text-white/50">Gross margin: {scenario.grossMarginPct.toFixed(1)}%</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-
-                <div className="bg-white/5 border border-amber-500/30 rounded-xl p-4 space-y-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-200">
-                        <AlertTriangle size={16} />
-                        Watchouts
-                    </div>
-                    <ul className="list-disc list-inside text-sm text-white/80 space-y-1">
-                        <li>Raise alert if cost/gen exceeds ${dashboard.warningThresholds.perGenCostWarning.toFixed(2)} (pricing drift).</li>
-                        <li>Investigate storage/egress if per-user monthly cost surpasses ${dashboard.warningThresholds.perUserMonthlyWarning.toFixed(2)}.</li>
-                        <li>Update <code className="px-1 py-0.5 bg-white/10 rounded">data/cost-assumptions.json</code> when providers change pricing.</li>
-                    </ul>
-                </div>
-            </div>
         </Modal>
     );
 };
