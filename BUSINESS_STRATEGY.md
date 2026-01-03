@@ -22,23 +22,30 @@ We are running a highly optimized pipeline using **Gemini 2.5 Flash**.
 
 ## 2. Pricing & Monetization
 
-Since the cost is extremely low (<$0.02), we can offer generous free tiers while maintaining massive margins on paid packs.
+We now expose every artifact for sale, anchored to the calculator PR assumptions (~$0.017 Turbo / ~$0.030 High-Res per 4–8 frame generation with hosting).
 
-### A. The "Credit Pack" Model (Current)
-*   **Price:** $5.00 USD
-*   **Credits:** 50 Generations (approx $0.10/video value to user)
-*   **Cost to Us:** 50 * $0.02 = $1.00
-*   **Margin:** **80% ($4.00 Profit)**
+### A. Trial (Free, 1 run)
+*   Preview-only, watermark, limited director controls (first/last category only).
+*   Blocks MP4/HTML/DKG exports and FX/Kinetic engine; upsell copy shows prices for paid unlocks.
 
-### B. Subscription (Pro Tier)
-*   **Price:** $9.99 / month
-*   **Limits:** 200 Generations / month
-*   **Perks:**
-    *   Watermark removal (jusDNCE logo in corner)
-    *   1080p / 4K Upscaling
-    *   Cloud Storage for Projects
-*   **Margin:** At max usage (200 gens), cost is $4.00. **Profit: $6.00**.
-    *   *Reality:* Average user will use ~30 gens. Profit ~$9.00.
+### B. Starter Export (per MP4)
+*   **Price:** ~$1 per MP4 export from Step4.
+*   **Includes:** Watermark removal on the purchased file only; HTML/DKG remain locked unless purchased separately.
+*   **Margin:** >90% even on High-Res; revisit quarterly with calculator inputs.
+
+### C. Golem Packs (DKGs — formerly "rigs")
+*   **Price Tiers:** ~$3 (Standard) / ~$7 (Pro) / ~$12 (Elite) mapped to frame quality/diversity.
+*   **Includes:** Downloadable DKG bundles with regen rights and swapping; watermark removed for those assets.
+*   **Note:** MP4 exports can be bundled or remain per-export; keep pricing aligned to calculator assumptions.
+
+### D. Pro Monthly Subscription
+*   **Price:** ~$9.99 / month.
+*   **Includes:** Unlocks MP4 + HTML/DKG exports without caps, FX/Kinetic controls, music/rig (golem) swapping, daily stipend of 1+ gens.
+*   **Controls:** Soft daily caps via credits to protect margins; watermark removed globally.
+
+### E. Share-to-Earn (future experiment)
+*   Watermarked outputs can be shared with UTM + QR codes; verified referrals grant limited credits.
+*   Keep gated until attribution and abuse controls are ready.
 
 ---
 
