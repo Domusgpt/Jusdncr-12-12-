@@ -18,3 +18,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/1kMTJbNoSCN5Shp1oWMEJhL
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Cost dashboard + automated docs
+
+- Edit pricing inputs in [`data/cost-assumptions.json`](data/cost-assumptions.json) (per-image model rates, sprite-sheet call counts per mode, Firebase storage/egress, Firestore operations).
+- Regenerate the JSON + Markdown dashboard with `npm run costs:generate`.
+- The latest computed economics live in [`data/costs-dashboard.json`](data/costs-dashboard.json) and the human-readable report in [`docs/costs.md`](docs/costs.md). The report reflects the sprite-sheet pipeline in `services/gemini.ts` (base + flourish by default; alt + smooth only when Turbo is off or Super mode is on).
