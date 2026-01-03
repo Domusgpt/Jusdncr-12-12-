@@ -6,7 +6,7 @@ import { STYLE_PRESETS, CREDITS_PER_PACK } from './constants';
 import { Step1Assets, Step2Director } from './components/Steps';
 import { Step4Preview } from './components/Step4Preview';
 import { generateDanceFrames, fileToGenericBase64 } from './services/gemini';
-import { AuthModal, CostInsightsModal, PaymentModal } from './components/Modals';
+import { AuthModal, PaymentModal } from './components/Modals';
 import { GlobalBackground } from './components/GlobalBackground';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -234,8 +234,8 @@ const App: React.FC = () => {
       <div className="relative z-10 flex flex-col h-screen flex-1">
         
         {/* MODALS */}
-        <AuthModal
-            isOpen={appState.showAuthModal}
+        <AuthModal 
+            isOpen={appState.showAuthModal} 
             onClose={() => setAppState(prev => ({ ...prev, showAuthModal: false }))}
             onLogin={handleLogin}
         />
@@ -243,10 +243,6 @@ const App: React.FC = () => {
             isOpen={appState.showPaymentModal}
             onClose={() => setAppState(prev => ({ ...prev, showPaymentModal: false }))}
             onSuccess={handlePaymentSuccess}
-        />
-        <CostInsightsModal
-            isOpen={appState.showCostModal}
-            onClose={() => setAppState(prev => ({ ...prev, showCostModal: false }))}
         />
 
         {/* HEADER */}
@@ -282,7 +278,7 @@ const App: React.FC = () => {
                 </button>
                 <input ref={importRef} type="file" accept=".jusdnce" onChange={loadProject} className="hidden" />
 
-                <div
+                <div 
                     className="hidden md:flex items-center gap-2 bg-black/40 px-5 py-2 rounded-full border border-white/10 cursor-pointer hover:border-yellow-400/50 transition-all hover:bg-white/5 hover:scale-105 group"
                     onMouseEnter={() => triggerImpulse('hover', 0.3)}
                     onClick={() => setAppState(prev => ({ ...prev, showPaymentModal: true }))}
@@ -290,14 +286,6 @@ const App: React.FC = () => {
                     <Zap size={16} className="text-yellow-400 fill-yellow-400 group-hover:animate-bounce" />
                     <span className="text-sm font-bold text-gray-200 tracking-wide font-mono">{appState.credits} CR</span>
                 </div>
-
-                <button
-                    onClick={() => setAppState(prev => ({ ...prev, showCostModal: true }))}
-                    className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-white hover:border-emerald-400/60 hover:bg-emerald-500/10 transition-all"
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                >
-                    <Layers size={14} className="text-emerald-300" /> OPS COSTS
-                </button>
 
                 {appState.user ? (
                     <div className="flex items-center gap-3 pl-4 border-l border-white/10">
