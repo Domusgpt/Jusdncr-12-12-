@@ -24,12 +24,157 @@ export const generatePlayerHTML = (
     <title>jusDNCE // Standalone Player</title>
     <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700;900&display=swap" rel="stylesheet">
     <style>
+        * { box-sizing: border-box; }
         body { margin: 0; background: #050505; overflow: hidden; font-family: 'Rajdhani', sans-serif; user-select: none; color: #fff; }
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         #bgCanvas { z-index: 1; }
         #charCanvas { z-index: 2; pointer-events: none; }
-        
-        /* UI OVERLAY - Responsive */
+
+        /* ============ STATUS BAR - TOP ============ */
+        #statusBar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 50;
+            padding: max(8px, env(safe-area-inset-top)) 8px 8px 8px;
+        }
+        #statusBar .bar-inner {
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 6px 8px; gap: 4px;
+        }
+        #statusBar .left, #statusBar .center, #statusBar .right {
+            display: flex; align-items: center; gap: 4px;
+        }
+        #statusBar .center { flex: 1; justify-content: center; }
+        .status-btn {
+            width: 40px; height: 40px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1); color: #ccc; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s; -webkit-tap-highlight-color: transparent;
+        }
+        .status-btn:active { transform: scale(0.95); }
+        .status-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; box-shadow: 0 0 15px rgba(139,92,246,0.4); }
+        .status-btn.mic-active { background: #ef4444; border-color: #f87171; color: white; animation: pulse-red 1s infinite; }
+        .status-btn.synth-active { background: linear-gradient(135deg, #00ff88, #00ccff); border-color: #00ff88; color: #000; }
+        @keyframes pulse-red { 0%, 100% { box-shadow: 0 0 10px rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 20px rgba(239,68,68,0.8); } }
+        .status-btn svg { width: 20px; height: 20px; }
+        .bpm-display { display: flex; align-items: center; gap: 8px; }
+        .bpm-value { font-size: 16px; font-weight: 900; color: #0ff; font-family: monospace; min-width: 40px; }
+        .bpm-label { font-size: 9px; color: rgba(255,255,255,0.4); }
+        .beat-bars { display: flex; gap: 2px; }
+        .beat-bar { width: 20px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; transition: all 0.1s; }
+        .beat-bar.active { background: #8b5cf6; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
+        .beat-bar.downbeat { background: #0ff; box-shadow: 0 0 6px rgba(0,255,255,0.6); }
+
+        /* ============ FX RAIL - LEFT ============ */
+        #fxRail {
+            position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 55;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.1); border-left: none;
+            border-radius: 0 12px 12px 0;
+            padding: 8px 6px; display: flex; flex-direction: column; gap: 4px;
+        }
+        #fxRail.collapsed { padding: 8px 2px; }
+        #fxRail.collapsed .fx-btn { width: 8px; padding: 0; }
+        .fx-btn {
+            width: 44px; height: 36px; border-radius: 8px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.5); cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: all 0.15s; font-size: 7px; font-weight: 700; gap: 2px;
+        }
+        .fx-btn:active { transform: scale(0.95); }
+        .fx-btn.active { background: linear-gradient(135deg, #8b5cf6, #ec4899); border-color: #a78bfa; color: white; }
+        .fx-btn svg { width: 14px; height: 14px; }
+        .fx-axis { position: absolute; right: 2px; top: 2px; display: flex; flex-direction: column; gap: 1px; }
+        .fx-axis-dot { width: 4px; height: 4px; border-radius: 50%; }
+        .fx-axis-dot.x { background: #0ff; box-shadow: 0 0 4px #0ff; }
+        .fx-axis-dot.y { background: #f0f; box-shadow: 0 0 4px #f0f; }
+        .fx-intensity { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .fx-intensity-bar { height: 3px; background: rgba(255,255,255,0.1); border-radius: 2px; margin-bottom: 4px; overflow: hidden; }
+        .fx-intensity-fill { height: 100%; transition: width 0.1s; }
+        .fx-intensity-fill.x { background: #0ff; }
+        .fx-intensity-fill.y { background: #f0f; }
+        .fx-intensity-label { font-size: 6px; color: rgba(255,255,255,0.4); text-align: center; }
+
+        /* ============ ENGINE STRIP - BOTTOM ============ */
+        #engineStrip {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
+            padding: 8px 8px max(8px, env(safe-area-inset-bottom)) 8px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 70%, transparent 100%);
+        }
+        #engineStrip .strip-inner {
+            display: flex; flex-direction: column; gap: 8px; align-items: center;
+        }
+        .pattern-row {
+            display: flex; gap: 4px; overflow-x: auto; max-width: 100%;
+            padding: 4px 0; -webkit-overflow-scrolling: touch;
+            scrollbar-width: none; -ms-overflow-style: none;
+        }
+        .pattern-row::-webkit-scrollbar { display: none; }
+        .pattern-btn {
+            flex-shrink: 0; padding: 8px 12px; border-radius: 8px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6); cursor: pointer; font-size: 9px; font-weight: 700;
+            transition: all 0.15s; white-space: nowrap;
+        }
+        .pattern-btn:active { transform: scale(0.95); }
+        .pattern-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        .controls-row {
+            display: flex; gap: 8px; align-items: center; justify-content: center;
+            flex-wrap: wrap; width: 100%;
+        }
+        .mode-toggle {
+            display: flex; gap: 2px; background: rgba(0,0,0,0.4); border-radius: 8px; padding: 2px;
+        }
+        .mode-btn {
+            padding: 8px 12px; border-radius: 6px; border: none;
+            background: transparent; color: rgba(255,255,255,0.5);
+            cursor: pointer; font-size: 10px; font-weight: 700; transition: all 0.15s;
+        }
+        .mode-btn.active { background: #8b5cf6; color: white; }
+        .mode-btn.cyan.active { background: #0ff; color: #000; }
+        .intensity-slider {
+            width: 120px; height: 6px; -webkit-appearance: none; background: rgba(255,255,255,0.1);
+            border-radius: 3px; outline: none;
+        }
+        .intensity-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+            background: #8b5cf6; border: 2px solid white; cursor: pointer;
+        }
+        .mixer-toggle {
+            padding: 10px 16px; border-radius: 10px;
+            background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);
+            color: #ccc; cursor: pointer; font-size: 11px; font-weight: 700;
+            display: flex; align-items: center; gap: 6px; transition: all 0.15s;
+        }
+        .mixer-toggle.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+        .mixer-toggle svg { width: 18px; height: 18px; }
+
+        /* ============ MIXER DRAWER ============ */
+        #mixerDrawer {
+            position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+            background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(255,255,255,0.15);
+            border-radius: 20px 20px 0 0;
+            transform: translateY(100%); transition: transform 0.3s ease;
+            max-height: 70vh; overflow-y: auto;
+        }
+        #mixerDrawer.open { transform: translateY(0); }
+        .drawer-handle {
+            width: 40px; height: 4px; background: rgba(255,255,255,0.3);
+            border-radius: 2px; margin: 12px auto;
+        }
+        .drawer-content { padding: 0 16px 16px 16px; }
+        .drawer-tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+        .drawer-tab {
+            flex: 1; padding: 10px; border-radius: 8px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.5); cursor: pointer; font-size: 11px; font-weight: 700;
+            text-align: center; transition: all 0.15s;
+        }
+        .drawer-tab.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
+
+        /* ============ LEGACY UI STYLES - Keep visible ============ */
         #ui {
             position: absolute; bottom: 0; left: 0; right: 0; z-index: 100;
             display: flex; flex-direction: column; gap: 8px; align-items: center;
@@ -38,12 +183,10 @@ export const generatePlayerHTML = (
             transition: opacity 0.3s, transform 0.3s;
         }
         #ui.hidden { opacity: 0; pointer-events: none; transform: translateY(100%); }
-
         .ui-row {
             display: flex; gap: 6px; align-items: center; justify-content: center;
             flex-wrap: wrap; max-width: 100%;
         }
-
         button, a.active {
             background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
             color: #ccc; padding: 10px 14px; border-radius: 12px;
@@ -60,12 +203,10 @@ export const generatePlayerHTML = (
         button.orange { background: rgba(255,150,0,0.15); border-color: rgba(255,150,0,0.4); color: #f90; }
         button.red { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); color: #fca5a5; }
         button.red.active { background: #ef4444; color: white; border-color: #ef4444; }
-
         .btn-icon { width: 44px; padding: 10px; }
         .btn-icon svg { width: 20px; height: 20px; }
         .btn-label { display: none; }
         @media (min-width: 480px) { .btn-label { display: inline; } button { padding: 10px 16px; } }
-
         .separator { width: 1px; height: 20px; background: rgba(255,255,255,0.1); display: none; }
         @media (min-width: 480px) { .separator { display: block; } }
 
@@ -89,7 +230,7 @@ export const generatePlayerHTML = (
             border-radius: 50%; animation: spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite; margin-bottom: 20px;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        
+
         /* Drag Overlay */
         #dropOverlay {
             position: absolute; inset: 0; z-index: 300; background: rgba(139, 92, 246, 0.9);
@@ -98,134 +239,47 @@ export const generatePlayerHTML = (
         }
         body.drag-active #dropOverlay { opacity: 1; }
         .drop-title { font-size: 3em; color: white; font-weight: 900; letter-spacing: 4px; margin-bottom: 10px; }
-        
-        /* Info Corner - Responsive */
-        #info {
-            position: absolute; top: 12px; left: 12px; z-index: 50;
-            color: rgba(255,255,255,0.5); font-size: 10px; pointer-events: none;
-            line-height: 1.4; font-weight: 600;
-            background: rgba(0,0,0,0.4); padding: 8px 12px; border-radius: 10px;
-            backdrop-filter: blur(10px); max-width: 180px;
-        }
-        @media (min-width: 480px) { #info { font-size: 11px; top: 20px; left: 20px; } }
-        .brand {
-            font-size: 18px; color: white; font-weight: 900; letter-spacing: -1px; margin-bottom: 2px; display: block;
-            text-shadow: 0 0 15px rgba(139,92,246,0.5);
-        }
-        @media (min-width: 480px) { .brand { font-size: 22px; } }
 
-        /* NEURAL DECK - Responsive */
-        #deck {
-            position: absolute; left: 0; right: 0; z-index: 90;
-            padding: 8px 12px; overflow-x: auto; -webkit-overflow-scrolling: touch;
-            display: flex; gap: 8px; align-items: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
-            /* Mobile: top position */
-            top: 60px; bottom: auto; height: auto;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+        /* Mic Permission Modal */
+        #micModal {
+            position: fixed; inset: 0; z-index: 500;
+            background: rgba(0,0,0,0.9); backdrop-filter: blur(10px);
+            display: none; align-items: center; justify-content: center;
         }
-        @media (min-width: 600px) {
-            #deck { top: auto; bottom: 80px; background: linear-gradient(to top, rgba(0,0,0,0.5) 0%, transparent 100%); }
+        #micModal.visible { display: flex; }
+        .mic-modal-content {
+            background: rgba(20,20,25,0.98); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px; padding: 24px; max-width: 360px; text-align: center;
         }
-        #deck.visible { opacity: 1; pointer-events: auto; }
-        .frame-thumb {
-            width: 52px; height: 52px; border-radius: 8px;
-            background: rgba(255,255,255,0.1); border: 2px solid rgba(255,255,255,0.15);
-            cursor: pointer; flex-shrink: 0; transition: all 0.15s;
-            overflow: hidden; position: relative;
+        .mic-modal-content h3 { color: #0ff; font-size: 18px; margin: 0 0 12px 0; }
+        .mic-modal-content p { color: rgba(255,255,255,0.7); font-size: 13px; margin: 0 0 20px 0; line-height: 1.5; }
+        .mic-modal-content .icon { width: 60px; height: 60px; margin: 0 auto 16px; background: rgba(239,68,68,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+        .mic-modal-content .icon svg { width: 30px; height: 30px; color: #ef4444; }
+        .mic-modal-btns { display: flex; gap: 12px; }
+        .mic-modal-btn {
+            flex: 1; padding: 14px; border-radius: 12px; border: none;
+            font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.15s;
         }
-        @media (min-width: 480px) { .frame-thumb { width: 60px; height: 60px; } }
-        .frame-thumb img { width: 100%; height: 100%; object-fit: contain; }
-        .frame-thumb:active { transform: scale(0.95); border-color: #a78bfa; }
-        .frame-thumb.selected { border-color: #8b5cf6; box-shadow: 0 0 12px rgba(139,92,246,0.5); }
-        .frame-thumb .badge {
-            position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.8);
-            color: white; font-size: 7px; padding: 1px 3px; border-top-left-radius: 4px;
-        }
+        .mic-modal-btn.primary { background: #ef4444; color: white; }
+        .mic-modal-btn.primary:hover { background: #dc2626; }
+        .mic-modal-btn.secondary { background: rgba(255,255,255,0.1); color: white; border: 1px solid rgba(255,255,255,0.2); }
+        .mic-modal-btn.synth { background: linear-gradient(135deg, #00ff88, #00ccff); color: #000; }
 
-        /* GOLEM MIXER PANEL - Responsive */
-        #mixerPanel {
-            position: absolute; z-index: 110;
-            background: rgba(10,10,15,0.98); backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
-            padding: 12px; font-family: 'Rajdhani', sans-serif;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 0 40px rgba(139,92,246,0.1);
-            display: none; overflow-y: auto;
-            /* Mobile: full width bottom sheet */
-            bottom: 0; left: 0; right: 0;
-            max-height: 70vh; border-bottom-left-radius: 0; border-bottom-right-radius: 0;
+        /* Help overlay */
+        #helpOverlay {
+            position: fixed; inset: 0; z-index: 400;
+            background: rgba(0,0,0,0.95); backdrop-filter: blur(10px);
+            display: none; align-items: center; justify-content: center;
         }
-        @media (min-width: 600px) {
-            #mixerPanel {
-                bottom: 80px; right: 16px; left: auto;
-                width: 360px; max-height: 75vh;
-                border-radius: 16px;
-            }
+        #helpOverlay.visible { display: flex; }
+        .help-content {
+            background: rgba(20,20,25,0.98); border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px; padding: 24px; max-width: 400px; width: calc(100% - 32px);
         }
-        #mixerPanel.visible { display: block; }
-        #mixerPanel h3 {
-            margin: 0 0 12px 0; font-size: 14px; font-weight: 700;
-            background: linear-gradient(90deg, #00ffff, #a78bfa);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            letter-spacing: 2px;
-        }
-        .mixer-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
-        .mixer-tab {
-            flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 700;
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 8px;
-            transition: all 0.15s; text-align: center;
-        }
-        .mixer-tab:hover { background: rgba(139,92,246,0.2); }
-        .mixer-tab.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
-        .mixer-section { background: rgba(255,255,255,0.03); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
-        .mixer-section-title { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 8px; letter-spacing: 1px; }
-        .mixer-row { display: flex; gap: 8px; margin-bottom: 8px; }
-        .mixer-select {
-            flex: 1; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
-            color: white; padding: 8px; border-radius: 8px; font-size: 11px;
-            font-family: 'Rajdhani', sans-serif; cursor: pointer;
-        }
-        .mixer-select:focus { border-color: #a78bfa; outline: none; }
-        .mixer-slider-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
-        .mixer-slider-label { font-size: 10px; color: rgba(255,255,255,0.6); width: 60px; }
-        .mixer-slider {
-            flex: 1; -webkit-appearance: none; height: 6px; border-radius: 3px;
-            background: linear-gradient(90deg, rgba(0,255,255,0.3), rgba(168,85,247,0.3));
-        }
-        .mixer-slider::-webkit-slider-thumb {
-            -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
-            background: #a78bfa; cursor: pointer; border: 2px solid white;
-        }
-        /* 4-Channel Deck Grid */
-        .deck-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
-        .deck-channel {
-            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px; padding: 8px; text-align: center;
-        }
-        .deck-channel.active { border-color: #a78bfa; background: rgba(139,92,246,0.1); }
-        .deck-label { font-size: 10px; color: rgba(255,255,255,0.5); margin-bottom: 4px; }
-        .deck-mode-select {
-            width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
-            color: white; padding: 4px; border-radius: 4px; font-size: 9px;
-            font-family: 'Rajdhani', sans-serif; cursor: pointer;
-        }
-        .deck-indicator {
-            width: 8px; height: 8px; border-radius: 50%; margin: 4px auto 0;
-            background: rgba(255,255,255,0.2); transition: all 0.2s;
-        }
-        .deck-indicator.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
-        /* Engine Mode Toggle */
-        .engine-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
-        .engine-btn, .physics-btn {
-            flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700;
-            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
-            color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 6px;
-            transition: all 0.15s; text-align: center;
-        }
-        .engine-btn:hover, .physics-btn:hover { background: rgba(139,92,246,0.2); }
-        .engine-btn.active { background: #8b5cf6; border-color: #a78bfa; color: white; }
-        .physics-btn.active { background: #00ffff; border-color: #00ffff; color: black; }
+        .help-content h3 { color: #0ff; margin: 0 0 16px 0; }
+        .hotkey-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; }
+        .hotkey-row .key { background: rgba(255,255,255,0.1); padding: 3px 8px; border-radius: 4px; font-family: monospace; font-size: 10px; }
+        .hotkey-row .desc { color: rgba(255,255,255,0.6); }
         /* Sequence Mode Indicators */
         .seq-modes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 8px; }
         .seq-mode {
