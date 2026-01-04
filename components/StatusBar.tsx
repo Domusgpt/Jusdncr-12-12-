@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, Mic, MicOff, Camera, Upload,
-  MoreHorizontal, Eye, Sparkles, Download, Video, X
+  MoreHorizontal, Eye, Sparkles, Download, Video, X, Link2
 } from 'lucide-react';
 
 interface StatusBarProps {
@@ -17,6 +17,7 @@ interface StatusBarProps {
   hasAudio: boolean;
   onPlayToggle: () => void;
   onUploadAudio: () => void;
+  onLinkAudio: () => void;
 
   // Mic
   isMicActive: boolean;
@@ -55,7 +56,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   onGenerateMore,
   onSaveProject,
   onStartRecording,
-  isRecording
+  isRecording,
+  onLinkAudio
 }) => {
   const [showMore, setShowMore] = useState(false);
 
@@ -157,6 +159,16 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                 <Upload size={18} />
               </button>
             )}
+
+            <button
+              onClick={onLinkAudio}
+              className="w-9 h-9 rounded-lg flex items-center justify-center
+                        bg-white/5 border border-white/10 text-white/60
+                        hover:text-white hover:border-brand-400/50 active:scale-95 touch-manipulation"
+              title="Link streaming audio"
+            >
+              <Link2 size={16} />
+            </button>
 
             {/* Mic */}
             <button
