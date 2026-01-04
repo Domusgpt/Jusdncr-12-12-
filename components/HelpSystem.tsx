@@ -46,8 +46,8 @@ const HELP_PAGES: HelpPage[] = [
       },
       {
         id: 'import-rig',
-        title: 'Import Rig',
-        description: 'Load a previously saved animation rig (.json file). This includes all generated frames and settings, letting you continue work or remix existing projects.',
+        title: 'Import Golem (.DKG)',
+        description: 'Load a previously saved deterministic kinetic golem (.dkg file). This includes all generated frames and settings so you can continue work or remix existing projects without regenerating.',
         icon: <Layers size={20} />,
         position: 'bottom-left'
       }
@@ -117,14 +117,14 @@ const HELP_PAGES: HelpPage[] = [
       {
         id: 'engine-strip',
         title: 'Engine Strip (Bottom)',
-        description: 'Pattern buttons show all available choreography patterns. LEG/LAB toggles physics mode. PAT/KIN switches engine mode. MIX opens the 4-deck mixer for layering multiple rigs.',
+        description: 'Pattern buttons show all available choreography patterns. LEG/LAB toggles physics mode. PAT/KIN switches engine mode. MIX opens the 4-deck mixer for layering multiple golems.',
         icon: <Disc3 size={20} />,
         position: 'bottom-left'
       },
       {
         id: 'export-html',
-        title: 'HTML Export',
-        description: 'Download a standalone .HTML file that plays your animation offline in any browser. Perfect for sharing or embedding. The player includes all frames and the visualizer.',
+        title: 'DKG/HTML Export',
+        description: 'Download a standalone .HTML player plus a .dkg golem file for offline playback in any browser. Perfect for sharing or embedding with the player that includes all frames and the visualizer.',
         icon: <Download size={20} />,
         position: 'top-right'
       }

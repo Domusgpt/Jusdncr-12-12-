@@ -161,7 +161,7 @@ const App: React.FC = () => {
 
       const project: SavedProject = {
           id: crypto.randomUUID(),
-          name: `Rig_${Date.now()}`,
+          name: `Golem_${Date.now()}`,
           createdAt: Date.now(),
           frames: appState.generatedFrames,
           styleId: appState.selectedStyleId,
@@ -173,7 +173,7 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${project.name}.jusdnce`;
+      a.download = `${project.name}.dkg`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

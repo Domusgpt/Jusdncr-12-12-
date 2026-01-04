@@ -381,7 +381,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           isActive: true,
           mixMode: 'sequencer',
           frameCount: state.generatedFrames.length,
-          rigName: 'Current Rig',
+          rigName: 'Current Golem',
           frames: state.generatedFrames // Include frames for thumbnails
         } : d)
       }));

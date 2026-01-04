@@ -992,9 +992,9 @@ export const generatePlayerHTML = (
                 <span id="engineLabel">PATTERN</span>
             </button>
             <div class="separator"></div>
-            <button id="btnLoadRig" title="Load Rig File">
+            <button id="btnLoadRig" title="Load Golem (.dkg) File">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span class="btn-label">RIG</span>
+                <span class="btn-label">GOLEM</span>
             </button>
             <button id="btnLoadAudio" title="Load Audio">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
@@ -1004,7 +1004,7 @@ export const generatePlayerHTML = (
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
             <div class="separator"></div>
-            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Rigs" style="text-decoration:none;">
+            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Golems" style="text-decoration:none;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
                 <span class="btn-label">GET MORE</span>
             </a>
@@ -1022,7 +1022,7 @@ export const generatePlayerHTML = (
         </div>
     </div>
 
-    <input type="file" id="rigInput" style="display:none" accept=".jusdnce,.json">
+    <input type="file" id="rigInput" style="display:none" accept=".dkg,.rig,.jusdnce,.json">
     <input type="file" id="audioInput" style="display:none" accept="audio/*">
 
     <script>
@@ -1991,13 +1991,46 @@ export const generatePlayerHTML = (
             if(file) handleAudioFile(file);
         };
 
+        function normalizeRigPayload(proj) {
+            return {
+                frames: proj.frames || proj.generatedFrames || proj.sequence || [],
+                hologramParams: proj.hologramParams || proj.hologram_params || proj.params || {},
+                subjectCategory: proj.subjectCategory || proj.subject || SUBJECT || "UNKNOWN"
+            };
+        }
+
+        function offerDkgConversion(file, normalized) {
+            const lower = file.name.toLowerCase();
+            if(lower.endsWith('.dkg')) return;
+
+            const shouldConvert = confirm('Legacy rig detected. Convert to .dkg for future use?');
+            if(!shouldConvert) return;
+
+            const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            a.download = baseName + '.dkg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
         function handleRigFile(file) {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 try {
-                    const proj = JSON.parse(ev.target.result);
-                    if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
-                } catch(e) { alert("Invalid Rig File"); }
+                    const raw = JSON.parse(ev.target.result);
+                    const normalized = normalizeRigPayload(raw);
+                    if(normalized.frames && normalized.frames.length) {
+                        loadRig(normalized.frames, normalized.hologramParams, normalized.subjectCategory);
+                        offerDkgConversion(file, normalized);
+                    } else {
+                        alert('Invalid Golem file structure');
+                    }
+                } catch(e) { alert("Invalid Golem (.dkg/.jusdnce) File"); }
             };
             reader.readAsText(file);
         }
@@ -2018,7 +2051,7 @@ export const generatePlayerHTML = (
             e.preventDefault(); document.body.classList.remove('drag-active');
             const file = e.dataTransfer.files[0];
             if(!file) return;
-            if(file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
+            if(file.name.toLowerCase().endsWith('.dkg') || file.name.toLowerCase().endsWith('.rig') || file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
                 handleRigFile(file);
             } else if(file.type.startsWith('audio/')) {
                 handleAudioFile(file);

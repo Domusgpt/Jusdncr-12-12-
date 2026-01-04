@@ -75,12 +75,12 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                        transition-all font-bold"
           >
             <FolderOpen size={18} />
-            <span className="text-sm">IMPORT RIG</span>
+            <span className="text-sm">IMPORT GOLEM (.DKG)</span>
           </button>
           <input
             ref={rigInput}
             type="file"
-            accept=".json"
+            accept=".dkg,.json,.jusdnce"
             className="hidden"
             onChange={handleImportRig}
           />
