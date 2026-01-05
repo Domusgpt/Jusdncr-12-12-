@@ -27,6 +27,7 @@ export const useAudioAnalyzer = () => {
     const sourceNodeRef = useRef<MediaElementAudioSourceNode | MediaStreamAudioSourceNode | null>(null);
     const audioDestRef = useRef<MediaStreamAudioDestinationNode | null>(null);
     const micStreamRef = useRef<MediaStream | null>(null);
+    const systemStreamRef = useRef<MediaStream | null>(null);
 
     // Lookahead buffer for predictive analysis
     const lookaheadBufferRef = useRef<AudioLookaheadBuffer | null>(null);
@@ -45,6 +46,12 @@ export const useAudioAnalyzer = () => {
     const prevBassRef = useRef<number>(0);
 
     const [isMicActive, setIsMicActive] = useState(false);
+    const [activeInput, setActiveInput] = useState<'file' | 'mic' | 'system' | null>(null);
+
+    const stopStream = (stream: MediaStream | null) => {
+        if (!stream) return;
+        stream.getTracks().forEach(t => t.stop());
+    };
 
     const initAudio = useCallback(() => {
         if (!audioCtxRef.current) {
@@ -73,12 +80,16 @@ export const useAudioAnalyzer = () => {
                 // Prevent double connection
                 if (!sourceNodeRef.current || sourceNodeRef.current instanceof MediaStreamAudioSourceNode) {
                     if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
-                    
+
                     const src = ctx.createMediaElementSource(audioElement);
                     src.connect(analyserRef.current);
                     src.connect(ctx.destination);
                     src.connect(audioDestRef.current);
                     sourceNodeRef.current = src;
+                    setActiveInput('file');
+                    setIsMicActive(false);
+                    stopStream(micStreamRef.current);
+                    stopStream(systemStreamRef.current);
                 }
             } catch (e) {
                 // Often fails if element is already connected, safe to ignore in React strict mode re-renders
@@ -92,10 +103,10 @@ export const useAudioAnalyzer = () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             micStreamRef.current = stream;
-            
+
             if (analyserRef.current && audioDestRef.current) {
                 if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
-                
+
                 const src = ctx.createMediaStreamSource(stream);
                 src.connect(analyserRef.current);
                 // Do NOT connect mic to ctx.destination to avoid feedback loop
@@ -103,6 +114,8 @@ export const useAudioAnalyzer = () => {
                 sourceNodeRef.current = src;
             }
             setIsMicActive(true);
+            setActiveInput('mic');
+            stopStream(systemStreamRef.current);
         } catch (e) {
             console.error("Mic access denied", e);
             alert("Microphone access denied. Check permissions.");
@@ -110,11 +123,53 @@ export const useAudioAnalyzer = () => {
     }, [initAudio]);
 
     const disconnectMic = useCallback(() => {
-        if (micStreamRef.current) {
-            micStreamRef.current.getTracks().forEach(t => t.stop());
-            micStreamRef.current = null;
-        }
+        stopStream(micStreamRef.current);
+        micStreamRef.current = null;
         setIsMicActive(false);
+        if (activeInput === 'mic') setActiveInput(null);
+    }, [activeInput]);
+
+    const connectSystemAudio = useCallback(async () => {
+        const ctx = initAudio();
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+            const audioTracks = stream.getAudioTracks();
+            if (audioTracks.length === 0) throw new Error('No audio track available from display capture');
+
+            stopStream(systemStreamRef.current);
+            systemStreamRef.current = new MediaStream(audioTracks);
+
+            // Stop video capture to avoid indicator churn
+            stream.getVideoTracks().forEach(t => t.stop());
+
+            if (analyserRef.current && audioDestRef.current) {
+                if (sourceNodeRef.current) sourceNodeRef.current.disconnect();
+
+                const src = ctx.createMediaStreamSource(systemStreamRef.current);
+                src.connect(analyserRef.current);
+                src.connect(audioDestRef.current);
+                src.connect(ctx.destination);
+                sourceNodeRef.current = src;
+            }
+
+            setActiveInput('system');
+            setIsMicActive(false);
+            stopStream(micStreamRef.current);
+            return true;
+        } catch (e) {
+            console.error('System audio capture failed', e);
+            alert('System/loopback audio is blocked or unsupported in this browser.');
+            return false;
+        }
+    }, [initAudio]);
+
+    const disconnectAllInputs = useCallback(() => {
+        stopStream(micStreamRef.current);
+        stopStream(systemStreamRef.current);
+        micStreamRef.current = null;
+        systemStreamRef.current = null;
+        setIsMicActive(false);
+        setActiveInput(null);
     }, []);
 
     /**
@@ -268,9 +323,8 @@ export const useAudioAnalyzer = () => {
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (micStreamRef.current) {
-                micStreamRef.current.getTracks().forEach(t => t.stop());
-            }
+            stopStream(micStreamRef.current);
+            stopStream(systemStreamRef.current);
             if (audioCtxRef.current) {
                 audioCtxRef.current.close();
             }
@@ -282,9 +336,12 @@ export const useAudioAnalyzer = () => {
         analyserRef,
         audioDestRef, // Exposed for recording
         isMicActive,
+        activeInput,
         initAudio,
         connectFileAudio,
         connectMicAudio,
+        connectSystemAudio,
+        disconnectAllInputs,
         disconnectMic,
         getFrequencyData,
         // New enhanced analysis methods for Kinetic Core
