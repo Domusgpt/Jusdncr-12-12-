@@ -267,19 +267,19 @@ test.describe('jusDNCE Functional Pipeline Tests', () => {
     /**
      * VALIDATION CRITERIA:
      * 1. After generation, Save Project button appears
-     * 2. .jusdnce file can be downloaded
+     * 2. .dkg file can be downloaded
      * 3. File can be loaded back into the app
      */
 
     await page.goto('http://localhost:3000');
     await page.waitForLoadState('networkidle');
 
-    // Look for Import Rig button
-    const importBtn = page.locator('button:has-text("IMPORT RIG")');
+    // Look for Import Golem button
+    const importBtn = page.locator('button:has-text("IMPORT GOLEM")');
     const importExists = await importBtn.isVisible().catch(() => false);
 
     expect(importExists).toBe(true);
-    console.log('✓ Import RIG button visible');
+    console.log('✓ Import GOLEM button visible');
 
     await page.screenshot({
       path: path.join(OUTPUT_DIR, 'project-save-load.png'),

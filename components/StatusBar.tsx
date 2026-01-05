@@ -8,7 +8,7 @@
 import React, { useState } from 'react';
 import {
   Play, Pause, Mic, MicOff, Camera, Upload,
-  MoreHorizontal, Eye, Sparkles, Download, Video, X
+  MoreHorizontal, Eye, Sparkles, Download, Video, X, Link2
 } from 'lucide-react';
 
 interface StatusBarProps {
@@ -17,6 +17,7 @@ interface StatusBarProps {
   hasAudio: boolean;
   onPlayToggle: () => void;
   onUploadAudio: () => void;
+  onLinkAudio: () => void;
 
   // Mic
   isMicActive: boolean;
@@ -55,9 +56,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   onGenerateMore,
   onSaveProject,
   onStartRecording,
-  isRecording
+  isRecording,
+  onLinkAudio
 }) => {
   const [showMore, setShowMore] = useState(false);
+  const [showAudioMenu, setShowAudioMenu] = useState(false);
 
   return (
     <div className="fixed top-0 left-0 right-0 z-50 pt-safe">
@@ -133,7 +136,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         <div className="flex items-center justify-between px-2 py-1.5 gap-1">
 
           {/* Left: Transport controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 relative">
             {/* Play/Pause */}
             {hasAudio ? (
               <button
@@ -149,7 +152,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               </button>
             ) : (
               <button
-                onClick={onUploadAudio}
+                onClick={() => setShowAudioMenu(!showAudioMenu)}
                 className="w-10 h-10 rounded-lg flex items-center justify-center
                           bg-brand-500/20 border border-dashed border-brand-500/50 text-brand-400
                           active:scale-95 touch-manipulation"
@@ -157,6 +160,16 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                 <Upload size={18} />
               </button>
             )}
+
+            <button
+              onClick={() => setShowAudioMenu(!showAudioMenu)}
+              className="w-9 h-9 rounded-lg flex items-center justify-center
+                        bg-white/5 border border-white/10 text-white/60
+                        hover:text-white hover:border-brand-400/50 active:scale-95 touch-manipulation"
+              title="Audio options"
+            >
+              <Link2 size={16} />
+            </button>
 
             {/* Mic */}
             <button
@@ -171,16 +184,24 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               {isMicActive ? <Mic size={16} /> : <MicOff size={16} />}
             </button>
 
-            {/* Upload (when has audio) */}
-            {hasAudio && (
-              <button
-                onClick={onUploadAudio}
-                className="w-9 h-9 rounded-lg flex items-center justify-center
-                          bg-white/5 border border-white/10 text-white/50
-                          active:scale-95 touch-manipulation"
-              >
-                <Upload size={16} />
-              </button>
+            {showAudioMenu && (
+              <div className="absolute left-12 top-full mt-2 bg-black/90 border border-white/15 rounded-xl shadow-2xl p-2 w-48 z-50">
+                <p className="text-[10px] text-white/50 font-mono tracking-widest mb-2">AUDIO SOURCE</p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => { setShowAudioMenu(false); onUploadAudio(); }}
+                    className="w-full px-3 py-2 rounded-lg text-left text-sm font-bold text-white bg-white/10 border border-white/15 hover:border-brand-400/60 hover:bg-white/15"
+                  >
+                    Upload audio file
+                  </button>
+                  <button
+                    onClick={() => { setShowAudioMenu(false); onLinkAudio(); }}
+                    className="w-full px-3 py-2 rounded-lg text-left text-sm font-bold text-white bg-white/10 border border-white/15 hover:border-green-400/60 hover:bg-green-500/15"
+                  >
+                    Streaming URL
+                  </button>
+                </div>
+              </div>
             )}
           </div>
 
