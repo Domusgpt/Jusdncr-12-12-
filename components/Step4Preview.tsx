@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo } from 'lucide-react';
+import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo, Mic, Waves } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
@@ -58,8 +58,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const {
     audioDestRef,
     isMicActive,
+    activeInput,
     connectFileAudio,
     connectMicAudio,
+    connectSystemAudio,
+    disconnectAllInputs,
     disconnectMic,
     getFrequencyData,
     analyserRef
@@ -89,6 +92,9 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'mp4' | 'webm'>('mp4');
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [inputNotice, setInputNotice] = useState<string | null>(null);
 
   // New UI panel states
   const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
@@ -233,6 +239,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         audioElementRef.current.pause();
         audioElementRef.current.currentTime = 0;
       }
+      setInputNotice('Custom file loaded. Press play to drive visuals.');
     }
   };
 
@@ -596,11 +603,26 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const toggleMic = () => {
       if (isMicActive) {
           disconnectMic();
+          setInputNotice(null);
       } else {
           setIsPlaying(false);
           if (audioElementRef.current) audioElementRef.current.pause();
           connectMicAudio();
+          setInputNotice('Mic capture armed - browser prompt may appear.');
       }
+  };
+
+  const handleSystemCapture = async () => {
+      setIsPlaying(false);
+      if (audioElementRef.current) audioElementRef.current.pause();
+      const ok = await connectSystemAudio();
+      setInputNotice(ok ? 'Using system/loopback audio. Some browsers limit this to tabs.' : 'System capture failed.');
+  };
+
+  const handleAudioFileAdapter = () => {
+      disconnectAllInputs();
+      setInputNotice('File playback routed into analyzer.');
+      trackInputRef.current?.click();
   };
 
   // Helper to trigger a Smart Transition with deck tracking
@@ -1213,7 +1235,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           }
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 8000000 });
+      const preferredTypes = exportFormat === 'mp4'
+          ? ['video/mp4;codecs=h264', 'video/mp4', 'video/webm;codecs=vp9']
+          : ['video/webm;codecs=vp9', 'video/webm'];
+
+      let chosenMime = '';
+      for (const type of preferredTypes) {
+          if ((MediaRecorder as any).isTypeSupported?.(type)) {
+              chosenMime = type;
+              break;
+          }
+      }
+
+      const usingMp4 = chosenMime.includes('mp4');
+      if (!chosenMime) {
+          chosenMime = 'video/webm;codecs=vp9';
+          setExportNotice('No preferred recording mime types supported, using default WebM.');
+      } else if (exportFormat === 'mp4' && !usingMp4) {
+          setExportNotice('Browser does not support MP4 recording directly; falling back to WebM.');
+      } else {
+          setExportNotice(null);
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType: chosenMime, videoBitsPerSecond: 8000000 });
       mediaRecorderRef.current = recorder;
       recordedChunksRef.current = [];
       
@@ -1222,11 +1266,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       };
       
       recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const ext = chosenMime.includes('mp4') ? 'mp4' : 'webm';
+          const blob = new Blob(recordedChunksRef.current, { type: chosenMime });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.webm`;
+          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -1293,6 +1338,20 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                               ))}
                           </div>
                       </div>
+                      <div>
+                          <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block mb-3">Format</label>
+                          <div className="grid grid-cols-2 gap-3">
+                              {(['mp4', 'webm'] as const).map(fmt => (
+                                  <button
+                                      key={fmt}
+                                      onClick={() => setExportFormat(fmt)}
+                                      className={`py-2 rounded-lg border text-xs font-bold transition-all ${exportFormat === fmt ? 'bg-brand-500 text-white border-brand-300 shadow-md' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white/80'}`}
+                                  >
+                                      {fmt.toUpperCase()}
+                                  </button>
+                              ))}
+                          </div>
+                      </div>
                       <button onClick={startRecording} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all hover:scale-[1.02]"><CircleDot size={20} /> START RECORDING</button>
                   </div>
               </div>
@@ -1355,6 +1414,37 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
         isRecording={isRecording}
       />
+
+      <div className="absolute top-16 left-2 z-40 pointer-events-auto">
+        <div className="bg-black/70 border border-white/10 rounded-xl p-3 shadow-xl backdrop-blur">
+          <div className="flex items-center gap-2 mb-2 text-[11px] text-white/70 font-semibold tracking-wide">
+            <Waves size={14} className="text-cyan-400" /> INPUT ADAPTERS
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleAudioFileAdapter}
+              className={`px-3 py-2 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${activeInput === 'file' ? 'bg-brand-500 text-white border-brand-300 shadow-lg' : 'bg-white/5 text-white/70 border-white/15 hover:bg-white/10'}`}
+            >
+              <FileVideo size={14} /> File / MP4
+            </button>
+            <button
+              onClick={toggleMic}
+              className={`px-3 py-2 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${activeInput === 'mic' ? 'bg-red-500/70 text-white border-red-300 shadow-lg' : 'bg-white/5 text-white/70 border-white/15 hover:bg-white/10'}`}
+            >
+              <Mic size={14} /> Mic
+            </button>
+            <button
+              onClick={handleSystemCapture}
+              className={`px-3 py-2 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${activeInput === 'system' ? 'bg-cyan-600 text-white border-cyan-300 shadow-lg' : 'bg-white/5 text-white/70 border-white/15 hover:bg-white/10'}`}
+            >
+              <Monitor size={14} /> System
+            </button>
+          </div>
+          {inputNotice && (
+            <div className="mt-2 text-[10px] text-white/70 max-w-xs">{inputNotice}</div>
+          )}
+        </div>
+      </div>
 
       {/* FX RAIL - Left edge (9 toggles with X/Y axis mapping) */}
       <FXRail
@@ -1460,6 +1550,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse">
             <div className="w-2 h-2 bg-red-500 rounded-full" />
             <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
+          </div>
+        )}
+        {exportNotice && (
+          <div className="max-w-xs bg-black/70 border border-yellow-400/50 text-yellow-100 text-[11px] px-3 py-2 rounded-lg shadow-lg">
+            {exportNotice}
           </div>
         )}
         {/* HTML PLAYER DOWNLOAD - More visible */}
