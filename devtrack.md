@@ -50,3 +50,8 @@
 - Simplified audio selection everywhere: Step 1 keeps a single "Streaming URL" path with a cleaner add-later link; Step 4 status bar now exposes a compact audio menu with Upload vs Streaming URL instead of multiple inline buttons.
 - Streamlined the exported HTML player with a dedicated STREAM toggle that reveals the paste field and focuses it, keeping compatibility with legacy rig/audio flows.
 - Next: Validate Impact/pattern/kinetic interactions after the streamlined controls, and ensure stream-row visibility persists through exports and previews.
+
+## 2026-01-05T20:30:00Z
+- Added a standalone pricing calculator script (`tools/pricingCalculator.mjs`) to model per-generation costs, offer margins, and monthly scenarios.
+- Documented assumptions and usage in `docs/pricing_calculator.md` for Trial/Starter/Golem Pack/Pro tiers.
+- Next: align calculator inputs with Stripe metadata and expose results to admin dashboards.
