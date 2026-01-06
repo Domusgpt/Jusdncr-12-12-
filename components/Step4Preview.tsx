@@ -11,8 +11,9 @@ import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { FXState } from './UnifiedMixerPanel';
 // New UI Components
 import { StatusBar } from './StatusBar';
-import { FXRail, FXAxisMapping, FXKey } from './FXRail';
-import { EngineStrip } from './EngineStrip';
+import { FXBezel, FXKey } from './FXBezel';
+import { ModeBezel } from './ModeBezel';
+// EngineStrip replaced by ModeBezel (right edge bezel) + AnimationZoneController (touch zones)
 import { MixerDrawer } from './MixerDrawer';
 import { AnimationZoneController } from './AnimationZoneController';
 import {
@@ -93,11 +94,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   // New UI panel states
   const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
 
-  // FX X/Y axis mapping state
-  const [fxAxisMapping, setFxAxisMapping] = useState<FXAxisMapping>({
-    x: ['rgbSplit', 'shake'],
-    y: ['glitch', 'zoom']
-  });
+  // FX intensity from touch (simplified - no axis mapping)
   const [fxIntensity, setFxIntensity] = useState({ x: 0, y: 0 });
 
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
@@ -177,40 +174,29 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     });
   };
 
-  // Handle FX intensity from touch position
-  const handleFXIntensityChange = useCallback((intensity: { x: number; y: number }) => {
-    setFxIntensity(intensity);
+  // Handle FX intensity from touch position (simplified - no axis mapping)
+  const handleFXIntensityChange = useCallback((touchIntensity: { x: number; y: number }) => {
+    setFxIntensity(touchIntensity);
 
-    // Apply X-axis mapped effects
-    fxAxisMapping.x.forEach(fx => {
-      if (userEffects[fx]) {
-        if (fx === 'rgbSplit') rgbSplitRef.current = intensity.x * 0.8;
-        if (fx === 'shake') charBounceYRef.current = (Math.random() - 0.5) * intensity.x * 30;
-        if (fx === 'zoom') camZoomRef.current = BASE_ZOOM + intensity.x * 0.3;
-        if (fx === 'glitch') charSkewRef.current = (Math.random() - 0.5) * intensity.x;
-      }
-    });
+    // Use average of x/y as general intensity for active effects
+    const avgIntensity = (touchIntensity.x + touchIntensity.y) / 2;
 
-    // Apply Y-axis mapped effects
-    fxAxisMapping.y.forEach(fx => {
-      if (userEffects[fx]) {
-        if (fx === 'rgbSplit') rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity.y * 0.8);
-        if (fx === 'shake') charBounceYRef.current = Math.max(charBounceYRef.current, (Math.random() - 0.5) * intensity.y * 30);
-        if (fx === 'zoom') camZoomRef.current = Math.max(camZoomRef.current, BASE_ZOOM + intensity.y * 0.3);
-        if (fx === 'glitch') charSkewRef.current = Math.max(charSkewRef.current, (Math.random() - 0.5) * intensity.y);
-        if (fx === 'strobe') flashIntensityRef.current = intensity.y * 0.5;
-      }
-    });
+    // Apply effects based on toggles (simple on/off, intensity from touch)
+    if (userEffects.rgbSplit) rgbSplitRef.current = avgIntensity * 0.8;
+    if (userEffects.shake) charBounceYRef.current = (Math.random() - 0.5) * avgIntensity * 30;
+    if (userEffects.zoom) camZoomRef.current = BASE_ZOOM + avgIntensity * 0.3;
+    if (userEffects.glitch) charSkewRef.current = (Math.random() - 0.5) * avgIntensity;
+    if (userEffects.strobe) flashIntensityRef.current = avgIntensity * 0.5;
 
     // Reset effects when no touch
-    if (intensity.x === 0 && intensity.y === 0) {
+    if (touchIntensity.x === 0 && touchIntensity.y === 0) {
       rgbSplitRef.current = 0;
       charBounceYRef.current = 0;
       charSkewRef.current = 0;
       camZoomRef.current = BASE_ZOOM;
       flashIntensityRef.current = 0;
     }
-  }, [fxAxisMapping, userEffects]);
+  }, [userEffects]);
 
   // Intensity state (replaces PressurePaddle)
   const [intensity, setIntensity] = useState(0);
@@ -1356,14 +1342,31 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         isRecording={isRecording}
       />
 
-      {/* FX RAIL - Left edge (9 toggles with X/Y axis mapping) */}
-      <FXRail
+      {/* FX BEZEL - Left edge (9 toggles, bezel drawer style) */}
+      <FXBezel
         effects={userEffects}
-        onToggleEffect={(effect) => toggleEffect(effect as keyof typeof userEffects)}
+        onToggleEffect={(effect) => toggleEffect(effect as FXKey)}
         onResetAll={resetUserEffects}
-        axisMapping={fxAxisMapping}
-        onAxisMappingChange={setFxAxisMapping}
-        fxIntensity={fxIntensity}
+      />
+
+      {/* MODE BEZEL - Right edge (physics, engine, intensity, mixer) */}
+      <ModeBezel
+        physicsMode={choreoMode === 'LABAN' ? 'LABAN' : 'LEGACY'}
+        onPhysicsModeChange={(mode) => {
+          setChoreoMode(mode);
+          useEnhancedModeRef.current = mode === 'LABAN';
+        }}
+        engineMode={golemState.engineMode === 'PATTERN' ? 'PATTERN' : 'KINETIC'}
+        onEngineModeChange={handleEngineModeChange}
+        intensity={intensity}
+        onIntensityChange={(val) => {
+          setIntensity(val);
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.008);
+          flashIntensityRef.current = val * 0.003;
+        }}
+        isMixerOpen={isMixerDrawerOpen}
+        onMixerToggle={() => setIsMixerDrawerOpen(!isMixerDrawerOpen)}
+        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
       />
 
       {/* ANIMATION ZONE CONTROLLER - Touch overlay */}
@@ -1388,27 +1391,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onFXIntensityChange={handleFXIntensityChange}
       />
 
-      {/* ENGINE STRIP - Bottom (Physics, Patterns, Intensity, Mixer toggle) */}
-      <EngineStrip
-        physicsMode={choreoMode}
-        onPhysicsModeChange={(mode) => {
-          setChoreoMode(mode);
-          useEnhancedModeRef.current = mode === 'LABAN';
-        }}
-        engineMode={golemState.engineMode}
-        onEngineModeChange={handleEngineModeChange}
-        currentPattern={golemState.activePattern}
-        onPatternChange={handlePatternChange}
-        intensity={intensity}
-        onIntensityChange={(val) => {
-          setIntensity(val);
-          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.008);
-          flashIntensityRef.current = val * 0.003;
-        }}
-        isMixerOpen={isMixerDrawerOpen}
-        onMixerToggle={() => setIsMixerDrawerOpen(!isMixerDrawerOpen)}
-        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
-      />
+      {/* ENGINE STRIP removed - controls moved to ModeBezel (right edge) and AnimationZoneController (touch zones) */}
 
       {/* MIXER DRAWER - Bottom sheet (4 decks) */}
       <MixerDrawer

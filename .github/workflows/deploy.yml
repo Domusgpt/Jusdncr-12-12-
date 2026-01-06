@@ -1,11 +1,11 @@
 # GitHub Actions workflow for deploying ALL branches for comparison
-# Auto-detects and builds all claude/* branches without requiring merge
+# Auto-detects and builds all claude/*, codex/*, and 2026* branches without requiring merge
 
 name: Deploy All Branches
 
 on:
   push:
-    branches: ['main', 'claude/*']
+    branches: ['main', 'claude/*', 'codex/*', '2026*', '2026-*']
   workflow_dispatch:
 
 permissions:
@@ -45,15 +45,15 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VITE_BASE_PATH: /Jusdncr-12-12-/main/
 
-      # Dynamically build all claude/* branches
-      - name: Build all claude branches
+      # Dynamically build all feature branches (claude/*, codex/*, 2026*)
+      - name: Build all feature branches
         run: |
-          # Get all remote claude/* branches
-          BRANCHES=$(git branch -r | grep 'origin/claude/' | sed 's/origin\///' | tr -d ' ')
+          # Get all remote feature branches (claude/*, codex/*, 2026*)
+          BRANCHES=$(git branch -r | grep -E 'origin/(claude/|codex/|2026)' | sed 's/origin\///' | tr -d ' ')
 
           for BRANCH in $BRANCHES; do
-            # Create safe folder name (replace / with -)
-            FOLDER=$(echo "$BRANCH" | sed 's/claude\///' | sed 's/\//-/g' | cut -c1-30)
+            # Create safe folder name (replace / with -, remove prefix for cleaner names)
+            FOLDER=$(echo "$BRANCH" | sed 's/claude\///' | sed 's/codex\//codex-/' | sed 's/\//-/g' | cut -c1-40)
             echo "========================================"
             echo "Building branch: $BRANCH -> $FOLDER"
             echo "========================================"
