@@ -67,6 +67,8 @@ export interface AppState {
   imagePreviewUrl: string | null;
   audioFile: File | null;
   audioPreviewUrl: string | null;
+  audioSourceType: 'file' | 'url' | null;
+  audioSourceName: string | null;
   selectedStyleId: string;
   cutoutMode: boolean; // NEW: Remove background for character cutout over visualizer
   
@@ -101,6 +103,8 @@ export const DEFAULT_STATE: AppState = {
   imagePreviewUrl: null,
   audioFile: null,
   audioPreviewUrl: null,
+  audioSourceType: null,
+  audioSourceName: null,
   selectedStyleId: 'natural',
   cutoutMode: false, // NEW: Off by default
 

@@ -27,20 +27,28 @@ const triggerColorShift = (hue: number) => {
 interface Step1Props {
   state: AppState;
   onUploadImage: (file: File) => void;
-  onUploadAudio: (file: File) => void;
+  onUploadAudio: (file: File | null) => void;
+  onSetAudioLink: (url: string) => void;
+  onClearAudio: () => void;
   onImportRig?: (file: File) => void;
 }
 
-export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio, onImportRig }) => {
+export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio, onSetAudioLink, onClearAudio, onImportRig }) => {
   const imgInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
   const rigInput = useRef<HTMLInputElement>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [streamLink, setStreamLink] = useState('');
+  const [showStreamLinkModal, setShowStreamLinkModal] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   const imageSectionRef = useRef<HTMLDivElement>(null);
   const audioSectionRef = useRef<HTMLDivElement>(null);
+
+  const audioLabel = state.audioSourceType === 'url' ? 'STREAM LINK' : 'AUDIO';
+  const audioName = state.audioSourceName || state.audioFile?.name;
+  const hasAudio = !!state.audioPreviewUrl;
 
   const toggleAudio = () => {
     triggerImpulse('click', 0.5);
@@ -75,12 +83,12 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                        transition-all font-bold"
           >
             <FolderOpen size={18} />
-            <span className="text-sm">IMPORT RIG</span>
+            <span className="text-sm">IMPORT GOLEM (.DKG)</span>
           </button>
           <input
             ref={rigInput}
             type="file"
-            accept=".json"
+            accept=".dkg,.json,.jusdnce"
             className="hidden"
             onChange={handleImportRig}
           />
@@ -169,22 +177,22 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
         onMouseEnter={() => triggerImpulse('hover', 0.2)}
       >
          <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-3 drop-shadow-lg tracking-widest group cursor-default">
-            <div className={`p-2 rounded-lg border transition-colors group-hover:animate-shake ${state.audioFile ? 'bg-green-500/50 border-green-500' : 'bg-green-500/20 border-green-500/30'}`}>
+            <div className={`p-2 rounded-lg border transition-colors group-hover:animate-shake ${hasAudio ? 'bg-green-500/50 border-green-500' : 'bg-green-500/20 border-green-500/30'}`}>
                 <Music className="text-green-300"/>
             </div>
             <span className="group-hover:text-green-300 transition-colors duration-300">AUDIO_STREAM</span>
             <span className="text-xs bg-white/10 px-2 py-1 rounded text-gray-400 font-mono tracking-widest">(OPTIONAL)</span>
          </h3>
          <div 
-            className={`
+          className={`
               flex-1 relative rounded-3xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all duration-300 min-h-[350px] group overflow-hidden
               backdrop-blur-sm
-              ${state.audioFile 
-                  ? 'border-green-500/50 bg-green-900/10 shadow-[0_0_30px_rgba(34,197,94,0.2)]' 
+              ${hasAudio
+                  ? 'border-green-500/50 bg-green-900/10 shadow-[0_0_30px_rgba(34,197,94,0.2)]'
                   : 'border-white/10 hover:border-green-400/50 bg-black/20 hover:bg-black/40 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(34,197,94,0.15)]'}
             `}
             onClick={() => {
-                if(!state.audioFile) {
+                if(!hasAudio) {
                     triggerImpulse('click', 0.8);
                     audioInput.current?.click();
                 }
@@ -193,25 +201,27 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
              {/* Scanline Effect */}
              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-green-500/10 to-transparent opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-1000 ease-linear" />
 
-            {state.audioFile ? (
+            {hasAudio ? (
                 <div className="text-center p-6 w-full relative z-10">
                     <div className="w-32 h-32 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_50px_rgba(34,197,94,0.4)] animate-pulse-fast border-4 border-black/30 group-hover:scale-110 transition-transform">
                         <Music size={50} className="text-white drop-shadow-md" />
                     </div>
-                    <p className="text-white font-bold text-xl mb-6 truncate px-8 drop-shadow-md font-mono">{state.audioFile.name}</p>
+                    <p className="text-white font-bold text-xl mb-1 truncate px-8 drop-shadow-md font-mono">{audioName || 'Linked Audio'}</p>
+                    <p className="text-green-200 text-[11px] font-mono tracking-widest mb-4">{audioLabel}</p>
                     
                     <div className="flex gap-4 justify-center">
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); toggleAudio(); }}
                             className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg border border-green-400/30 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
                         >
                             {isAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />} PREVIEW
                         </button>
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 triggerImpulse('click', 0.5);
-                                onUploadAudio(null as any); 
+                                onClearAudio();
+                                setIsAudioPlaying(false);
                             }}
                             className="px-6 py-3 bg-white/5 hover:bg-white/20 text-white rounded-full font-bold transition-transform hover:scale-105 border border-white/10 backdrop-blur-md"
                         >
@@ -221,7 +231,13 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                     <div className="absolute top-4 right-4 bg-green-500 text-white p-2 rounded-full shadow-lg animate-in zoom-in border border-white/20">
                        <Check size={20} />
                    </div>
-                    <audio ref={audioRef} src={state.audioPreviewUrl || undefined} onEnded={() => setIsAudioPlaying(false)} className="hidden" />
+                    <audio
+                      ref={audioRef}
+                      src={state.audioPreviewUrl || undefined}
+                      crossOrigin="anonymous"
+                      onEnded={() => setIsAudioPlaying(false)}
+                      className="hidden"
+                    />
                 </div>
             ) : (
                 <div className="text-center p-8 relative z-10">
@@ -230,12 +246,11 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                     </div>
                     <p className="text-white font-black text-2xl tracking-widest group-hover:text-green-300 transition-colors glitch-hover">UPLOAD AUDIO</p>
                     <p className="text-gray-500 text-xs mt-3 font-mono uppercase tracking-widest">MP3 / WAV / AAC</p>
-                    <p className="text-brand-300/50 text-[10px] mt-2 tracking-wide font-bold">OR SKIP FOR LIVE / SYNTHETIC MODE</p>
                 </div>
             )}
-            <input 
-                type="file" 
-                ref={audioInput} 
+            <input
+                type="file"
+                ref={audioInput}
                 onChange={e => {
                     if (e.target.files?.[0]) {
                         triggerImpulse('click', 1.5);
@@ -243,15 +258,68 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                         onUploadAudio(e.target.files[0]);
                         e.target.value = '';
                     }
-                }} 
-                accept="audio/*" 
-                className="hidden" 
-                onClick={(e) => e.stopPropagation()} 
+                }}
+                accept="audio/*"
+                className="hidden"
+                onClick={(e) => e.stopPropagation()}
             />
-         </div>
-      </div>
+            <div className="mt-4 flex flex-col gap-2 w-full">
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerImpulse('click', 0.8); setShowStreamLinkModal(true); }}
+                className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl text-white font-bold tracking-widest hover:border-green-400 hover:bg-green-500/15 transition-all"
+              >
+                STREAMING URL
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onClearAudio(); setStreamLink(''); }}
+                className="text-[11px] text-white/60 hover:text-white font-bold tracking-widest underline-offset-4 hover:underline self-start"
+              >
+                ADD LATER
+              </button>
+            </div>
+        </div>
+     </div>
       </div>
     </div>
+    {showStreamLinkModal && (
+      <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowStreamLinkModal(false)}>
+        <div
+          className="bg-black/90 border border-white/10 rounded-2xl shadow-2xl p-5 w-[90%] max-w-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[11px] text-gray-400 font-mono tracking-widest">STREAMING URL</p>
+              <h4 className="text-xl font-bold text-white">Paste any compatible music link</h4>
+            </div>
+            <button onClick={() => setShowStreamLinkModal(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none"
+              placeholder="https://..."
+              value={streamLink}
+              onChange={(e) => setStreamLink(e.target.value)}
+            />
+            <button
+              onClick={() => {
+                const trimmed = streamLink.trim();
+                if (!trimmed) return;
+                triggerImpulse('click', 0.9);
+                onSetAudioLink(trimmed);
+                setStreamLink('');
+                setShowStreamLinkModal(false);
+              }}
+              disabled={!streamLink.trim()}
+              className={`px-4 py-2 rounded-lg font-bold text-xs tracking-widest ${streamLink.trim() ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg' : 'bg-white/10 text-white/40 cursor-not-allowed'}`}
+            >
+              LINK
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">Works with HTTPS-friendly streams (YouTube embeds, direct MP3/AAC URLs, and supported services).</p>
+        </div>
+      </div>
+    )}
     </>
   );
 };
