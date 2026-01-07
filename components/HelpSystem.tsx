@@ -6,7 +6,8 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { X, HelpCircle, ChevronRight, ChevronLeft, Image, Music, Palette, Sliders, Play, Disc3, Layers, Zap, Download } from 'lucide-react';
+import { X, HelpCircle, ChevronRight, ChevronLeft, Image, Music, Palette, Sliders, Play, Disc3, Layers, Zap, Download, Bug as BugIcon } from 'lucide-react';
+import { submitBugReport, BugImpact } from '../services/bugReporter';
 
 // Help content for each page/section
 interface HelpSection {
@@ -46,8 +47,8 @@ const HELP_PAGES: HelpPage[] = [
       },
       {
         id: 'import-rig',
-        title: 'Import Rig',
-        description: 'Load a previously saved animation rig (.json file). This includes all generated frames and settings, letting you continue work or remix existing projects.',
+        title: 'Import Golem (.DKG)',
+        description: 'Load a previously saved deterministic kinetic golem (.dkg file). This includes all generated frames and settings so you can continue work or remix existing projects without regenerating.',
         icon: <Layers size={20} />,
         position: 'bottom-left'
       }
@@ -117,14 +118,14 @@ const HELP_PAGES: HelpPage[] = [
       {
         id: 'engine-strip',
         title: 'Engine Strip (Bottom)',
-        description: 'Pattern buttons show all available choreography patterns. LEG/LAB toggles physics mode. PAT/KIN switches engine mode. MIX opens the 4-deck mixer for layering multiple rigs.',
+        description: 'Pattern buttons show all available choreography patterns. LEG/LAB toggles physics mode. PAT/KIN switches engine mode. MIX opens the 4-deck mixer for layering multiple golems.',
         icon: <Disc3 size={20} />,
         position: 'bottom-left'
       },
       {
         id: 'export-html',
-        title: 'HTML Export',
-        description: 'Download a standalone .HTML file that plays your animation offline in any browser. Perfect for sharing or embedding. The player includes all frames and the visualizer.',
+        title: 'DKG/HTML Export',
+        description: 'Download a standalone .HTML player plus a .dkg golem file for offline playback in any browser. Perfect for sharing or embedding with the player that includes all frames and the visualizer.',
         icon: <Download size={20} />,
         position: 'top-right'
       }
@@ -140,6 +141,11 @@ interface HelpOverlayProps {
 
 export const HelpOverlay: React.FC<HelpOverlayProps> = ({ pageId, isOpen, onClose }) => {
   const [currentSection, setCurrentSection] = useState(0);
+  const [bugEmail, setBugEmail] = useState('');
+  const [bugDescription, setBugDescription] = useState('');
+  const [bugImpact, setBugImpact] = useState<BugImpact>('minor');
+  const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+  const [bugMessage, setBugMessage] = useState<string | null>(null);
 
   const page = HELP_PAGES.find(p => p.id === pageId);
   if (!page || !isOpen) return null;
@@ -155,6 +161,32 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ pageId, isOpen, onClos
 
   const prev = () => {
     if (!isFirst) setCurrentSection(s => s - 1);
+  };
+
+  const handleBugSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!bugDescription.trim()) {
+      setBugMessage('Please add a short description so we can reproduce the issue.');
+      return;
+    }
+
+    setIsSubmittingBug(true);
+    setBugMessage(null);
+    try {
+      await submitBugReport({
+        email: bugEmail || 'anonymous@jusdnce.app',
+        description: bugDescription.trim(),
+        impact: bugImpact,
+        page: pageId
+      });
+      setBugMessage('Thanks! Your report was saved locally and will sync once support is wired.');
+      setBugDescription('');
+    } catch (err) {
+      console.error('bug submission failed', err);
+      setBugMessage('Could not save the report. Please try again or reach out via support.');
+    } finally {
+      setIsSubmittingBug(false);
+    }
   };
 
   return (
@@ -198,8 +230,65 @@ export const HelpOverlay: React.FC<HelpOverlayProps> = ({ pageId, isOpen, onClos
             </div>
             <h3 className="text-xl font-bold text-white">{section.title}</h3>
           </div>
-          <p className="text-gray-300 leading-relaxed">{section.description}</p>
+          <p className="text-gray-300 leading-relaxed mb-2">{section.description}</p>
+          <p className="text-gray-500 text-xs">Position: {section.position || 'center'}</p>
         </div>
+
+        {/* Bug reporting */}
+        <form
+          onSubmit={handleBugSubmit}
+          className="bg-white/5 border border-brand-500/30 rounded-2xl p-6 mb-8 shadow-inner"
+        >
+          <div className="flex items-center gap-2 mb-4">
+            <BugIcon size={18} className="text-brand-300" />
+            <div>
+              <p className="text-white font-bold text-sm uppercase tracking-widest">Report a Bug</p>
+              <p className="text-gray-400 text-xs">Saved locally now; syncing to support soon.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            <label className="text-xs text-gray-300 uppercase tracking-wide">
+              Contact (optional)
+              <input
+                value={bugEmail}
+                onChange={(e) => setBugEmail(e.target.value)}
+                type="email"
+                placeholder="you@example.com"
+                className="mt-1 w-full rounded-lg bg-black/40 border border-white/10 text-white text-sm px-3 py-2 focus:border-brand-400 focus:outline-none"
+              />
+            </label>
+            <label className="text-xs text-gray-300 uppercase tracking-wide">
+              Impact
+              <select
+                value={bugImpact}
+                onChange={(e) => setBugImpact(e.target.value as BugImpact)}
+                className="mt-1 w-full rounded-lg bg-black/40 border border-white/10 text-white text-sm px-3 py-2 focus:border-brand-400 focus:outline-none"
+              >
+                <option value="minor">Minor glitch</option>
+                <option value="major">Major issue</option>
+                <option value="blocker">Blocks work</option>
+              </select>
+            </label>
+          </div>
+          <label className="text-xs text-gray-300 uppercase tracking-wide block mb-3">
+            What happened?
+            <textarea
+              value={bugDescription}
+              onChange={(e) => setBugDescription(e.target.value)}
+              rows={3}
+              placeholder="Steps to reproduce, expected vs. actual behavior"
+              className="mt-1 w-full rounded-lg bg-black/40 border border-white/10 text-white text-sm px-3 py-2 focus:border-brand-400 focus:outline-none"
+            />
+          </label>
+          {bugMessage && <p className="text-xs text-brand-300 mb-3">{bugMessage}</p>}
+          <button
+            type="submit"
+            disabled={isSubmittingBug}
+            className="w-full py-2 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-sm font-bold tracking-wide disabled:opacity-50"
+          >
+            {isSubmittingBug ? 'Sending...' : 'Send Bug Report'}
+          </button>
+        </form>
 
         {/* Navigation */}
         <div className="flex justify-between items-center">
