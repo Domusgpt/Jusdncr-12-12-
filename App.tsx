@@ -33,16 +33,31 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAudioUpload = async (file: File) => {
+  const handleAudioUpload = async (file: File | null) => {
     if (!file) {
-        setAppState(prev => ({ ...prev, audioFile: null, audioPreviewUrl: null }));
+        setAppState(prev => ({ ...prev, audioFile: null, audioPreviewUrl: null, audioSourceType: null, audioSourceName: null }));
         return;
     }
     const previewUrl = URL.createObjectURL(file);
     setAppState(prev => ({
       ...prev,
       audioFile: file,
-      audioPreviewUrl: previewUrl
+      audioPreviewUrl: previewUrl,
+      audioSourceType: 'file',
+      audioSourceName: file.name
+    }));
+  };
+
+  const handleAudioLink = (rawUrl: string) => {
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return;
+    const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    setAppState(prev => ({
+      ...prev,
+      audioFile: null,
+      audioPreviewUrl: normalized,
+      audioSourceType: 'url',
+      audioSourceName: normalized
     }));
   };
 
@@ -161,7 +176,7 @@ const App: React.FC = () => {
 
       const project: SavedProject = {
           id: crypto.randomUUID(),
-          name: `Rig_${Date.now()}`,
+          name: `Golem_${Date.now()}`,
           createdAt: Date.now(),
           frames: appState.generatedFrames,
           styleId: appState.selectedStyleId,
@@ -173,7 +188,7 @@ const App: React.FC = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${project.name}.jusdnce`;
+      a.download = `${project.name}.dkg`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -313,11 +328,13 @@ const App: React.FC = () => {
             
             {appState.step === AppStep.ASSETS && (
                 <div className="animate-fade-in">
-                    <Step1Assets 
-                        state={appState} 
-                        onUploadImage={handleImageUpload} 
-                        onUploadAudio={handleAudioUpload} 
-                    />
+          <Step1Assets
+              state={appState}
+              onUploadImage={handleImageUpload}
+              onUploadAudio={handleAudioUpload}
+              onSetAudioLink={handleAudioLink}
+              onClearAudio={() => handleAudioUpload(null)}
+          />
                 </div>
             )}
             
@@ -338,6 +355,7 @@ const App: React.FC = () => {
                         onGenerateMore={handleGenerateClick}
                         onSpendCredit={handleSpendCredit}
                         onUploadAudio={handleAudioUpload}
+                        onSetAudioLink={handleAudioLink}
                         onSaveProject={saveProject}
                     />
                 </div>
