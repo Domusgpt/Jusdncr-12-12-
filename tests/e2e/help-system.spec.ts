@@ -22,11 +22,11 @@ test.describe('Help System', () => {
     await page.waitForTimeout(2000);
   });
 
-  test('Step 1 - Help button and Import Rig are visible', async ({ page }) => {
+  test('Step 1 - Help button and Import Golem are visible', async ({ page }) => {
     /**
      * VALIDATION CRITERIA:
      * ✓ HELP button visible on Step 1
-     * ✓ IMPORT RIG button visible on Step 1
+     * ✓ IMPORT GOLEM button visible on Step 1
      * ✓ Both buttons are clickable
      */
 
@@ -40,11 +40,11 @@ test.describe('Help System', () => {
     const helpButton = page.locator('button:has-text("HELP")');
     await expect(helpButton).toBeVisible();
 
-    // Look for IMPORT RIG button (use first match)
-    const importRigButton = page.locator('button:has-text("IMPORT RIG")').first();
+    // Look for IMPORT GOLEM button (use first match)
+    const importRigButton = page.locator('button:has-text("IMPORT GOLEM")').first();
     await expect(importRigButton).toBeVisible();
 
-    console.log('✓ Step 1 has HELP and IMPORT RIG buttons visible');
+    console.log('✓ Step 1 has HELP and IMPORT GOLEM buttons visible');
   });
 
   test('Step 1 - Help overlay opens and navigates', async ({ page }) => {
@@ -96,7 +96,7 @@ test.describe('Help System', () => {
     await page.waitForTimeout(300);
 
     // Verify third section (Import Rig) - use heading inside help overlay
-    await expect(page.locator('h3:has-text("Import Rig")')).toBeVisible();
+    await expect(page.locator('h3:has-text("Import Golem")')).toBeVisible();
 
     // Click Done to close
     const doneButton = page.locator('button:has-text("Done")');
@@ -199,8 +199,8 @@ test.describe('Help System', () => {
       await progressDots.nth(2).click();
       await page.waitForTimeout(300);
 
-      // Verify we jumped to section 3 (Import Rig) - use heading in overlay
-      await expect(page.locator('h3:has-text("Import Rig")')).toBeVisible();
+      // Verify we jumped to section 3 (Import Golem) - use heading in overlay
+      await expect(page.locator('h3:has-text("Import Golem")')).toBeVisible();
 
       await page.screenshot({
         path: 'tests/screenshots/help-progress-dots.png',

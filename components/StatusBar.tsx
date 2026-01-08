@@ -1,14 +1,14 @@
 /**
  * StatusBar - Top persistent bar with transport controls
  *
- * Contains: Play, Mic, Upload, BPM, Beat indicator, Cam, More menu
+ * Contains: Play, Mic, Upload, Stream Link, BPM, Beat indicator, Cam, More menu
  * 48px height, semi-transparent, always visible
  */
 
 import React, { useState } from 'react';
 import {
   Play, Pause, Mic, MicOff, Camera, Upload,
-  MoreHorizontal, Eye, Sparkles, Download, Video, X
+  MoreHorizontal, Eye, Sparkles, Download, Video, X, Link2
 } from 'lucide-react';
 
 interface StatusBarProps {
@@ -17,6 +17,7 @@ interface StatusBarProps {
   hasAudio: boolean;
   onPlayToggle: () => void;
   onUploadAudio: () => void;
+  onLinkAudio: () => void;
 
   // Mic
   isMicActive: boolean;
@@ -55,10 +56,10 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   onGenerateMore,
   onSaveProject,
   onStartRecording,
-  isRecording
+  isRecording,
+  onLinkAudio
 }) => {
   const [showMore, setShowMore] = useState(false);
-
   return (
     <div className="fixed top-0 left-0 right-0 z-50 pt-safe">
       {/* MORE menu dropdown */}
@@ -133,7 +134,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         <div className="flex items-center justify-between px-2 py-1.5 gap-1">
 
           {/* Left: Transport controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 relative">
             {/* Play/Pause */}
             {hasAudio ? (
               <button
@@ -158,6 +159,16 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               </button>
             )}
 
+            <button
+              onClick={onLinkAudio}
+              className="w-9 h-9 rounded-lg flex items-center justify-center
+                        bg-white/5 border border-white/10 text-white/60
+                        hover:text-white hover:border-brand-400/50 active:scale-95 touch-manipulation"
+              title="Streaming URL"
+            >
+              <Link2 size={16} />
+            </button>
+
             {/* Mic */}
             <button
               onClick={onMicToggle}
@@ -171,17 +182,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({
               {isMicActive ? <Mic size={16} /> : <MicOff size={16} />}
             </button>
 
-            {/* Upload (when has audio) */}
-            {hasAudio && (
-              <button
-                onClick={onUploadAudio}
-                className="w-9 h-9 rounded-lg flex items-center justify-center
-                          bg-white/5 border border-white/10 text-white/50
-                          active:scale-95 touch-manipulation"
-              >
-                <Upload size={16} />
-              </button>
-            )}
           </div>
 
           {/* Center: BPM + Beat indicator */}
