@@ -6,8 +6,11 @@
   "homepage": "https://domusgpt.github.io/Jusdncr-12-12-",
   "scripts": {
     "dev": "vite",
+    "dev:vnext": "vite --config vnext/vite.config.ts",
     "build": "tsc && vite build",
+    "build:vnext": "tsc --noEmit && vite build --config vnext/vite.config.ts",
     "preview": "vite preview",
+    "preview:vnext": "vite preview --config vnext/vite.config.ts",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist",
     "deploy:manual": "npm run build && gh-pages -d dist",
