@@ -95,7 +95,7 @@ test.describe('jusDNCE Visual Validation Suite', () => {
      * ✓ Logo/branding visible
      * ✓ Credits display shows "X CR"
      * ✓ Sign In button visible
-     * ✓ Import Rig button visible
+     * ✓ Import Golem button visible
      */
 
     // Focus on header area
@@ -113,8 +113,8 @@ test.describe('jusDNCE Visual Validation Suite', () => {
     // Validate Sign In button
     await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
 
-    // Validate Import Rig button
-    await expect(page.getByRole('button', { name: /import rig/i })).toBeVisible();
+    // Validate Import Golem button
+    await expect(page.getByRole('button', { name: /import golem/i })).toBeVisible();
 
     console.log('✓ Header components validated');
   });
