@@ -1,0 +1,132 @@
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #e7e7f1;
+  background-color: #0a0a12;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1b1c35 0%, #0a0a12 48%, #07070d 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.vnext-shell {
+  padding: 56px 24px 80px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.vnext-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.vnext-header h1 {
+  font-size: 2.75rem;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.vnext-header p {
+  margin: 0;
+  color: #c7c7da;
+  max-width: 620px;
+  line-height: 1.6;
+}
+
+.vnext-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.vnext-card {
+  background: rgba(21, 22, 42, 0.85);
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(124, 137, 255, 0.25);
+  box-shadow: 0 24px 50px rgba(3, 7, 33, 0.45);
+}
+
+.vnext-card h2 {
+  margin-top: 0;
+  font-size: 1.3rem;
+}
+
+.mode-toggle {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.mode-toggle button {
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.05);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, transform 0.2s ease, background 0.2s ease;
+}
+
+.mode-toggle button[aria-pressed='true'] {
+  border-color: rgba(130, 139, 255, 0.9);
+  background: rgba(114, 126, 255, 0.18);
+}
+
+.mode-toggle button:hover {
+  transform: translateY(-2px);
+}
+
+.vnext-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(130, 139, 255, 0.16);
+  color: #cdd2ff;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.vnext-metric {
+  font-size: 2.1rem;
+  font-weight: 700;
+  margin: 8px 0 0;
+}
+
+.vnext-list {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: grid;
+  gap: 10px;
+}
+
+.vnext-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #c7c7da;
+}
+
+.vnext-list span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #7c89ff;
+  box-shadow: 0 0 12px rgba(124, 137, 255, 0.8);
+}
