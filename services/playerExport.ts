@@ -265,6 +265,14 @@ export const generatePlayerHTML = (
             display: flex; gap: 6px; align-items: center; justify-content: center;
             flex-wrap: wrap; max-width: 100%;
         }
+        .stream-row { width: 100%; align-items: stretch; }
+        .stream-input {
+            flex: 1; min-width: 200px; padding: 10px 12px; border-radius: 12px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            color: white; font-size: 12px; font-family: 'Inter', sans-serif;
+        }
+        .stream-input::placeholder { color: rgba(255,255,255,0.4); }
+        .stream-status { width: 100%; font-size: 10px; color: #a78bfa; text-align: left; margin-top: 4px; }
         button, a.active {
             background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
             color: #ccc; padding: 10px 14px; border-radius: 12px;
@@ -992,22 +1000,31 @@ export const generatePlayerHTML = (
                 <span id="engineLabel">PATTERN</span>
             </button>
             <div class="separator"></div>
-            <button id="btnLoadRig" title="Load Rig File">
+            <button id="btnLoadRig" title="Load Golem (.dkg) File">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                <span class="btn-label">RIG</span>
+                <span class="btn-label">GOLEM</span>
             </button>
-            <button id="btnLoadAudio" title="Load Audio">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-                <span class="btn-label">AUDIO</span>
+            <button id="btnStreamToggle" title="Streaming URL">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M4 7h16M4 12h10M4 17h6"/></svg>
+                <span class="btn-label">STREAM</span>
             </button>
             <button id="btnHelp" class="btn-icon" title="Help">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
             </button>
             <div class="separator"></div>
-            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Rigs" style="text-decoration:none;">
+            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Golems" style="text-decoration:none;">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
                 <span class="btn-label">GET MORE</span>
             </a>
+        </div>
+
+        <div id="streamRow" class="ui-row stream-row" style="margin-top:8px; display:none;">
+            <input id="streamInput" class="stream-input" type="text" placeholder="Paste streaming link (https://...)" />
+            <button id="btnPasteStream" class="btn-icon" title="Paste from clipboard" style="min-width:44px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M19 21H5a2 2 0 0 1-2-2V7h4V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2h4v5"/><path d="M16 3H8v4h8V3Z"/><path d="M15 13h6v6"/><path d="m15 19 6-6"/></svg>
+            </button>
+            <button id="btnLinkStream" class="cyan" title="Link audio stream">LINK STREAM</button>
+            <div id="streamStatus" class="stream-status"></div>
         </div>
 
         <!-- Progression indicator -->
@@ -1022,7 +1039,7 @@ export const generatePlayerHTML = (
         </div>
     </div>
 
-    <input type="file" id="rigInput" style="display:none" accept=".jusdnce,.json">
+    <input type="file" id="rigInput" style="display:none" accept=".dkg,.rig,.jusdnce,.json">
     <input type="file" id="audioInput" style="display:none" accept="audio/*">
 
     <script>
@@ -1967,8 +1984,13 @@ export const generatePlayerHTML = (
         // --- 9. FILE HANDLING ---
         const rigInput = document.getElementById('rigInput');
         const audioInput = document.getElementById('audioInput');
+        const streamInput = document.getElementById('streamInput');
+        const streamRow = document.getElementById('streamRow');
+        const btnStreamToggle = document.getElementById('btnStreamToggle');
+        const btnLinkStream = document.getElementById('btnLinkStream');
+        const btnPasteStream = document.getElementById('btnPasteStream');
+        const streamStatus = document.getElementById('streamStatus');
         const btnLoadRig = document.getElementById('btnLoadRig');
-        const btnLoadAudio = document.getElementById('btnLoadAudio');
         const btnFx = document.getElementById('btnFx');
         const btnPhysics = document.getElementById('btnPhysics');
         const btnEngine = document.getElementById('btnEngine');
@@ -1979,7 +2001,17 @@ export const generatePlayerHTML = (
 
         // Load buttons
         btnLoadRig.onclick = () => rigInput.click();
-        btnLoadAudio.onclick = () => audioInput.click();
+
+        if (btnStreamToggle) {
+            btnStreamToggle.onclick = () => {
+                const shouldShow = !streamRow || streamRow.style.display === 'none';
+                if (streamRow) streamRow.style.display = shouldShow ? 'flex' : 'none';
+                if (shouldShow && streamInput) {
+                    streamInput.focus();
+                    if (streamStatus) streamStatus.textContent = 'Paste any streaming URL (https://...)';
+                }
+            };
+        }
 
         rigInput.onchange = (e) => {
             const file = e.target.files[0];
@@ -1991,13 +2023,94 @@ export const generatePlayerHTML = (
             if(file) handleAudioFile(file);
         };
 
+        function linkStream(url) {
+            const normalized = url.match(/^https?:\/\//) ? url : 'https://' + url;
+            if(streamStatus) streamStatus.textContent = 'Loading stream...';
+            if(streamRow) streamRow.style.display = 'flex';
+            audioEl.src = normalized;
+            audioCtx.resume();
+            audioEl.play().then(() => {
+                connectAudioElement();
+                btnPlay.classList.add('active');
+                btnPlay.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>';
+                if(streamStatus) streamStatus.textContent = 'Stream ready';
+            }).catch(err => {
+                console.error('Stream load failed', err);
+                if(streamStatus) streamStatus.textContent = 'Stream failed to load';
+            });
+        }
+
+        if(btnLinkStream) {
+            btnLinkStream.onclick = () => {
+                const raw = streamInput && streamInput.value ? streamInput.value.trim() : '';
+                if(!raw) {
+                    if(streamStatus) streamStatus.textContent = 'Paste a stream link first';
+                    return;
+                }
+                linkStream(raw);
+            };
+        }
+
+        if(btnPasteStream) {
+            btnPasteStream.onclick = async () => {
+                if(!navigator.clipboard) {
+                    if(streamStatus) streamStatus.textContent = 'Clipboard blocked';
+                    return;
+                }
+                try {
+                    const clip = await navigator.clipboard.readText();
+                    if(clip) {
+                        if(streamInput) streamInput.value = clip.trim();
+                        linkStream(clip.trim());
+                        if(streamStatus) streamStatus.textContent = 'Linked from clipboard';
+                    }
+                } catch (e) {
+                    console.error('Clipboard read failed', e);
+                    if(streamStatus) streamStatus.textContent = 'Clipboard denied';
+                }
+            };
+        }
+
+        function normalizeRigPayload(proj) {
+            return {
+                frames: proj.frames || proj.generatedFrames || proj.sequence || [],
+                hologramParams: proj.hologramParams || proj.hologram_params || proj.params || {},
+                subjectCategory: proj.subjectCategory || proj.subject || SUBJECT || "UNKNOWN"
+            };
+        }
+
+        function offerDkgConversion(file, normalized) {
+            const lower = file.name.toLowerCase();
+            if(lower.endsWith('.dkg')) return;
+
+            const shouldConvert = confirm('Legacy rig detected. Convert to .dkg for future use?');
+            if(!shouldConvert) return;
+
+            const blob = new Blob([JSON.stringify(normalized, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const baseName = file.name.replace(/\.[^.]+$/, '');
+            a.download = baseName + '.dkg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
         function handleRigFile(file) {
             const reader = new FileReader();
             reader.onload = (ev) => {
                 try {
-                    const proj = JSON.parse(ev.target.result);
-                    if(proj.frames) loadRig(proj.frames, proj.hologramParams, proj.subjectCategory);
-                } catch(e) { alert("Invalid Rig File"); }
+                    const raw = JSON.parse(ev.target.result);
+                    const normalized = normalizeRigPayload(raw);
+                    if(normalized.frames && normalized.frames.length) {
+                        loadRig(normalized.frames, normalized.hologramParams, normalized.subjectCategory);
+                        offerDkgConversion(file, normalized);
+                    } else {
+                        alert('Invalid Golem file structure');
+                    }
+                } catch(e) { alert("Invalid Golem (.dkg/.jusdnce) File"); }
             };
             reader.readAsText(file);
         }
@@ -2018,7 +2131,7 @@ export const generatePlayerHTML = (
             e.preventDefault(); document.body.classList.remove('drag-active');
             const file = e.dataTransfer.files[0];
             if(!file) return;
-            if(file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
+            if(file.name.toLowerCase().endsWith('.dkg') || file.name.toLowerCase().endsWith('.rig') || file.name.toLowerCase().endsWith('.jusdnce') || file.type.includes('json')) {
                 handleRigFile(file);
             } else if(file.type.startsWith('audio/')) {
                 handleAudioFile(file);
@@ -2122,7 +2235,7 @@ export const generatePlayerHTML = (
                 } else if (i === phase) {
                     const progress = (beat % 4) / 4;
                     const color = i === 0 ? '#8b5cf6' : i === 1 ? '#8b5cf6' : i === 2 ? '#ec4899' : '#00ffff';
-                    bar.style.background = \`linear-gradient(to right, \${color} \${progress*100}%, rgba(255,255,255,0.15) \${progress*100}%)\`;
+                    bar.style.background = 'linear-gradient(to right, ' + color + ' ' + (progress*100) + '%, rgba(255,255,255,0.15) ' + (progress*100) + '%)';
                 } else {
                     bar.style.background = 'rgba(255,255,255,0.15)';
                 }
