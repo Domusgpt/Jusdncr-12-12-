@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jusDNCE // Standalone Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+{{STYLES}}
+    </style>
+</head>
+<body>
+
+    <canvas id="bgCanvas"></canvas>
+    <canvas id="charCanvas"></canvas>
+    
+    <div id="loader">
+        <div class="spinner"></div>
+        <div style="color: #888; font-size: 14px; letter-spacing: 4px; font-weight: 700;">INITIALIZING NEURAL RIG...</div>
+    </div>
+    
+    <div id="dropOverlay">
+        <div class="drop-title">DROP FILE</div>
+        <div style="font-size: 1.2em; color: rgba(255,255,255,0.8); letter-spacing: 2px;">IMPORT .JUSDNCE RIG OR AUDIO FILE</div>
+    </div>
+    
+    <div id="info">
+        <a href="https://jusdnce.com" target="_blank" class="brand" style="text-decoration:none; cursor:pointer;">jusDNCE</a>
+        MODE: <span id="subjectDisplay">{{SUBJECT_CATEGORY}}</span><br>
+        <span id="fps">0 FPS</span> // <span id="poseDisplay">INIT</span>
+    </div>
+
+    <div id="deck"></div>
+
+    <!-- ============ STATUS BAR - TOP ============ -->
+    <div id="statusBar">
+        <div class="bar-inner">
+            <div class="left">
+                <button id="btnPlay2" class="status-btn" title="Play/Pause">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <button id="btnMic2" class="status-btn" title="Microphone">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                </button>
+                <button id="btnUpload2" class="status-btn" title="Upload Audio">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </button>
+            </div>
+            <div class="center">
+                <div class="bpm-display">
+                    <span class="bpm-value" id="bpmValue2">120</span>
+                    <span class="bpm-label">BPM</span>
+                </div>
+                <div class="beat-bars">
+                    <div class="beat-bar downbeat" data-beat="0"></div>
+                    <div class="beat-bar" data-beat="1"></div>
+                    <div class="beat-bar" data-beat="2"></div>
+                    <div class="beat-bar" data-beat="3"></div>
+                </div>
+            </div>
+            <div class="right">
+                <button id="btnCam2" class="status-btn active" title="Camera Motion">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </button>
+                <button id="btnMore" class="status-btn" title="More Options">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ FX RAIL - LEFT ============ -->
+    <div id="fxRail">
+        <button class="fx-btn" data-fx="rgbSplit" title="RGB Split">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><circle cx="8" cy="12" r="3" fill="#f00" opacity="0.7"/><circle cx="12" cy="8" r="3" fill="#0f0" opacity="0.7"/><circle cx="16" cy="12" r="3" fill="#00f" opacity="0.7"/></svg>
+            <span>RGB</span>
+        </button>
+        <button class="fx-btn" data-fx="glitch" title="Glitch">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M4 4h16M4 12h10M4 20h16"/></svg>
+            <span>GLCH</span>
+        </button>
+        <button class="fx-btn" data-fx="pixelate" title="Pixelate">
+            <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><rect x="14" y="14" width="6" height="6"/></svg>
+            <span>PXLT</span>
+        </button>
+        <button class="fx-btn" data-fx="bloom" title="Bloom">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/></svg>
+            <span>BLOOM</span>
+        </button>
+        <button class="fx-btn" data-fx="invert" title="Invert">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20" fill="currentColor"/></svg>
+            <span>INVT</span>
+        </button>
+        <button class="fx-btn" data-fx="vhs" title="VHS">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>
+            <span>VHS</span>
+        </button>
+        <button class="fx-btn" data-fx="scan" title="Scanlines">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="width:14px;height:14px"><line x1="0" y1="4" x2="24" y2="4"/><line x1="0" y1="8" x2="24" y2="8"/><line x1="0" y1="12" x2="24" y2="12"/><line x1="0" y1="16" x2="24" y2="16"/><line x1="0" y1="20" x2="24" y2="20"/></svg>
+            <span>SCAN</span>
+        </button>
+        <button class="fx-btn" data-fx="mirror" title="Mirror">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 3v18M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg>
+            <span>MIRR</span>
+        </button>
+        <button class="fx-btn" data-fx="kaleid" title="Kaleidoscope">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/><line x1="12" y1="2" x2="12" y2="22"/><line x1="2" y1="8.5" x2="22" y2="15.5"/><line x1="22" y1="8.5" x2="2" y2="15.5"/></svg>
+            <span>KALD</span>
+        </button>
+        <div class="fx-intensity">
+            <div class="fx-intensity-bar"><div class="fx-intensity-fill x" id="fxIntensityX" style="width:0%"></div></div>
+            <div class="fx-intensity-bar"><div class="fx-intensity-fill y" id="fxIntensityY" style="width:0%"></div></div>
+            <div class="fx-intensity-label">MOUSE XY</div>
+        </div>
+    </div>
+
+    <!-- ============ ENGINE STRIP - BOTTOM ============ -->
+    <div id="engineStrip">
+        <div class="strip-inner">
+            <div class="pattern-row" id="patternRow">
+                <!-- Patterns will be populated by JS -->
+            </div>
+            <div class="controls-row">
+                <div class="mode-toggle" id="physicsToggle2">
+                    <button class="mode-btn cyan active" data-physics="LEGACY">LEGACY</button>
+                    <button class="mode-btn cyan" data-physics="LABAN">LABAN</button>
+                </div>
+                <div class="mode-toggle" id="engineToggle2">
+                    <button class="mode-btn active" data-mode="PATTERN">PATTERN</button>
+                    <button class="mode-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
+                <input type="range" class="intensity-slider" id="intensitySlider" min="0" max="100" value="50" title="Intensity">
+                <button class="mixer-toggle" id="btnMixer2" title="Open Mixer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>
+                    <span>MIXER</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MIXER DRAWER ============ -->
+    <div id="mixerDrawer">
+        <div class="drawer-handle"></div>
+        <div class="drawer-content">
+            <div class="drawer-tabs">
+                <button class="drawer-tab active" data-tab="decks">DECKS</button>
+                <button class="drawer-tab" data-tab="engine">ENGINE</button>
+                <button class="drawer-tab" data-tab="fx">FX</button>
+            </div>
+            <div id="drawerDecks" class="drawer-tab-content">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">4-CHANNEL DECK SYSTEM</div>
+                    <div class="deck-grid" id="drawerDeckGrid">
+                        <!-- Deck channels populated by JS -->
+                    </div>
+                </div>
+            </div>
+            <div id="drawerEngine" class="drawer-tab-content" style="display:none;">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">LABAN EFFORT</div>
+                    <div id="labanEffortGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+                        <div class="effort-item"><div class="effort-label">WEIGHT</div><div class="effort-value" id="effortWeight2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">SPACE</div><div class="effort-value" id="effortSpace2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">TIME</div><div class="effort-value" id="effortTime2">0.5</div></div>
+                        <div class="effort-item"><div class="effort-label">FLOW</div><div class="effort-value" id="effortFlow2">0.5</div></div>
+                    </div>
+                </div>
+            </div>
+            <div id="drawerFx" class="drawer-tab-content" style="display:none;">
+                <div class="mixer-section">
+                    <div class="mixer-section-title">TRIGGER PADS</div>
+                    <div class="trigger-pads">
+                        <button class="trigger-pad" data-trigger="stutter">[Q] STUTTER</button>
+                        <button class="trigger-pad" data-trigger="reverse">[W] REVERSE</button>
+                        <button class="trigger-pad" data-trigger="glitch">[E] GLITCH</button>
+                        <button class="trigger-pad" data-trigger="burst">[R] BURST</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ LEFT BEZEL DRAWER (FX) ============ -->
+    <div id="bezelLeft" class="bezel bezel-left">
+        <!-- Collapsed state: status dots -->
+        <div class="status-dot" data-fx="rgbSplit" title="RGB Split"></div>
+        <div class="status-dot" data-fx="glitch" title="Glitch"></div>
+        <div class="status-dot" data-fx="pixelate" title="Pixelate"></div>
+        <div class="status-dot" data-fx="bloom" title="Bloom"></div>
+        <div class="status-dot" data-fx="invert" title="Invert"></div>
+        <div class="status-dot" data-fx="vhs" title="VHS"></div>
+        <div class="status-dot" data-fx="scan" title="Scanlines"></div>
+        <div class="status-dot" data-fx="mirror" title="Mirror"></div>
+        <div class="status-dot" data-fx="kaleid" title="Kaleidoscope"></div>
+        <div class="bezel-divider"></div>
+        <div class="mini-bars">
+            <div class="mini-bar"><div class="mini-bar-fill x" id="bezelBarX" style="width:0%"></div></div>
+            <div class="mini-bar"><div class="mini-bar-fill y" id="bezelBarY" style="width:0%"></div></div>
+        </div>
+
+        <!-- Expanded state: full buttons -->
+        <div class="drawer-content">
+            <button class="bezel-btn" data-fx="rgbSplit">RGB</button>
+            <button class="bezel-btn" data-fx="glitch">GLCH</button>
+            <button class="bezel-btn" data-fx="pixelate">PXLT</button>
+            <button class="bezel-btn" data-fx="bloom">BLOOM</button>
+            <button class="bezel-btn" data-fx="invert">INVT</button>
+            <button class="bezel-btn" data-fx="vhs">VHS</button>
+            <button class="bezel-btn" data-fx="scan">SCAN</button>
+            <button class="bezel-btn" data-fx="mirror">MIRR</button>
+            <button class="bezel-btn" data-fx="kaleid">KALD</button>
+            <div class="bezel-divider"></div>
+            <div style="font-size:7px;color:rgba(255,255,255,0.4);text-align:center;">MOUSE XY</div>
+            <input type="range" class="bezel-slider" id="bezelFxIntensity" min="0" max="100" value="50" title="FX Intensity">
+        </div>
+    </div>
+
+    <!-- ============ RIGHT BEZEL DRAWER (MODE) ============ -->
+    <div id="bezelRight" class="bezel bezel-right">
+        <!-- Collapsed state: mode indicators -->
+        <div class="status-label" id="bezelPhysicsLabel">L</div>
+        <div class="bezel-divider"></div>
+        <div class="status-label" id="bezelEngineLabel">P</div>
+        <div class="bezel-divider"></div>
+        <div class="status-label" id="bezelIntLabel" style="font-size:8px;">50</div>
+        <div class="bezel-divider"></div>
+        <div class="status-dot active-fx" id="bezelMixDot" title="Mixer"></div>
+
+        <!-- Expanded state: full controls -->
+        <div class="drawer-content">
+            <button class="bezel-btn cyan active" id="bezelLegacy" data-physics="LEGACY">LEG</button>
+            <button class="bezel-btn cyan" id="bezelLaban" data-physics="LABAN">LAB</button>
+            <div class="bezel-divider"></div>
+            <button class="bezel-btn active" id="bezelPattern" data-mode="PATTERN">PAT</button>
+            <button class="bezel-btn" id="bezelKinetic" data-mode="KINETIC">KIN</button>
+            <div class="bezel-divider"></div>
+            <div style="font-size:7px;color:rgba(255,255,255,0.4);text-align:center;">INT</div>
+            <input type="range" class="bezel-slider" id="bezelIntSlider" min="0" max="100" value="50">
+            <div class="bezel-divider"></div>
+            <button class="bezel-btn active-fx" id="bezelMixBtn">MIX</button>
+        </div>
+    </div>
+
+    <!-- GOLEM MIXER PANEL -->
+    <div id="mixerPanel">
+        <h3>GOLEM MIXER</h3>
+
+        <!-- Tab Navigation -->
+        <div class="mixer-tabs">
+            <button class="mixer-tab active" data-tab="decks">DECKS</button>
+            <button class="mixer-tab" data-tab="engine">ENGINE</button>
+            <button class="mixer-tab" data-tab="fx">FX</button>
+        </div>
+
+        <!-- DECKS TAB -->
+        <div id="tabDecks" class="tab-content">
+            <div class="mixer-section">
+                <div class="mixer-section-title">4-CHANNEL DECK SYSTEM</div>
+                <div class="deck-grid">
+                    <div class="deck-channel active" data-deck="1">
+                        <div class="deck-label">CH 1</div>
+                        <select class="deck-mode-select" data-deck="1">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off">OFF</option>
+                        </select>
+                        <div class="deck-indicator active"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="2">
+                        <div class="deck-label">CH 2</div>
+                        <select class="deck-mode-select" data-deck="2">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="3">
+                        <div class="deck-label">CH 3</div>
+                        <select class="deck-mode-select" data-deck="3">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                    <div class="deck-channel" data-deck="4">
+                        <div class="deck-label">CH 4</div>
+                        <select class="deck-mode-select" data-deck="4">
+                            <option value="sequencer">SEQ</option>
+                            <option value="layer">LAYER</option>
+                            <option value="off" selected>OFF</option>
+                        </select>
+                        <div class="deck-indicator"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">BPM / BAR</div>
+                <div class="bpm-display">
+                    <div>
+                        <div class="bpm-value" id="bpmValue">120</div>
+                        <div class="bpm-label">BPM</div>
+                    </div>
+                    <div class="bar-counter" id="barCounter">
+                        <div class="bar-beat downbeat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                        <div class="bar-beat"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">TRIGGER PADS (hold to activate)</div>
+                <div class="trigger-pads">
+                    <button class="trigger-pad" data-trigger="stutter" data-key="q">STUTTER<span class="key-hint">[Q]</span></button>
+                    <button class="trigger-pad" data-trigger="reverse" data-key="w">REVERSE<span class="key-hint">[W]</span></button>
+                    <button class="trigger-pad" data-trigger="glitch" data-key="e">GLITCH<span class="key-hint">[E]</span></button>
+                    <button class="trigger-pad" data-trigger="burst" data-key="r">BURST<span class="key-hint">[R]</span></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ENGINE TAB -->
+        <div id="tabEngine" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">PHYSICS STYLE (how frames move)</div>
+                <div class="engine-toggle" id="physicsToggle">
+                    <button class="physics-btn active" data-physics="LEGACY">LEGACY</button>
+                    <button class="physics-btn" data-physics="LABAN">LABAN</button>
+                </div>
+                <div class="mixer-section-title" style="margin-top:8px;">ENGINE MODE (which frame selected)</div>
+                <div class="engine-toggle" id="engineToggle">
+                    <button class="engine-btn active" data-mode="PATTERN">PATTERN</button>
+                    <button class="engine-btn" data-mode="KINETIC">KINETIC</button>
+                </div>
+                <!-- LABAN Effort Display (shows when LABAN active) -->
+                <div id="labanDisplay" style="display:none; margin-top:8px; padding:8px; background:rgba(0,255,255,0.1); border-radius:6px; border:1px solid rgba(0,255,255,0.2);">
+                    <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:4px; font-size:9px;">
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">WEIGHT</div>
+                            <div id="effortWeight" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">SPACE</div>
+                            <div id="effortSpace" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">TIME</div>
+                            <div id="effortTime" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="color:rgba(255,255,255,0.5);">FLOW</div>
+                            <div id="effortFlow" style="color:#00ffff; font-weight:700;">0.5</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">SEQUENCE MODE</div>
+                <div class="seq-modes" id="seqModes">
+                    <button class="seq-mode active" data-seq="GROOVE">GROOVE</button>
+                    <button class="seq-mode" data-seq="EMOTE">EMOTE</button>
+                    <button class="seq-mode" data-seq="IMPACT">IMPACT</button>
+                    <button class="seq-mode" data-seq="FOOTWORK">FOOTWRK</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div style="display:flex; align-items:center; margin-bottom:8px;">
+                    <div class="mixer-section-title" style="margin:0;">PATTERNS [1-0]</div>
+                    <button id="shuffleBtn" class="shuffle-btn">SHUFFLE</button>
+                </div>
+                <div class="pattern-grid" id="patternGrid">
+                    <button class="pattern-btn active" data-pattern="PING_PONG" data-key="1">PING</button>
+                    <button class="pattern-btn" data-pattern="BUILD_DROP" data-key="2">DROP</button>
+                    <button class="pattern-btn" data-pattern="STUTTER" data-key="3">STUT</button>
+                    <button class="pattern-btn" data-pattern="VOGUE" data-key="4">VOGUE</button>
+                    <button class="pattern-btn" data-pattern="FLOW" data-key="5">FLOW</button>
+                    <button class="pattern-btn" data-pattern="CHAOS" data-key="6">CHAOS</button>
+                    <button class="pattern-btn" data-pattern="ABAB" data-key="7">ABAB</button>
+                    <button class="pattern-btn" data-pattern="AABB" data-key="8">AABB</button>
+                    <button class="pattern-btn" data-pattern="ABAC" data-key="9">ABAC</button>
+                    <button class="pattern-btn" data-pattern="SNARE_ROLL" data-key="0">SNARE</button>
+                    <button class="pattern-btn" data-pattern="GROOVE">GROOVE</button>
+                    <button class="pattern-btn" data-pattern="EMOTE">EMOTE</button>
+                    <button class="pattern-btn" data-pattern="FOOTWORK">FOOT</button>
+                    <button class="pattern-btn" data-pattern="IMPACT">IMPACT</button>
+                    <button class="pattern-btn" data-pattern="MINIMAL">MIN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">INTENSITY</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Energy</span>
+                    <input type="range" id="energySlider" class="mixer-slider" min="0" max="100" value="50">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Stutter</span>
+                    <input type="range" id="stutterSlider" class="mixer-slider" min="0" max="100" value="30">
+                </div>
+            </div>
+        </div>
+
+        <!-- FX TAB -->
+        <div id="tabFx" class="tab-content" style="display:none;">
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX SLIDERS</div>
+                <div class="fx-grid">
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxRgb" min="0" max="100" value="0">
+                        <div class="fx-label">RGB</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxFlash" min="0" max="100" value="0">
+                        <div class="fx-label">FLASH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxGlitch" min="0" max="100" value="0">
+                        <div class="fx-label">GLITCH</div>
+                    </div>
+                    <div class="fx-slider-container">
+                        <input type="range" class="fx-slider" id="fxZoom" min="0" max="100" value="0">
+                        <div class="fx-label">ZOOM</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FX TOGGLES</div>
+                <div class="fx-toggles">
+                    <button class="fx-toggle" data-fx="invert">INVERT</button>
+                    <button class="fx-toggle" data-fx="grayscale">B+W</button>
+                    <button class="fx-toggle" data-fx="mirror">MIRROR</button>
+                    <button class="fx-toggle" data-fx="strobe">STROBE</button>
+                    <button class="fx-toggle" data-fx="pixelate">PIXEL</button>
+                    <button class="fx-toggle" data-fx="scanlines">SCAN</button>
+                </div>
+            </div>
+
+            <div class="mixer-section">
+                <div class="mixer-section-title">FILTER</div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Hue</span>
+                    <input type="range" id="fxHue" class="mixer-slider" min="0" max="360" value="0">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Saturation</span>
+                    <input type="range" id="fxSaturation" class="mixer-slider" min="0" max="200" value="100">
+                </div>
+                <div class="mixer-slider-row">
+                    <span class="mixer-slider-label">Contrast</span>
+                    <input type="range" id="fxContrast" class="mixer-slider" min="50" max="150" value="100">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Overlay -->
+    <div id="helpOverlay">
+        <h3>KEYBOARD SHORTCUTS</h3>
+        <div class="hotkey-row"><span class="key">SPACE</span><span class="desc">Play/Pause audio</span></div>
+        <div class="hotkey-row"><span class="key">M</span><span class="desc">Toggle mixer panel</span></div>
+        <div class="hotkey-row"><span class="key">D</span><span class="desc">Toggle frame deck</span></div>
+        <div class="hotkey-row"><span class="key">C</span><span class="desc">Toggle dynamic camera</span></div>
+        <div class="hotkey-row"><span class="key">Q W E R</span><span class="desc">Trigger pads (hold)</span></div>
+        <div class="hotkey-row"><span class="key">1-0</span><span class="desc">Select patterns 1-10</span></div>
+        <div class="hotkey-row"><span class="key">L</span><span class="desc">Toggle LEGACY/LABAN</span></div>
+        <div class="hotkey-row"><span class="key">K</span><span class="desc">Toggle PATTERN/KINETIC</span></div>
+        <div class="hotkey-row"><span class="key">S</span><span class="desc">Toggle pattern shuffle</span></div>
+        <div class="hotkey-row"><span class="key">?</span><span class="desc">Show/hide this help</span></div>
+        <div style="margin-top:16px; text-align:center; color:rgba(255,255,255,0.4); font-size:10px;">Press ? to close</div>
+    </div>
+
+    <div id="tapHint">TAP TO SHOW CONTROLS</div>
+
+    <div id="ui">
+        <!-- Row 1: Main controls -->
+        <div class="ui-row">
+            <button id="btnPlay" class="btn-icon" title="Play/Pause">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </button>
+            <button id="btnMic" class="btn-icon red" title="Microphone">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+            </button>
+            <div class="separator"></div>
+            <button id="btnCam" class="active" title="Camera Motion">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                <span class="btn-label">CAM</span>
+            </button>
+            <button id="btnFx" title="Effects">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/></svg>
+                <span class="btn-label">FX</span>
+            </button>
+            <button id="btnMixer" title="Mixer Panel">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><circle cx="4" cy="12" r="2"/><circle cx="12" cy="10" r="2"/><circle cx="20" cy="14" r="2"/></svg>
+                <span class="btn-label">MIXER</span>
+            </button>
+            <button id="btnDeck" title="Frame Deck">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                <span class="btn-label">DECK</span>
+            </button>
+        </div>
+
+        <!-- Row 2: Mode toggles + Load -->
+        <div class="ui-row">
+            <button id="btnPhysics" class="cyan" title="Physics: LEGACY/LABAN">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4l3-2"/></svg>
+                <span id="physicsLabel">LEGACY</span>
+            </button>
+            <button id="btnEngine" class="orange" title="Engine: PATTERN/KINETIC">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                <span id="engineLabel">PATTERN</span>
+            </button>
+            <div class="separator"></div>
+            <button id="btnLoadRig" title="Load Golem (.dkg) File">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span class="btn-label">GOLEM</span>
+            </button>
+            <button id="btnStreamToggle" title="Streaming URL">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M4 7h16M4 12h10M4 17h6"/></svg>
+                <span class="btn-label">STREAM</span>
+            </button>
+            <button id="btnHelp" class="btn-icon" title="Help">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
+            <div class="separator"></div>
+            <a href="https://jusdnce.com" target="_blank" id="btnGetMore" class="active" title="Create More Golems" style="text-decoration:none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M12 5v14M5 12h14"/></svg>
+                <span class="btn-label">GET MORE</span>
+            </a>
+        </div>
+
+        <div id="streamRow" class="ui-row stream-row" style="margin-top:8px; display:none;">
+            <input id="streamInput" class="stream-input" type="text" placeholder="Paste streaming link (https://...)" />
+            <button id="btnPasteStream" class="btn-icon" title="Paste from clipboard" style="min-width:44px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px"><path d="M19 21H5a2 2 0 0 1-2-2V7h4V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2h4v5"/><path d="M16 3H8v4h8V3Z"/><path d="M15 13h6v6"/><path d="m15 19 6-6"/></svg>
+            </button>
+            <button id="btnLinkStream" class="cyan" title="Link audio stream">LINK STREAM</button>
+            <div id="streamStatus" class="stream-status"></div>
+        </div>
+
+        <!-- Progression indicator -->
+        <div class="ui-row" style="gap:4px; opacity:0.5;">
+            <span style="font-size:9px; letter-spacing:2px; color:#888;">PROGRESSION</span>
+            <div id="progressBars" style="display:flex; gap:3px;">
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+                <div class="prog-bar" style="width:32px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="rigInput" style="display:none" accept=".dkg,.rig,.jusdnce,.json">
+    <input type="file" id="audioInput" style="display:none" accept="audio/*">
+
+    <script>
+{{RUNTIME}}
+    </script>
+</body>
+</html>
