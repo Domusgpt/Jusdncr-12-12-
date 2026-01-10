@@ -1,8 +1,9 @@
 
 import React, { useRef, useState, useMemo, useEffect } from 'react';
-import { Music, Play, Pause, Check, Wand2, Zap, Film, Coins, CreditCard, Image as ImageIcon, Shuffle, ChevronDown, ChevronUp, Sparkles, Rocket, Mic, Layers, Grid, Sliders, Activity, ArrowRight, Star, X } from 'lucide-react';
+import { Music, Play, Pause, Check, Wand2, Zap, Film, Coins, CreditCard, Image as ImageIcon, Shuffle, ChevronDown, ChevronUp, Sparkles, Rocket, Mic, Layers, Grid, Sliders, Activity, ArrowRight, Star, X, HelpCircle, Upload, FolderOpen, Palette } from 'lucide-react';
 import { AppState, StyleCategory, StylePreset } from '../types';
 import { STYLE_PRESETS, CREDITS_PACK_PRICE } from '../constants';
+import { HelpOverlay, HelpButton } from './HelpSystem';
 
 /* -------------------------------------------------------------------------- */
 /*                                UTILITIES                                   */
@@ -26,17 +27,28 @@ const triggerColorShift = (hue: number) => {
 interface Step1Props {
   state: AppState;
   onUploadImage: (file: File) => void;
-  onUploadAudio: (file: File) => void;
+  onUploadAudio: (file: File | null) => void;
+  onSetAudioLink: (url: string) => void;
+  onClearAudio: () => void;
+  onImportRig?: (file: File) => void;
 }
 
-export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio }) => {
+export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUploadAudio, onSetAudioLink, onClearAudio, onImportRig }) => {
   const imgInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
+  const rigInput = useRef<HTMLInputElement>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [streamLink, setStreamLink] = useState('');
+  const [showStreamLinkModal, setShowStreamLinkModal] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  
+
   const imageSectionRef = useRef<HTMLDivElement>(null);
   const audioSectionRef = useRef<HTMLDivElement>(null);
+
+  const audioLabel = state.audioSourceType === 'url' ? 'STREAM LINK' : 'AUDIO';
+  const audioName = state.audioSourceName || state.audioFile?.name;
+  const hasAudio = !!state.audioPreviewUrl;
 
   const toggleAudio = () => {
     triggerImpulse('click', 0.5);
@@ -46,8 +58,48 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
     }
   };
 
+  const handleImportRig = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && onImportRig) {
+      triggerImpulse('click', 1.5);
+      onImportRig(file);
+    }
+    e.target.value = '';
+  };
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 h-full max-w-6xl mx-auto py-10 perspective-1000">
+    <>
+    {/* Help Overlay */}
+    <HelpOverlay pageId="step1" isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
+    <div className="relative h-full max-w-6xl mx-auto py-10 perspective-1000">
+      {/* Top action bar */}
+      <div className="flex justify-between items-center mb-8 px-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => rigInput.current?.click()}
+            title="Import Deterministic Kinetic Golem (DKG)"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30
+                       border border-purple-500/40 rounded-xl text-purple-300 hover:text-white
+                       transition-all font-bold"
+          >
+            <FolderOpen size={18} />
+            <span className="text-sm">IMPORT GOLEM (DKG)</span>
+          </button>
+          <input
+            ref={rigInput}
+            type="file"
+            accept=".dkg,.json,.jusdnce"
+            className="hidden"
+            onChange={handleImportRig}
+          />
+        </div>
+
+        <HelpButton onClick={() => setShowHelp(true)} />
+      </div>
+
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
       {/* Image Uploader */}
       <div 
         ref={imageSectionRef}
@@ -126,22 +178,22 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
         onMouseEnter={() => triggerImpulse('hover', 0.2)}
       >
          <h3 className="text-2xl font-black text-white mb-6 flex items-center gap-3 drop-shadow-lg tracking-widest group cursor-default">
-            <div className={`p-2 rounded-lg border transition-colors group-hover:animate-shake ${state.audioFile ? 'bg-green-500/50 border-green-500' : 'bg-green-500/20 border-green-500/30'}`}>
+            <div className={`p-2 rounded-lg border transition-colors group-hover:animate-shake ${hasAudio ? 'bg-green-500/50 border-green-500' : 'bg-green-500/20 border-green-500/30'}`}>
                 <Music className="text-green-300"/>
             </div>
             <span className="group-hover:text-green-300 transition-colors duration-300">AUDIO_STREAM</span>
             <span className="text-xs bg-white/10 px-2 py-1 rounded text-gray-400 font-mono tracking-widest">(OPTIONAL)</span>
          </h3>
          <div 
-            className={`
+          className={`
               flex-1 relative rounded-3xl border-2 border-dashed flex flex-col items-center justify-center cursor-pointer transition-all duration-300 min-h-[350px] group overflow-hidden
               backdrop-blur-sm
-              ${state.audioFile 
-                  ? 'border-green-500/50 bg-green-900/10 shadow-[0_0_30px_rgba(34,197,94,0.2)]' 
+              ${hasAudio
+                  ? 'border-green-500/50 bg-green-900/10 shadow-[0_0_30px_rgba(34,197,94,0.2)]'
                   : 'border-white/10 hover:border-green-400/50 bg-black/20 hover:bg-black/40 hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(34,197,94,0.15)]'}
             `}
             onClick={() => {
-                if(!state.audioFile) {
+                if(!hasAudio) {
                     triggerImpulse('click', 0.8);
                     audioInput.current?.click();
                 }
@@ -150,25 +202,27 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
              {/* Scanline Effect */}
              <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-green-500/10 to-transparent opacity-0 group-hover:opacity-100 translate-y-[-100%] group-hover:translate-y-[100%] transition-transform duration-1000 ease-linear" />
 
-            {state.audioFile ? (
+            {hasAudio ? (
                 <div className="text-center p-6 w-full relative z-10">
                     <div className="w-32 h-32 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_50px_rgba(34,197,94,0.4)] animate-pulse-fast border-4 border-black/30 group-hover:scale-110 transition-transform">
                         <Music size={50} className="text-white drop-shadow-md" />
                     </div>
-                    <p className="text-white font-bold text-xl mb-6 truncate px-8 drop-shadow-md font-mono">{state.audioFile.name}</p>
+                    <p className="text-white font-bold text-xl mb-1 truncate px-8 drop-shadow-md font-mono">{audioName || 'Linked Audio'}</p>
+                    <p className="text-green-200 text-[11px] font-mono tracking-widest mb-4">{audioLabel}</p>
                     
                     <div className="flex gap-4 justify-center">
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); toggleAudio(); }}
                             className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white rounded-full font-bold flex items-center gap-2 transition-all hover:scale-105 shadow-lg border border-green-400/30 hover:shadow-[0_0_20px_rgba(34,197,94,0.4)]"
                         >
                             {isAudioPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />} PREVIEW
                         </button>
-                        <button 
-                            onClick={(e) => { 
-                                e.stopPropagation(); 
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 triggerImpulse('click', 0.5);
-                                onUploadAudio(null as any); 
+                                onClearAudio();
+                                setIsAudioPlaying(false);
                             }}
                             className="px-6 py-3 bg-white/5 hover:bg-white/20 text-white rounded-full font-bold transition-transform hover:scale-105 border border-white/10 backdrop-blur-md"
                         >
@@ -178,7 +232,13 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                     <div className="absolute top-4 right-4 bg-green-500 text-white p-2 rounded-full shadow-lg animate-in zoom-in border border-white/20">
                        <Check size={20} />
                    </div>
-                    <audio ref={audioRef} src={state.audioPreviewUrl || undefined} onEnded={() => setIsAudioPlaying(false)} className="hidden" />
+                    <audio
+                      ref={audioRef}
+                      src={state.audioPreviewUrl || undefined}
+                      crossOrigin="anonymous"
+                      onEnded={() => setIsAudioPlaying(false)}
+                      className="hidden"
+                    />
                 </div>
             ) : (
                 <div className="text-center p-8 relative z-10">
@@ -187,12 +247,11 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                     </div>
                     <p className="text-white font-black text-2xl tracking-widest group-hover:text-green-300 transition-colors glitch-hover">UPLOAD AUDIO</p>
                     <p className="text-gray-500 text-xs mt-3 font-mono uppercase tracking-widest">MP3 / WAV / AAC</p>
-                    <p className="text-brand-300/50 text-[10px] mt-2 tracking-wide font-bold">OR SKIP FOR LIVE / SYNTHETIC MODE</p>
                 </div>
             )}
-            <input 
-                type="file" 
-                ref={audioInput} 
+            <input
+                type="file"
+                ref={audioInput}
                 onChange={e => {
                     if (e.target.files?.[0]) {
                         triggerImpulse('click', 1.5);
@@ -200,14 +259,69 @@ export const Step1Assets: React.FC<Step1Props> = ({ state, onUploadImage, onUplo
                         onUploadAudio(e.target.files[0]);
                         e.target.value = '';
                     }
-                }} 
-                accept="audio/*" 
-                className="hidden" 
-                onClick={(e) => e.stopPropagation()} 
+                }}
+                accept="audio/*"
+                className="hidden"
+                onClick={(e) => e.stopPropagation()}
             />
-         </div>
+            <div className="mt-4 flex flex-col gap-2 w-full">
+              <button
+                onClick={(e) => { e.stopPropagation(); triggerImpulse('click', 0.8); setShowStreamLinkModal(true); }}
+                className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl text-white font-bold tracking-widest hover:border-green-400 hover:bg-green-500/15 transition-all"
+              >
+                STREAMING URL
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onClearAudio(); setStreamLink(''); }}
+                className="text-[11px] text-white/60 hover:text-white font-bold tracking-widest underline-offset-4 hover:underline self-start"
+              >
+                ADD LATER
+              </button>
+            </div>
+        </div>
+     </div>
       </div>
     </div>
+    {showStreamLinkModal && (
+      <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={() => setShowStreamLinkModal(false)}>
+        <div
+          className="bg-black/90 border border-white/10 rounded-2xl shadow-2xl p-5 w-[90%] max-w-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-[11px] text-gray-400 font-mono tracking-widest">STREAMING URL</p>
+              <h4 className="text-xl font-bold text-white">Paste any compatible music link</h4>
+            </div>
+            <button onClick={() => setShowStreamLinkModal(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none"
+              placeholder="https://..."
+              value={streamLink}
+              onChange={(e) => setStreamLink(e.target.value)}
+            />
+            <button
+              onClick={() => {
+                const trimmed = streamLink.trim();
+                if (!trimmed) return;
+                triggerImpulse('click', 0.9);
+                onSetAudioLink(trimmed);
+                setStreamLink('');
+                setShowStreamLinkModal(false);
+              }}
+              disabled={!streamLink.trim()}
+              className={`px-4 py-2 rounded-lg font-bold text-xs tracking-widest ${streamLink.trim() ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg' : 'bg-white/10 text-white/40 cursor-not-allowed'}`}
+            >
+              LINK
+            </button>
+          </div>
+          <p className="text-[11px] text-gray-400 mt-2">Works with HTTPS-friendly streams (YouTube embeds, direct MP3/AAC URLs, and supported services).</p>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
@@ -223,8 +337,11 @@ interface Step2Props {
 
 export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCredits }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showStyles, setShowStyles] = useState(false); // Collapsed by default
+  const [surpriseMorph, setSurpriseMorph] = useState(false); // Morph toggle for Surprise Me
   const [activeCategory, setActiveCategory] = useState<StyleCategory>('Cinematic');
-  
+
   const categories: StyleCategory[] = ['Cinematic', 'Anime/2D', 'Digital/Glitch', 'Artistic', 'Abstract'];
 
   const filteredStyles = useMemo(() => {
@@ -236,6 +353,24 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
     const randomStyle = STYLE_PRESETS[Math.floor(Math.random() * STYLE_PRESETS.length)];
     setActiveCategory(randomStyle.category);
     onUpdate('selectedStyleId', randomStyle.id);
+
+    // Expand styles to show selection
+    setShowStyles(true);
+
+    // If morph mode enabled, also pick a secondary style with random intensity
+    if (surpriseMorph) {
+      const otherStyles = STYLE_PRESETS.filter(s => s.id !== randomStyle.id);
+      const secondaryStyle = otherStyles[Math.floor(Math.random() * otherStyles.length)];
+      const randomIntensity = Math.floor(Math.random() * 60) + 20; // 20-80%
+      onUpdate('secondaryStyleId', secondaryStyle.id);
+      onUpdate('morphIntensity', randomIntensity);
+
+      // Expand Studio Controls to show morph settings
+      setShowAdvanced(true);
+
+      // Visual feedback - shift hue based on morph blend
+      triggerColorShift(randomIntensity * 3);
+    }
   };
 
   const MOTION_OPTIONS = [
@@ -247,106 +382,158 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
   ];
 
   return (
-    <div className="max-w-6xl mx-auto py-8 px-4 perspective-1000">
-      
-      {/* Header */}
-      <div className="flex justify-between items-end mb-8 animate-slide-in-right">
-        <div>
-           <h2 className="text-4xl font-black text-white flex items-center gap-3 glitch-hover">
-              <span className="bg-brand-500/20 text-brand-300 p-2 rounded-lg border border-brand-500/30">
-                  <Wand2 size={28} />
-              </span>
-              DIRECTOR_MODE
-           </h2>
-           <p className="text-brand-100/60 mt-2 font-mono tracking-widest text-xs uppercase">Configure your quantum simulation parameters</p>
-        </div>
-        
-        <div className="flex flex-col gap-2 items-end">
-            <button 
-                onClick={randomizeStyle}
-                onMouseEnter={() => triggerImpulse('hover', 0.5)}
-                className="glass-button px-5 py-2.5 rounded-full text-sm font-bold text-white flex items-center gap-2 hover:bg-white/10"
-            >
-                <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
-            </button>
-            
-            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-1 py-1 rounded-full border border-white/10">
-                <button
-                    onClick={() => onUpdate('useTurbo', true)}
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${config.useTurbo ? 'bg-brand-500 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <Rocket size={12} /> TURBO
-                </button>
-                <button
-                    onClick={() => onUpdate('useTurbo', false)}
-                    onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${!config.useTurbo ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <Sparkles size={12} /> QUALITY
-                </button>
-            </div>
-            
-            {/* SUPER MODE TOGGLE */}
-            <button
-                onClick={() => onUpdate('superMode', !config.superMode)}
-                onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                className={`
-                    px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
-                    ${config.superMode
-                        ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white border-yellow-400 shadow-[0_0_15px_rgba(234,179,8,0.5)]'
-                        : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
-                `}
-            >
-                <Star size={12} fill={config.superMode ? "white" : "none"} />
-                {config.superMode ? "SUPER MODE ACTIVE (15 FRAMES + LIP SYNC)" : "ENABLE SUPER MODE (PAID)"}
-            </button>
+    <>
+    <HelpOverlay pageId="step2" isOpen={showHelp} onClose={() => setShowHelp(false)} />
 
-            {/* CUTOUT MODE TOGGLE */}
-            <button
-                onClick={() => onUpdate('cutoutMode', !config.cutoutMode)}
-                onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                className={`
-                    px-4 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2 border w-full justify-center
-                    ${config.cutoutMode
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-cyan-400 shadow-[0_0_15px_rgba(6,182,212,0.5)]'
-                        : 'bg-black/40 text-gray-500 border-gray-700 hover:border-gray-500 hover:text-white'}
-                `}
-            >
-                <Layers size={12} />
-                {config.cutoutMode ? "CUTOUT MODE: Character over Visualizer" : "CUTOUT MODE (Remove Background)"}
-            </button>
-        </div>
-      </div>
+    <div className="max-w-6xl mx-auto py-6 px-4 perspective-1000 overflow-x-hidden">
 
-      {/* Category Tabs */}
-      <div className="flex flex-wrap gap-2 mb-8 animate-fade-in" style={{ animationDelay: '100ms' }}>
-        {categories.map((cat, idx) => (
-          <button
-            key={cat}
-            onClick={() => { triggerImpulse('click', 0.4); setActiveCategory(cat); }}
-            onMouseEnter={() => triggerImpulse('hover', 0.1)}
-            className={`
-              px-6 py-3 rounded-xl font-bold text-sm tracking-wide transition-all duration-300 border relative overflow-hidden group
-              ${activeCategory === cat 
-                ? 'bg-white/10 border-white text-white shadow-[0_0_20px_rgba(255,255,255,0.2)]' 
-                : 'bg-black/20 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
-            `}
-          >
-            <span className="relative z-10 flex items-center gap-2">
-                {cat === 'Cinematic' && <Film size={14}/>}
-                {cat === 'Digital/Glitch' && <Zap size={14}/>}
-                {cat === 'Artistic' && <Wand2 size={14}/>}
-                {cat === 'Anime/2D' && <Layers size={14}/>}
-                {cat.toUpperCase()}
+      {/* Header - Vertical Stack for Mobile */}
+      <div className="mb-6 animate-slide-in-right">
+        {/* Title Row */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl md:text-4xl font-black text-white flex items-center gap-2 md:gap-3 glitch-hover">
+            <span className="bg-brand-500/20 text-brand-300 p-1.5 md:p-2 rounded-lg border border-brand-500/30">
+                <Wand2 size={20} className="md:w-7 md:h-7" />
             </span>
-            {activeCategory === cat && <div className="absolute inset-0 bg-white/5 animate-pulse-fast" />}
+            DIRECTOR_MODE
+          </h2>
+          <HelpButton onClick={() => setShowHelp(true)} />
+        </div>
+
+        <p className="text-brand-100/60 font-mono tracking-widest text-[10px] md:text-xs uppercase mb-4">
+          Configure your quantum simulation parameters
+        </p>
+
+        {/* Controls - Stacked Vertically */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1: Surprise Me + Morph Toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setSurpriseMorph(!surpriseMorph)}
+              className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2
+                ${surpriseMorph
+                  ? 'bg-purple-500/30 text-purple-300 border-2 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)]'
+                  : 'bg-white/5 text-gray-400 border border-white/10 hover:text-white hover:bg-white/10'}`}
+              title="Enable morphing with Surprise Me"
+            >
+              <Layers size={14} /> MORPH
+            </button>
+            <button
+              onClick={randomizeStyle}
+              onMouseEnter={() => triggerImpulse('hover', 0.5)}
+              className="flex-1 min-w-[140px] glass-button px-4 py-2.5 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 hover:bg-white/10 border border-white/10"
+            >
+              <Shuffle size={16} className="text-brand-300" /> SURPRISE ME
+            </button>
+          </div>
+
+          {/* Row 2: Quality Mode Toggle */}
+          <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl border border-white/10 overflow-hidden">
+            <button
+              onClick={() => { onUpdate('useTurbo', true); onUpdate('superMode', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${config.useTurbo && !config.superMode
+                  ? 'bg-brand-500 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Rocket size={12} /> TURBO
+            </button>
+            <div className="w-px h-8 bg-white/10" />
+            <button
+              onClick={() => { onUpdate('useTurbo', false); onUpdate('superMode', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${!config.useTurbo && !config.superMode
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Sparkles size={12} /> QUALITY
+            </button>
+            <div className="w-px h-8 bg-white/10" />
+            <button
+              onClick={() => { onUpdate('superMode', true); onUpdate('useTurbo', false); }}
+              onMouseEnter={() => triggerImpulse('hover', 0.2)}
+              className={`flex-1 px-3 py-2.5 text-xs font-bold transition-all flex items-center justify-center gap-1.5
+                ${config.superMode
+                  ? 'bg-gradient-to-r from-yellow-500 to-amber-600 text-white shadow-lg'
+                  : 'text-gray-500 hover:text-white hover:bg-white/5'}`}
+            >
+              <Star size={12} fill={config.superMode ? "white" : "none"} /> SUPER
+            </button>
+          </div>
+
+          {/* Row 3: Cutout Mode */}
+          <button
+            onClick={() => onUpdate('cutoutMode', !config.cutoutMode)}
+            onMouseEnter={() => triggerImpulse('hover', 0.2)}
+            className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border
+              ${config.cutoutMode
+                ? 'bg-gradient-to-r from-cyan-500/20 to-blue-600/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_10px_rgba(6,182,212,0.3)]'
+                : 'bg-black/40 text-gray-500 border-white/10 hover:border-white/20 hover:text-white'}`}
+          >
+            <Layers size={14} />
+            {config.cutoutMode ? "CUTOUT: Over Visualizer" : "CUTOUT MODE"}
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Style Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      {/* Style Presets Section - Categories Always Visible */}
+      <div className="glass-panel rounded-2xl overflow-hidden border border-white/10 mb-6">
+        {/* Header with selected style name */}
+        <div className="p-3 flex items-center gap-3 bg-white/5 border-b border-white/5">
+          <Palette size={18} className="text-brand-300" />
+          <span className="font-bold text-white tracking-widest text-xs">
+            STYLE PRESETS
+          </span>
+          {config.selectedStyleId && (
+            <span className="text-brand-300 text-xs font-mono ml-auto">
+              {STYLE_PRESETS.find(s => s.id === config.selectedStyleId)?.name}
+            </span>
+          )}
+        </div>
+
+        {/* Category Tabs - ALWAYS VISIBLE */}
+        <div className="flex flex-wrap gap-1.5 p-3 bg-black/30">
+          {categories.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => {
+                triggerImpulse('click', 0.4);
+                setActiveCategory(cat);
+                if (!showStyles) setShowStyles(true); // Auto-expand when category clicked
+              }}
+              onMouseEnter={() => triggerImpulse('hover', 0.1)}
+              className={`
+                px-3 py-1.5 rounded-lg font-bold text-[10px] tracking-wide transition-all duration-300 border
+                ${activeCategory === cat
+                  ? 'bg-white/15 border-white/30 text-white shadow-[0_0_10px_rgba(255,255,255,0.15)]'
+                  : 'bg-black/30 border-white/5 text-gray-500 hover:border-white/20 hover:text-gray-300'}
+              `}
+            >
+              <span className="flex items-center gap-1.5">
+                {cat === 'Cinematic' && <Film size={10}/>}
+                {cat === 'Digital/Glitch' && <Zap size={10}/>}
+                {cat === 'Artistic' && <Wand2 size={10}/>}
+                {cat === 'Anime/2D' && <Layers size={10}/>}
+                {cat === 'Abstract' && <Activity size={10}/>}
+                {cat.toUpperCase()}
+              </span>
+            </button>
+          ))}
+
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={() => setShowStyles(!showStyles)}
+            className="ml-auto px-2 py-1.5 rounded-lg text-gray-400 hover:text-white transition-colors"
+          >
+            {showStyles ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+        </div>
+
+        {/* Collapsible Style Grid - Only this part collapses */}
+        <div className={`transition-all duration-400 ease-in-out overflow-hidden ${showStyles ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+          <div className="p-3 grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 bg-black/20 overflow-y-auto max-h-[400px]">
         {filteredStyles.map((style, idx) => (
           <div
             key={style.id}
@@ -388,6 +575,8 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
             <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-white/10 to-transparent h-1/4 w-full -translate-y-full group-hover:translate-y-[400%] transition-transform duration-1000 ease-in-out" />
           </div>
         ))}
+          </div>
+        </div>
       </div>
 
       {/* STUDIO CONTROLS (Expandable) */}
@@ -403,8 +592,8 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
               {showAdvanced ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
           </button>
           
-          <div className={`transition-all duration-500 ease-in-out ${showAdvanced ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-white/5 bg-black/20">
+          <div className={`transition-all duration-500 ease-in-out overflow-hidden ${showAdvanced ? 'max-h-[800px] opacity-100' : 'max-h-0 opacity-0'}`}>
+              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-white/5 bg-black/20 overflow-y-auto max-h-[600px]">
                   
                   {/* LEFT COL: MOTION & GENERATION */}
                   <div className="space-y-6">
@@ -520,5 +709,6 @@ export const Step2Director: React.FC<Step2Props> = ({ config, onUpdate, onBuyCre
           </div>
       </div>
     </div>
+    </>
   );
 };

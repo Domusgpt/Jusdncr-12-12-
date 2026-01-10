@@ -84,13 +84,13 @@ export const EnginePanel: React.FC<EnginePanelProps> = ({
   labanEffort
 }) => {
 
-  // ============ CLOSED STATE - Small tab on left edge ============
+  // ============ CLOSED STATE - Small tab on left edge (BOTTOM anchored) ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed left-0 top-1/2 -translate-y-1/2 z-[60]
-                   w-10 h-24
+        className="fixed left-0 bottom-24 z-[60]
+                   w-10 h-20
                    bg-gradient-to-b from-cyan-500/60 to-blue-500/60
                    border-y-2 border-r-2 border-cyan-400
                    rounded-r-xl py-2 px-1
@@ -112,17 +112,17 @@ export const EnginePanel: React.FC<EnginePanelProps> = ({
     );
   }
 
-  // ============ OPEN STATE - Compact panel on left ============
+  // ============ OPEN STATE - Compact panel on left (BOTTOM anchored, doesn't block center) ============
   return (
     <div
-      className={`fixed left-0 top-1/2 -translate-y-1/2 z-[60]
+      className={`fixed left-0 bottom-24 z-[60]
                  bg-black/95 backdrop-blur-xl
                  border-y-2 border-r-2 border-cyan-400 rounded-r-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-cyan-500/30
                  ${isExpanded ? 'w-[240px]' : 'w-[160px]'}`}
-      style={{ maxHeight: '55vh' }}
+      style={{ maxHeight: '45vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">

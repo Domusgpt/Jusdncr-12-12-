@@ -64,13 +64,13 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
   const [selectedDeck, setSelectedDeck] = useState<number | null>(null);
   const activeCount = decks.filter(d => d.mixMode !== 'off').length;
 
-  // ============ CLOSED STATE - Small tab on right edge ============
+  // ============ CLOSED STATE - Small tab on right edge (BOTTOM anchored) ============
   if (!isOpen) {
     return (
       <button
         onClick={onToggleOpen}
-        className="fixed right-0 top-1/2 -translate-y-1/2 z-[60]
-                   w-10 h-24
+        className="fixed right-0 bottom-24 z-[60]
+                   w-10 h-20
                    bg-gradient-to-b from-purple-500/60 to-pink-500/60
                    border-y-2 border-l-2 border-purple-400
                    rounded-l-xl py-2 px-1
@@ -92,17 +92,17 @@ export const DeckMixerPanel: React.FC<DeckMixerPanelProps> = ({
     );
   }
 
-  // ============ OPEN STATE - Compact panel on right ============
+  // ============ OPEN STATE - Compact panel on right (BOTTOM anchored, doesn't block center) ============
   return (
     <div
-      className={`fixed right-0 top-1/2 -translate-y-1/2 z-[60]
+      className={`fixed right-0 bottom-24 z-[60]
                  bg-black/95 backdrop-blur-xl
                  border-y-2 border-l-2 border-purple-400 rounded-l-2xl
                  font-rajdhani text-white
                  transition-all duration-300 ease-out
                  shadow-2xl shadow-purple-500/30
                  ${isExpanded ? 'w-[260px]' : 'w-[160px]'}`}
-      style={{ maxHeight: '55vh' }}
+      style={{ maxHeight: '45vh' }}
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">

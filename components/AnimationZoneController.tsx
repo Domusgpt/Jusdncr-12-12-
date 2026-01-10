@@ -1,0 +1,462 @@
+/**
+ * AnimationZoneController - Touch overlay for animation zone
+ *
+ * Handles all touch interactions in the animation area:
+ * - Left half: PATTERN mode + full pattern joystick (15 patterns)
+ * - Right half: KINETIC mode + reduced pattern joystick (6 patterns)
+ * - Quadrants: Deck control (tap=on/off, flick up/down=mode cycle)
+ * - Touch position: FX intensity (X/Y axes)
+ * - LEGACY/LABAN is separate toggle, NOT controlled by touch zones
+ */
+
+import React, { useRef, useState, useCallback } from 'react';
+import type { PatternType, MixMode, EngineMode } from '../engine/GolemMixer';
+
+// Pattern arrangements for joystick
+const KINETIC_PATTERNS: PatternType[] = [
+  'PING_PONG', 'FLOW', 'STUTTER', 'CHAOS', 'VOGUE', 'BUILD_DROP'
+];
+
+const ALL_PATTERNS: PatternType[] = [
+  'PING_PONG', 'BUILD_DROP', 'STUTTER', 'VOGUE', 'FLOW', 'CHAOS',
+  'MINIMAL', 'ABAB', 'AABB', 'ABAC', 'SNARE_ROLL', 'GROOVE',
+  'EMOTE', 'FOOTWORK', 'IMPACT'
+];
+
+interface DeckState {
+  id: number;
+  mixMode: MixMode;
+  isActive: boolean;
+}
+
+interface AnimationZoneControllerProps {
+  // Engine mode (PATTERN = left side, KINETIC = right side)
+  onEngineModeChange: (mode: EngineMode) => void;
+  engineMode: EngineMode;
+
+  // Pattern selection
+  onPatternChange: (pattern: PatternType) => void;
+  currentPattern: PatternType;
+
+  // Deck control
+  decks: DeckState[];
+  onDeckToggle: (deckId: number) => void;
+  onDeckModeChange: (deckId: number, mode: MixMode) => void;
+
+  // FX intensity
+  onFXIntensityChange: (intensity: { x: number; y: number }) => void;
+
+  // Touch active state (for visual feedback in parent)
+  onTouchStateChange?: (state: {
+    isActive: boolean;
+    side: 'left' | 'right' | null;
+    patternAngle: number;
+    quadrant: number | null;
+  }) => void;
+}
+
+export const AnimationZoneController: React.FC<AnimationZoneControllerProps> = ({
+  onEngineModeChange,
+  engineMode,
+  onPatternChange,
+  currentPattern,
+  decks,
+  onDeckToggle,
+  onDeckModeChange,
+  onFXIntensityChange,
+  onTouchStateChange
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [touchState, setTouchState] = useState<{
+    isActive: boolean;
+    startX: number;
+    startY: number;
+    startTime: number;
+    side: 'left' | 'right' | null;
+    quadrant: number | null;
+    hasMoved: boolean;
+  }>({
+    isActive: false,
+    startX: 0,
+    startY: 0,
+    startTime: 0,
+    side: null,
+    quadrant: null,
+    hasMoved: false
+  });
+
+  const [joystickPos, setJoystickPos] = useState({ x: 0, y: 0 });
+  const [showJoystick, setShowJoystick] = useState(false);
+
+  // Get patterns based on current engine mode
+  const patterns = engineMode === 'KINETIC' ? KINETIC_PATTERNS : ALL_PATTERNS;
+
+  // Calculate pattern from joystick position
+  const getPatternFromAngle = useCallback((x: number, y: number): PatternType => {
+    const angle = Math.atan2(y, x);
+    const normalizedAngle = (angle + Math.PI) / (2 * Math.PI); // 0-1
+    const index = Math.floor(normalizedAngle * patterns.length) % patterns.length;
+    return patterns[index];
+  }, [patterns]);
+
+  // Get quadrant from position (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
+  const getQuadrant = useCallback((clientX: number, clientY: number): number => {
+    if (!containerRef.current) return 0;
+    const rect = containerRef.current.getBoundingClientRect();
+    const relX = clientX - rect.left;
+    const relY = clientY - rect.top;
+    const isRight = relX > rect.width / 2;
+    const isBottom = relY > rect.height / 2;
+    return (isBottom ? 2 : 0) + (isRight ? 1 : 0);
+  }, []);
+
+  // Get side (left/right) from position
+  const getSide = useCallback((clientX: number): 'left' | 'right' => {
+    if (!containerRef.current) return 'left';
+    const rect = containerRef.current.getBoundingClientRect();
+    return (clientX - rect.left) < rect.width / 2 ? 'left' : 'right';
+  }, []);
+
+  // Calculate FX intensity from touch position
+  const calculateFXIntensity = useCallback((clientX: number, clientY: number) => {
+    if (!containerRef.current) return { x: 0, y: 0 };
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+    return { x, y };
+  }, []);
+
+  // Handle touch/mouse start
+  const handleStart = useCallback((clientX: number, clientY: number) => {
+    const side = getSide(clientX);
+    const quadrant = getQuadrant(clientX, clientY);
+
+    setTouchState({
+      isActive: true,
+      startX: clientX,
+      startY: clientY,
+      startTime: Date.now(),
+      side,
+      quadrant,
+      hasMoved: false
+    });
+
+    // Activate engine mode based on side (LEFT = PATTERN, RIGHT = KINETIC)
+    if (side === 'left') {
+      onEngineModeChange('PATTERN');
+    } else {
+      onEngineModeChange('KINETIC');
+    }
+
+    // Set initial FX intensity
+    onFXIntensityChange(calculateFXIntensity(clientX, clientY));
+
+    // Show joystick
+    setShowJoystick(true);
+    setJoystickPos({ x: 0, y: 0 });
+  }, [getSide, getQuadrant, onEngineModeChange, onFXIntensityChange, calculateFXIntensity]);
+
+  // Handle touch/mouse move
+  const handleMove = useCallback((clientX: number, clientY: number) => {
+    if (!touchState.isActive) return;
+
+    const deltaX = clientX - touchState.startX;
+    const deltaY = clientY - touchState.startY;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Mark as moved if distance > threshold
+    if (distance > 10 && !touchState.hasMoved) {
+      setTouchState(s => ({ ...s, hasMoved: true }));
+    }
+
+    // Update joystick position (clamped to radius)
+    const maxRadius = 60;
+    const clampedDistance = Math.min(distance, maxRadius);
+    const angle = Math.atan2(deltaY, deltaX);
+    const joyX = Math.cos(angle) * clampedDistance;
+    const joyY = Math.sin(angle) * clampedDistance;
+    setJoystickPos({ x: joyX, y: joyY });
+
+    // Update pattern based on joystick direction (only if moved significantly)
+    if (distance > 30) {
+      const pattern = getPatternFromAngle(deltaX, deltaY);
+      if (pattern !== currentPattern) {
+        onPatternChange(pattern);
+      }
+    }
+
+    // Update FX intensity
+    onFXIntensityChange(calculateFXIntensity(clientX, clientY));
+
+    // Notify parent of touch state
+    onTouchStateChange?.({
+      isActive: true,
+      side: touchState.side,
+      patternAngle: angle,
+      quadrant: touchState.quadrant
+    });
+  }, [touchState, getPatternFromAngle, currentPattern, onPatternChange, onFXIntensityChange, calculateFXIntensity, onTouchStateChange]);
+
+  // Handle touch/mouse end
+  const handleEnd = useCallback((clientX: number, clientY: number) => {
+    if (!touchState.isActive) return;
+
+    const deltaX = clientX - touchState.startX;
+    const deltaY = clientY - touchState.startY;
+    const deltaTime = Date.now() - touchState.startTime;
+    const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // Check for tap (short duration, minimal movement)
+    if (deltaTime < 300 && distance < 20) {
+      // Tap - toggle deck
+      if (touchState.quadrant !== null) {
+        onDeckToggle(touchState.quadrant);
+      }
+    }
+    // Check for flick (fast movement in Y direction)
+    else if (deltaTime < 400 && Math.abs(deltaY) > 50 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      // Flick up or down - cycle deck mode
+      if (touchState.quadrant !== null) {
+        const deck = decks[touchState.quadrant];
+        if (deck) {
+          const modes: MixMode[] = ['off', 'sequencer', 'layer'];
+          const currentIndex = modes.indexOf(deck.mixMode);
+          const direction = deltaY < 0 ? 1 : -1; // Up = forward, down = backward
+          const newIndex = (currentIndex + direction + modes.length) % modes.length;
+          onDeckModeChange(touchState.quadrant, modes[newIndex]);
+        }
+      }
+    }
+
+    // Reset
+    setTouchState({
+      isActive: false,
+      startX: 0,
+      startY: 0,
+      startTime: 0,
+      side: null,
+      quadrant: null,
+      hasMoved: false
+    });
+    setShowJoystick(false);
+    setJoystickPos({ x: 0, y: 0 });
+    onFXIntensityChange({ x: 0, y: 0 });
+
+    onTouchStateChange?.({
+      isActive: false,
+      side: null,
+      patternAngle: 0,
+      quadrant: null
+    });
+  }, [touchState, decks, onDeckToggle, onDeckModeChange, onFXIntensityChange, onTouchStateChange]);
+
+  // Touch event handlers
+  const onTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleStart(touch.clientX, touch.clientY);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleMove(touch.clientX, touch.clientY);
+  };
+
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const touch = e.changedTouches[0];
+    handleEnd(touch.clientX, touch.clientY);
+  };
+
+  // Mouse event handlers (for desktop)
+  const onMouseDown = (e: React.MouseEvent) => {
+    handleStart(e.clientX, e.clientY);
+  };
+
+  const onMouseMove = (e: React.MouseEvent) => {
+    handleMove(e.clientX, e.clientY);
+  };
+
+  const onMouseUp = (e: React.MouseEvent) => {
+    handleEnd(e.clientX, e.clientY);
+  };
+
+  const onMouseLeave = () => {
+    if (touchState.isActive) {
+      handleEnd(touchState.startX, touchState.startY);
+    }
+  };
+
+  // Deck mode colors
+  const getModeColor = (mode: MixMode) => {
+    switch (mode) {
+      case 'sequencer': return 'bg-cyan-500/40 border-cyan-500';
+      case 'layer': return 'bg-purple-500/40 border-purple-500';
+      default: return 'bg-white/5 border-white/20';
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="absolute inset-0 z-10 touch-none"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
+      onMouseDown={onMouseDown}
+      onMouseMove={touchState.isActive ? onMouseMove : undefined}
+      onMouseUp={onMouseUp}
+      onMouseLeave={onMouseLeave}
+    >
+      {/* Visual feedback - side zones */}
+      <div className="absolute inset-0 pointer-events-none flex">
+        <div className={`flex-1 transition-colors duration-150
+                        ${touchState.side === 'left' ? 'bg-cyan-500/10' : ''}`}>
+          {touchState.side === 'left' && (
+            <div className="absolute top-2 left-1/4 -translate-x-1/2
+                           text-[10px] text-cyan-400/80 font-bold">
+              PATTERN
+            </div>
+          )}
+        </div>
+        <div className="w-px bg-white/5" />
+        <div className={`flex-1 transition-colors duration-150
+                        ${touchState.side === 'right' ? 'bg-purple-500/10' : ''}`}>
+          {touchState.side === 'right' && (
+            <div className="absolute top-2 right-1/4 translate-x-1/2
+                           text-[10px] text-purple-400/80 font-bold">
+              KINETIC
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Deck quadrant indicators */}
+      <div className="absolute inset-0 pointer-events-none grid grid-cols-2 grid-rows-2 gap-px opacity-30">
+        {decks.map((deck, i) => (
+          <div
+            key={deck.id}
+            className={`flex items-center justify-center transition-all duration-150
+                       ${touchState.quadrant === i ? 'opacity-100' : 'opacity-50'}
+                       ${getModeColor(deck.mixMode)} border rounded-lg m-2`}
+          >
+            <div className="text-center">
+              <div className="text-[10px] font-bold text-white/70">D{deck.id + 1}</div>
+              <div className="text-[8px] text-white/50 uppercase">
+                {deck.mixMode === 'off' ? 'OFF' : deck.mixMode === 'sequencer' ? 'SEQ' : 'LAY'}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Joystick visualization */}
+      {showJoystick && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            left: touchState.startX - (containerRef.current?.getBoundingClientRect().left || 0),
+            top: touchState.startY - (containerRef.current?.getBoundingClientRect().top || 0),
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          {/* Base ring - sized based on pattern count */}
+          <div className={`rounded-full border-2 relative
+                          ${touchState.side === 'left' ? 'border-cyan-500/30' : 'border-pink-500/30'}
+                          flex items-center justify-center`}
+               style={{
+                 width: patterns.length > 8 ? '180px' : '140px',
+                 height: patterns.length > 8 ? '180px' : '140px'
+               }}>
+
+            {/* Pattern labels around the ring - ALL patterns evenly spaced */}
+            {patterns.map((p, i) => {
+              // Calculate angle: 360°/N degrees per pattern, starting from top (-PI/2)
+              const anglePerPattern = (Math.PI * 2) / patterns.length;
+              const angle = (i * anglePerPattern) - Math.PI / 2;
+              const radius = patterns.length > 8 ? 70 : 55;
+              const x = Math.cos(angle) * radius;
+              const y = Math.sin(angle) * radius;
+              const isSelected = currentPattern === p;
+
+              return (
+                <div
+                  key={p}
+                  className={`absolute text-center transition-all duration-100
+                             ${isSelected
+                               ? 'text-white font-black scale-110'
+                               : 'text-white/40 font-bold'}`}
+                  style={{
+                    transform: `translate(${x}px, ${y}px)`,
+                    fontSize: patterns.length > 8 ? '6px' : '8px'
+                  }}
+                >
+                  <span className={`${isSelected ? 'px-1.5 py-0.5 rounded bg-white/20' : ''}`}>
+                    {p.replace('_', '').slice(0, 3)}
+                  </span>
+                </div>
+              );
+            })}
+
+            {/* Center circle with pattern count indicator */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={`w-16 h-16 rounded-full border
+                             ${touchState.side === 'left'
+                               ? 'border-cyan-500/20 bg-cyan-500/5'
+                               : 'border-pink-500/20 bg-pink-500/5'}
+                             flex items-center justify-center`}>
+                <span className="text-[8px] text-white/30 font-mono">
+                  {patterns.length === 15 ? '24°' : '60°'}
+                </span>
+              </div>
+            </div>
+
+            {/* Joystick knob */}
+            <div
+              className={`absolute w-8 h-8 rounded-full shadow-lg transition-colors z-10
+                         ${touchState.side === 'left'
+                           ? 'bg-cyan-500 shadow-cyan-500/50'
+                           : 'bg-pink-500 shadow-pink-500/50'}`}
+              style={{
+                transform: `translate(calc(-50% + ${joystickPos.x}px), calc(-50% + ${joystickPos.y}px))`,
+                left: '50%',
+                top: '50%'
+              }}
+            />
+
+            {/* Direction line from center to knob */}
+            {(joystickPos.x !== 0 || joystickPos.y !== 0) && (
+              <svg className="absolute inset-0 pointer-events-none" style={{ overflow: 'visible' }}>
+                <line
+                  x1="50%"
+                  y1="50%"
+                  x2={`calc(50% + ${joystickPos.x}px)`}
+                  y2={`calc(50% + ${joystickPos.y}px)`}
+                  stroke={touchState.side === 'left' ? 'rgba(6, 182, 212, 0.4)' : 'rgba(236, 72, 153, 0.4)'}
+                  strokeWidth="2"
+                  strokeDasharray="4 2"
+                />
+              </svg>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Current pattern display */}
+      {showJoystick && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
+          <div className={`px-4 py-2 rounded-xl text-sm font-bold
+                          ${touchState.side === 'left'
+                            ? 'bg-amber-500/80 text-white'
+                            : 'bg-purple-500/80 text-white'
+                          }`}>
+            {currentPattern.replace('_', ' ')}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default AnimationZoneController;
