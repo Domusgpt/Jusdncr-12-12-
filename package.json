@@ -25,8 +25,6 @@
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
     "typecheck": "tsc --noEmit",
-    "costs:generate": "node scripts/costs/calculator.mjs",
-    "deploy:firebase": "npm run build && npx firebase-tools deploy --only hosting",
     "validate": "npm run typecheck && npm run lint && npm run test"
   },
   "dependencies": {
