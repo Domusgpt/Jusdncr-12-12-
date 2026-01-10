@@ -216,17 +216,31 @@ services/firebase/
 
 ## Branch Situation
 
-**Current branch:** claude/analyze-jusdnce-architecture-j3Ah8
+**Current branch:** claude/analyze-jusdnce-architecture-j3Ah8 (based on Merge-Core, which is Paywall-based)
 
-**Remote branches detected:**
-- `remotes/origin/Merge-Core`
+**Key Remote Branches:**
+- `origin/claude/fix-ui-deploy-firebase-qq3V7` - **Firebase branch** (has deployment config)
+- `origin/codex/2026-01-07/integrate-paywall-and-monetize-system-oi97p2` - **Paywall branch** (our lineage)
+- `origin/Merge-Core` - Base of current branch
+- `origin/main` - Original main branch
 
-**Note:** The analysis mentions Firebase and Paywall branches, but only `Merge-Core` is visible from this branch. This may indicate:
-1. Branches were merged/deleted
-2. Analysis was based on different checkout
-3. Branches exist in a different fork
+**Current Branch Has (from Paywall):**
+- ✅ `services/bugReporter.ts`
+- ✅ `services/qrCodes.ts`
+- ✅ `tools/pricingCalculator.mjs`
+- ✅ playerExport.ts (2,788 lines - streaming audio, smart bezels)
+- ✅ `refactor/` folder with architecture patterns
 
-**Recommendation:** Proceed with refactoring on current branch, starting with playerExport.ts split.
+**Missing (from Firebase):**
+- ❌ `.firebaserc` - Firebase project config
+- ❌ `firebase.json` - Firebase hosting config
+- ❌ `data/cost-assumptions.json` - Cost model data
+- ❌ `data/costs-dashboard.json` - Dashboard data
+- ❌ `scripts/costs/calculator.mjs` - Cost automation script
+
+**Recommendation:** Add Firebase config files from Firebase branch, keep Paywall's playerExport.ts for streaming audio support.
+
+See `BRANCH_COMPARISON.md` for detailed analysis.
 
 ---
 
