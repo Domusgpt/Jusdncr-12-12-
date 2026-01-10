@@ -61,7 +61,6 @@ export interface AppState {
   user: AuthUser | null; // Auth state
   showAuthModal: boolean;
   showPaymentModal: boolean;
-  showCostInsightsModal: boolean;
 
   userTier: UserTier;
   imageFile: File | null;
@@ -98,7 +97,6 @@ export const DEFAULT_STATE: AppState = {
   user: null,
   showAuthModal: false,
   showPaymentModal: false,
-  showCostInsightsModal: false,
   
   userTier: 'free',
   imageFile: null,
