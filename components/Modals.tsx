@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, Lock, CreditCard, Sparkles, Shield, User } from 'lucide-react';
+import { X, Sparkles, Shield, User } from 'lucide-react';
 import { CREDITS_PACK_PRICE, CREDITS_PER_PACK } from '../constants';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -42,17 +42,56 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title }) => {
     );
 };
 
-export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: () => void }> = ({ isOpen, onClose, onLogin }) => {
+export const AuthModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onGoogleLogin: () => Promise<void>;
+    onEmailLogin: (email: string, password: string, mode: 'signin' | 'signup') => Promise<void>;
+}> = ({ isOpen, onClose, onGoogleLogin, onEmailLogin }) => {
     const [isLoading, setIsLoading] = useState(false);
+    const [isEmailLoading, setIsEmailLoading] = useState(false);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+    const [error, setError] = useState<string | null>(null);
 
-    const handleGoogleLogin = () => {
+    useEffect(() => {
+        if (!isOpen) return;
+        setEmail('');
+        setPassword('');
+        setAuthMode('signin');
+        setError(null);
+        setIsLoading(false);
+        setIsEmailLoading(false);
+    }, [isOpen]);
+
+    const handleGoogleLogin = async () => {
         triggerImpulse('click', 1.2);
         setIsLoading(true);
-        // Simulate OAuth delay
-        setTimeout(() => {
-            onLogin();
+        setError(null);
+        try {
+            await onGoogleLogin();
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unable to sign in with Google.');
+        } finally {
             setIsLoading(false);
-        }, 1500);
+        }
+    };
+
+    const handleEmailSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
+        triggerImpulse('click', 1.1);
+        setIsEmailLoading(true);
+        setError(null);
+        try {
+            await onEmailLogin(email, password, authMode);
+            onClose();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unable to sign in with email.');
+        } finally {
+            setIsEmailLoading(false);
+        }
     };
 
     return (
@@ -87,117 +126,111 @@ export const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin
                             </>
                         )}
                     </button>
-                    <button 
-                        onMouseEnter={() => triggerImpulse('hover', 0.2)}
-                        className="w-full bg-gray-800 text-white font-medium py-3 rounded-xl hover:bg-gray-700 transition-colors border border-white/5"
-                    >
-                        Continue with Email
-                    </button>
+                    <form onSubmit={handleEmailSubmit} className="space-y-3 text-left">
+                        <div onMouseEnter={() => triggerImpulse('hover', 0.1)}>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Email</label>
+                            <input
+                                type="email"
+                                value={email}
+                                onChange={(event) => setEmail(event.target.value)}
+                                placeholder="you@example.com"
+                                className="w-full bg-black/30 border border-gray-700 rounded-lg py-2.5 px-3 text-white text-sm focus:border-brand-500 outline-none transition-colors"
+                                required
+                            />
+                        </div>
+                        <div onMouseEnter={() => triggerImpulse('hover', 0.1)}>
+                            <label className="block text-xs font-medium text-gray-400 mb-1">Password</label>
+                            <input
+                                type="password"
+                                value={password}
+                                onChange={(event) => setPassword(event.target.value)}
+                                placeholder="••••••••"
+                                className="w-full bg-black/30 border border-gray-700 rounded-lg py-2.5 px-3 text-white text-sm focus:border-brand-500 outline-none transition-colors"
+                                required
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            disabled={isEmailLoading}
+                            onMouseEnter={() => triggerImpulse('hover', 0.2)}
+                            className="w-full bg-gray-800 text-white font-medium py-3 rounded-xl hover:bg-gray-700 transition-colors border border-white/5 disabled:opacity-50"
+                        >
+                            {isEmailLoading ? 'Processing…' : authMode === 'signup' ? 'Create Account' : 'Sign In'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAuthMode(prev => (prev === 'signin' ? 'signup' : 'signin'))}
+                            className="w-full text-xs text-brand-300 font-semibold tracking-wide"
+                        >
+                            {authMode === 'signin'
+                                ? 'Need an account? Create one'
+                                : 'Already have an account? Sign in'}
+                        </button>
+                    </form>
                 </div>
+                {error && <p className="text-xs text-red-400 text-center">{error}</p>}
                 <p className="text-[10px] text-gray-500">By continuing, you agree to our Terms of Service and Privacy Policy.</p>
             </div>
         </Modal>
     );
 };
 
-export const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; onSuccess: () => void }> = ({ isOpen, onClose, onSuccess }) => {
+export const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; onCheckout: () => Promise<void> }> = ({
+    isOpen,
+    onClose,
+    onCheckout,
+}) => {
     const [isProcessing, setIsProcessing] = useState(false);
-    const [step, setStep] = useState<'form' | 'success'>('form');
+    const [error, setError] = useState<string | null>(null);
 
-    const handlePay = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsProcessing(true);
-        triggerImpulse('click', 1.5); // Payment Trigger
-        
-        // Simulate Stripe Processing
-        setTimeout(() => {
+    useEffect(() => {
+        if (isOpen) {
+            setError(null);
             setIsProcessing(false);
-            setStep('success');
-            triggerImpulse('click', 3.0); // Massive success impulse
-            
-            // Close after success
-            setTimeout(() => {
-                onSuccess();
-                onClose();
-                setStep('form');
-            }, 1500);
-        }, 2000);
+        }
+    }, [isOpen]);
+
+    const handleCheckout = async () => {
+        setIsProcessing(true);
+        setError(null);
+        triggerImpulse('click', 1.5);
+        try {
+            await onCheckout();
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Unable to start checkout.');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title={step === 'form' ? 'Add Credits' : 'Success'}>
-            {step === 'form' ? (
-                <form onSubmit={handlePay} className="space-y-4">
-                    <div className="bg-gradient-to-br from-brand-900/50 to-purple-900/50 p-4 rounded-xl border border-brand-500/30 flex justify-between items-center mb-6 shadow-inner">
-                        <div>
-                            <p className="text-white font-bold">Creative Pack</p>
-                            <p className="text-brand-300 text-sm">{CREDITS_PER_PACK} Generations</p>
-                        </div>
-                        <div className="text-xl font-bold text-white text-shadow-sm">${CREDITS_PACK_PRICE}.00</div>
+        <Modal isOpen={isOpen} onClose={onClose} title="Add Credits">
+            <div className="space-y-4">
+                <div className="bg-gradient-to-br from-brand-900/50 to-purple-900/50 p-4 rounded-xl border border-brand-500/30 flex justify-between items-center shadow-inner">
+                    <div>
+                        <p className="text-white font-bold">Creative Pack</p>
+                        <p className="text-brand-300 text-sm">{CREDITS_PER_PACK} Generations</p>
                     </div>
-
-                    <div className="space-y-3">
-                        <div onMouseEnter={() => triggerImpulse('hover', 0.1)}>
-                            <label className="block text-xs font-medium text-gray-400 mb-1">Card Information</label>
-                            <div className="relative">
-                                <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
-                                <input 
-                                    type="text" 
-                                    placeholder="0000 0000 0000 0000" 
-                                    className="w-full bg-black/30 border border-gray-700 rounded-lg py-2.5 pl-10 pr-3 text-white text-sm focus:border-brand-500 outline-none transition-colors" 
-                                    onChange={() => triggerImpulse('type', 0.2)}
-                                    required 
-                                />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div onMouseEnter={() => triggerImpulse('hover', 0.1)}>
-                                <label className="block text-xs font-medium text-gray-400 mb-1">Expiry</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="MM/YY" 
-                                    className="w-full bg-black/30 border border-gray-700 rounded-lg py-2.5 px-3 text-white text-sm focus:border-brand-500 outline-none transition-colors" 
-                                    onChange={() => triggerImpulse('type', 0.2)}
-                                    required 
-                                />
-                            </div>
-                            <div onMouseEnter={() => triggerImpulse('hover', 0.1)}>
-                                <label className="block text-xs font-medium text-gray-400 mb-1">CVC</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="123" 
-                                    className="w-full bg-black/30 border border-gray-700 rounded-lg py-2.5 px-3 text-white text-sm focus:border-brand-500 outline-none transition-colors" 
-                                    onChange={() => triggerImpulse('type', 0.2)}
-                                    required 
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="pt-2">
-                        <button 
-                            type="submit"
-                            disabled={isProcessing}
-                            onMouseEnter={() => triggerImpulse('hover', 0.3)}
-                            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-brand-600/20 hover:shadow-brand-600/40 hover:scale-[1.02]"
-                        >
-                            {isProcessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Sparkles size={16} /> Pay Securely</>}
-                        </button>
-                        <div className="flex justify-center items-center gap-1 mt-3 text-[10px] text-gray-500">
-                            <Shield size={10} />
-                            <span>Payments secured by Stripe (Mock)</span>
-                        </div>
-                    </div>
-                </form>
-            ) : (
-                <div className="text-center py-8">
-                    <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce shadow-[0_0_30px_rgba(34,197,94,0.5)]">
-                        <Check size={32} className="text-white" />
-                    </div>
-                    <h4 className="text-2xl font-bold text-white mb-2">Payment Successful!</h4>
-                    <p className="text-gray-400">Credits have been added to your account.</p>
+                    <div className="text-xl font-bold text-white text-shadow-sm">${CREDITS_PACK_PRICE}.00</div>
                 </div>
-            )}
+
+                <button
+                    type="button"
+                    onClick={handleCheckout}
+                    disabled={isProcessing}
+                    onMouseEnter={() => triggerImpulse('hover', 0.3)}
+                    className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all disabled:opacity-50 shadow-lg shadow-brand-600/20 hover:shadow-brand-600/40 hover:scale-[1.02]"
+                >
+                    {isProcessing ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Sparkles size={16} /> Continue to Stripe</>}
+                </button>
+
+                {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+
+                <div className="flex justify-center items-center gap-1 text-[10px] text-gray-500">
+                    <Shield size={10} />
+                    <span>Payments secured by Stripe Checkout</span>
+                </div>
+            </div>
         </Modal>
     );
 };
