@@ -16,6 +16,7 @@ import { FXRail, FXAxisMapping, FXKey } from './FXRail';
 import { EngineStrip } from './EngineStrip';
 import { MixerDrawer } from './MixerDrawer';
 import { AnimationZoneController } from './AnimationZoneController';
+import { AudioSourceSelector, AudioSourceType } from './AudioSourceSelector';
 import {
   GolemMixer, createGolemMixer,
   EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
@@ -101,6 +102,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   // New UI panel states
   const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
   const [showStreamLinkInput, setShowStreamLinkInput] = useState(false);
+  const [showAudioSourceSelector, setShowAudioSourceSelector] = useState(false);
+  const [audioSourceType, setAudioSourceType] = useState<AudioSourceType>(
+    state.audioSourceType === 'url' ? 'stream' : state.audioSourceType === 'mic' ? 'mic' : 'file'
+  );
   const [streamLink, setStreamLink] = useState(state.audioSourceType === 'url' ? state.audioPreviewUrl || '' : '');
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [isLinkLoading, setIsLinkLoading] = useState(false);
@@ -1495,6 +1500,52 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           </div>
       )}
 
+      {/* AUDIO SOURCE SELECTOR - Expandable pill system */}
+      <div className="fixed top-[70px] left-3 z-[55]">
+        <AudioSourceSelector
+          activeSource={audioSourceType}
+          isPlaying={isPlaying}
+          isMicActive={isMicActive}
+          hasAudioFile={!!state.audioPreviewUrl && audioSourceType === 'file'}
+          streamUrl={streamLink}
+          onSourceChange={(source) => {
+            setAudioSourceType(source);
+            // Stop other sources when switching
+            if (source !== 'mic' && isMicActive) {
+              toggleMic();
+            }
+          }}
+          onFileUpload={() => trackInputRef.current?.click()}
+          onMicToggle={toggleMic}
+          onStreamSubmit={(url) => {
+            setStreamLink(url);
+            handleStreamLinkSubmit();
+          }}
+          onSystemAudio={async () => {
+            // System audio capture via getDisplayMedia
+            try {
+              const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+              // Stop video track immediately, we only want audio
+              stream.getVideoTracks().forEach(track => track.stop());
+              // Connect audio to analyzer
+              if (audioDestRef.current) {
+                const audioCtx = new AudioContext();
+                const source = audioCtx.createMediaStreamSource(stream);
+                source.connect(audioDestRef.current);
+              }
+              setAudioSourceType('system');
+            } catch (e) {
+              console.error('System audio capture failed:', e);
+            }
+          }}
+          onPlayToggle={() => {
+            setIsPlaying(!isPlaying);
+            if (isMicActive) toggleMic();
+          }}
+        />
+      </div>
+
+      {/* Legacy stream link input (keeping for backwards compatibility) */}
       {showStreamLinkInput && (
         <div className="absolute top-16 left-2 z-[55] max-w-md w-[90%] md:w-[420px]">
           <div className="bg-black/85 border border-white/10 rounded-2xl shadow-2xl p-4 backdrop-blur-xl animate-in slide-in-from-left-4">
