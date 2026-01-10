@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, Lock, CreditCard, Sparkles, Shield, User } from 'lucide-react';
+import { X, Check, Lock, CreditCard, Sparkles, Shield, User, BarChart3, Info, TrendingUp } from 'lucide-react';
 import { CREDITS_PACK_PRICE, CREDITS_PER_PACK } from '../constants';
+import costAssumptions from '../data/cost-assumptions.json';
+import costDashboard from '../data/costs-dashboard.json';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
     const event = new CustomEvent('ui-interaction', { detail: { type, intensity } });
@@ -198,6 +200,123 @@ export const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                     <p className="text-gray-400">Credits have been added to your account.</p>
                 </div>
             )}
+        </Modal>
+    );
+};
+
+const formatMoney = (value: number, decimals: number = 2) => `$${value.toFixed(decimals)}`;
+
+export const CostInsightsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const dashboard = costDashboard as {
+        updatedAt: string;
+        perGeneration: { turbo: number; highRes: number };
+        offers: Array<{ name: string; price: number; runs: number; quality: string; costPerRun: number; margin: number }>;
+        scenarios: Array<{
+            name: string;
+            users: number;
+            runsPerDay: number;
+            pricePerRun: number;
+            quality: string;
+            monthlyRevenue: number;
+            monthlyCost: number;
+            margin: number;
+        }>;
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Cost Insights">
+            <div className="space-y-6 text-sm text-gray-200">
+                <div className="flex items-start gap-3 bg-black/40 border border-white/10 rounded-xl p-4">
+                    <div className="mt-0.5 text-brand-400">
+                        <BarChart3 size={18} />
+                    </div>
+                    <div>
+                        <p className="font-semibold text-white">Margin Guardrails</p>
+                        <p className="text-gray-400 text-xs">
+                            Updated {dashboard.updatedAt}. Turbo and High-Res unit economics sync with the latest cost model.
+                        </p>
+                    </div>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-xs text-gray-400">Turbo cost / run</p>
+                        <p className="text-xl font-bold text-white">{formatMoney(dashboard.perGeneration.turbo, 4)}</p>
+                        <p className="text-[11px] text-gray-500">4-frame preview + QR payload</p>
+                    </div>
+                    <div className="rounded-xl border border-white/10 bg-black/30 p-4">
+                        <p className="text-xs text-gray-400">High-Res cost / run</p>
+                        <p className="text-xl font-bold text-white">{formatMoney(dashboard.perGeneration.highRes, 4)}</p>
+                        <p className="text-[11px] text-gray-500">8-frame export (MP4)</p>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-gray-400">
+                        <Info size={12} /> Cost assumptions
+                    </div>
+                    <ul className="space-y-1 text-xs text-gray-400 list-disc list-inside">
+                        {(costAssumptions as { notes: string[] }).notes.map(note => (
+                            <li key={note}>{note}</li>
+                        ))}
+                    </ul>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between text-xs uppercase tracking-wider text-gray-400">
+                        <span className="flex items-center gap-2"><TrendingUp size={12} /> Offer margins</span>
+                        <span className="text-[10px] text-gray-500">Per run cost × included runs</span>
+                    </div>
+                    <div className="space-y-2">
+                        {dashboard.offers.map(offer => (
+                            <div key={offer.name} className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                                <div>
+                                    <p className="font-semibold text-white">{offer.name}</p>
+                                    <p className="text-[11px] text-gray-500">
+                                        {offer.runs} runs · {offer.quality} · {formatMoney(offer.costPerRun, 4)} cost/run
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm font-bold text-brand-300">{formatMoney(offer.price)}</p>
+                                    <p className="text-[11px] text-gray-400">{offer.margin.toFixed(2)}% margin</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    <div className="text-xs uppercase tracking-wider text-gray-400">Monthly scenarios</div>
+                    <div className="space-y-2">
+                        {dashboard.scenarios.map(scenario => (
+                            <div key={scenario.name} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="font-semibold text-white">{scenario.name}</p>
+                                    <span className="text-xs text-gray-400">{scenario.quality}</span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-gray-400 sm:grid-cols-4">
+                                    <div>
+                                        <p className="uppercase text-gray-500">Users</p>
+                                        <p>{scenario.users}</p>
+                                    </div>
+                                    <div>
+                                        <p className="uppercase text-gray-500">Runs/day</p>
+                                        <p>{scenario.runsPerDay}</p>
+                                    </div>
+                                    <div>
+                                        <p className="uppercase text-gray-500">Revenue</p>
+                                        <p>{formatMoney(scenario.monthlyRevenue)}</p>
+                                    </div>
+                                    <div>
+                                        <p className="uppercase text-gray-500">Margin</p>
+                                        <p>{scenario.margin.toFixed(2)}%</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
         </Modal>
     );
 };

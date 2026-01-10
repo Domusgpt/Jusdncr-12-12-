@@ -3,7 +3,7 @@
 
 const costInputs = {
   compute: {
-    turbo: 0.017, // USD per Turbo 4-frame generation
+    turbo: 0.003, // USD per Turbo 4-frame generation
     highRes: 0.03 // USD per 8-frame high-res generation
   },
   storage: {
