@@ -100,3 +100,8 @@
 - Expanded refactor services with a telemetry queue and basic audio reactivity channel stub.
 - Updated refactor architecture notes and exports to include telemetry and reactivity surfaces.
 - Next: connect telemetry events to coordinator actions and define cost/usage payload shapes.
+
+## 2026-01-10T18:50:00Z
+- Logged session per instruction; no code or config changes beyond this entry.
+- Verifications: not run (no changes).
+- Next: await task specifics to implement.
