@@ -4,6 +4,7 @@ import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X,
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
+import { buildDkgExport } from '../services/export/dkgExport';
 import { createQrForTarget, QRTarget } from '../services/qrCodes';
 import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
@@ -93,6 +94,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showDkgExportModal, setShowDkgExportModal] = useState(false);
+  const [isDkgExporting, setIsDkgExporting] = useState(false);
   const [qrTarget, setQrTarget] = useState<QRTarget>('preview');
   const [shareLink, setShareLink] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -1303,6 +1306,37 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   }, [isPlaying, connectFileAudio]);
 
 
+  const handleExportDkg = async () => {
+      if (isDkgExporting) return;
+      setIsDkgExporting(true);
+      try {
+          const { blob } = await buildDkgExport(state.generatedFrames, state.subjectCategory);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `jusdnce_${Date.now()}.dkg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setShowDkgExportModal(true);
+      } catch (error) {
+          console.error('DKG export failed', error);
+      } finally {
+          setIsDkgExporting(false);
+      }
+  };
+
+  const handleExportHtmlPreview = () => {
+      if(!hologramRef.current) return;
+      const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
+      const blob = new Blob([html], {type: 'text/html'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `jusdnce_preview_${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
   const handleExportWidget = () => {
       if(!hologramRef.current) {
           TelemetryService.trackExportResult({ type: 'html', success: false, error: 'missing_hologram' });
@@ -1578,6 +1612,42 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         </div>
       )}
 
+      {showDkgExportModal && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-dark-surface border border-brand-500/40 rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowDkgExportModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              aria-label="Close export modal"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-xl font-bold text-white mb-2">Exported .dkg</h3>
+            <p className="text-sm text-gray-300 mb-5">
+              Your DKG file is ready. Open it in the DKG Player app to remix and preview.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href="https://apps.apple.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold tracking-widest text-white hover:border-brand-400"
+              >
+                APP STORE
+              </a>
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold tracking-widest text-white hover:border-brand-400"
+              >
+                GOOGLE PLAY
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {!imagesReady && !state.isGenerating && (
          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-50 backdrop-blur-md">
              <Loader2 size={48} className="text-brand-500 animate-spin mb-4" />
@@ -1751,16 +1821,27 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
           </div>
         )}
-        {/* HTML PLAYER DOWNLOAD - More visible */}
         <button
-          onClick={handleExportWidget}
-          className="bg-gradient-to-r from-cyan-500/20 to-purple-500/20 backdrop-blur-md
-                     border border-cyan-500/30 px-3 py-2 rounded-xl
+          onClick={handleExportDkg}
+          disabled={isDkgExporting}
+          className="bg-gradient-to-r from-brand-500/30 to-purple-500/30 backdrop-blur-md
+                     border border-brand-400/40 px-3 py-2 rounded-xl
+                     text-white/90 hover:text-white hover:border-brand-300/60
+                     transition-all flex items-center gap-2 shadow-lg disabled:opacity-60"
+          title="Export .dkg package"
+        >
+          {isDkgExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          <span className="text-[10px] font-bold tracking-wider">.DKG</span>
+        </button>
+        <button
+          onClick={handleExportHtmlPreview}
+          className="bg-white/10 backdrop-blur-md
+                     border border-white/15 px-3 py-2 rounded-xl
                      text-white/80 hover:text-white hover:border-cyan-400/50
                      transition-all flex items-center gap-2 shadow-lg"
-          title="Download Standalone HTML Player"
+          title="Download HTML preview (no audio)"
         >
-          <Download size={16} />
+          <Download size={14} />
           <span className="text-[10px] font-bold tracking-wider">.HTML</span>
         </button>
       </div>
