@@ -53,7 +53,7 @@ export interface AuthUser {
   uid: string; // Firebase UID
   name: string;
   email: string;
-  photoURL: string;
+  photoURL: string | null;
 }
 
 export interface AppState {

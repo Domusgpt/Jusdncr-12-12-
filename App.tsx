@@ -1,22 +1,91 @@
 
-import React, { useState } from 'react';
-import { Zap, Layers, LogIn, Activity, FastForward, Upload, FileJson } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Zap, LogIn, Activity, FastForward, FileJson } from 'lucide-react';
+import {
+    createUserWithEmailAndPassword,
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signInWithPopup,
+    User,
+} from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { AppState, AppStep, DEFAULT_STATE, AuthUser, SavedProject } from './types';
-import { STYLE_PRESETS, CREDITS_PER_PACK } from './constants';
+import { STYLE_PRESETS } from './constants';
 import { Step1Assets, Step2Director } from './components/Steps';
 import { Step4Preview } from './components/Step4Preview';
 import { generateDanceFrames, fileToGenericBase64 } from './services/gemini';
 import { AuthModal, PaymentModal } from './components/Modals';
 import { GlobalBackground } from './components/GlobalBackground';
+import { auth, db, googleProvider, isFirebaseConfigured } from './services/firebase/config';
+import {
+    createCheckoutSession,
+    saveGenerationHistory,
+    saveProjectToFirestore,
+} from './services/firebase/firestore';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
     const event = new CustomEvent('ui-interaction', { detail: { type, intensity } });
     window.dispatchEvent(event);
 };
 
+const mapFirebaseUser = (user: User): AuthUser => ({
+    uid: user.uid,
+    name: user.displayName || user.email || 'User',
+    email: user.email || '',
+    photoURL: user.photoURL || null,
+});
+
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(DEFAULT_STATE);
   const importRef = React.useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+      if (!auth || !db) {
+          return;
+      }
+      let unsubscribeCredits: (() => void) | null = null;
+
+      const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+          if (unsubscribeCredits) {
+              unsubscribeCredits();
+              unsubscribeCredits = null;
+          }
+
+          if (!user) {
+              setAppState(prev => ({
+                  ...prev,
+                  user: null,
+                  credits: 0,
+                  userTier: 'free',
+              }));
+              return;
+          }
+
+          const mappedUser = mapFirebaseUser(user);
+          setAppState(prev => ({
+              ...prev,
+              user: mappedUser,
+              showAuthModal: false,
+          }));
+
+          const userDocRef = doc(db, 'users', user.uid);
+          unsubscribeCredits = onSnapshot(userDocRef, (snapshot) => {
+              const data = snapshot.data() as { credits?: number; tier?: AppState['userTier'] } | undefined;
+              setAppState(prev => ({
+                  ...prev,
+                  credits: data?.credits ?? 0,
+                  userTier: data?.tier ?? 'free',
+              }));
+          });
+      });
+
+      return () => {
+          if (unsubscribeCredits) {
+              unsubscribeCredits();
+          }
+          unsubscribeAuth();
+      };
+  }, []);
 
   const handleImageUpload = async (file: File) => {
     try {
@@ -65,30 +134,69 @@ const App: React.FC = () => {
     setAppState(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleLogin = () => {
-      const mockUser: AuthUser = {
-          uid: '123456789',
-          name: 'Beta User',
-          email: 'user@example.com',
-          photoURL: 'https://ui-avatars.com/api/?name=Beta+User&background=random'
-      };
-      setAppState(prev => ({ 
-          ...prev, 
-          user: mockUser, 
-          showAuthModal: false,
-          credits: prev.credits === 0 ? 5 : prev.credits 
-      }));
+  const handleGoogleLogin = async () => {
+      if (!auth || !isFirebaseConfigured) {
+          throw new Error('Firebase authentication is not configured.');
+      }
+      await signInWithPopup(auth, googleProvider);
+      setAppState(prev => ({ ...prev, showAuthModal: false }));
+  };
+
+  const handleEmailLogin = async (email: string, password: string, mode: 'signin' | 'signup') => {
+      if (!auth || !isFirebaseConfigured) {
+          throw new Error('Firebase authentication is not configured.');
+      }
+      if (mode === 'signup') {
+          await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+          await signInWithEmailAndPassword(auth, email, password);
+      }
+      setAppState(prev => ({ ...prev, showAuthModal: false }));
   };
 
   const handleBuyCredits = () => {
+     if (!appState.user) {
+         setAppState(prev => ({ ...prev, showAuthModal: true }));
+         return;
+     }
      setAppState(prev => ({ ...prev, showPaymentModal: true }));
   };
 
-  const handlePaymentSuccess = () => {
-    setAppState(prev => ({ 
-        ...prev, 
-        credits: prev.credits + CREDITS_PER_PACK 
-    }));
+  const handleCheckout = async () => {
+      if (!appState.user) {
+          setAppState(prev => ({ ...prev, showAuthModal: true }));
+          return;
+      }
+      if (!db || !isFirebaseConfigured) {
+          throw new Error('Firebase checkout is not configured.');
+      }
+      const priceId = import.meta.env.VITE_STRIPE_PRICE_ID;
+      if (!priceId) {
+          throw new Error('Missing Stripe price ID. Set VITE_STRIPE_PRICE_ID.');
+      }
+
+      const sessionRef = await createCheckoutSession({
+          uid: appState.user.uid,
+          priceId,
+          successUrl: `${window.location.origin}/?checkout=success`,
+          cancelUrl: window.location.href,
+      });
+
+      await new Promise<void>((resolve, reject) => {
+          const unsubscribe = onSnapshot(sessionRef, (snapshot) => {
+              const data = snapshot.data() as { url?: string; error?: { message?: string } } | undefined;
+              if (data?.error?.message) {
+                  unsubscribe();
+                  reject(new Error(data.error.message));
+                  return;
+              }
+              if (data?.url) {
+                  unsubscribe();
+                  window.location.assign(data.url);
+                  resolve();
+              }
+          });
+      });
   };
 
   const handleSpendCredit = (amount: number): boolean => {
@@ -156,6 +264,22 @@ const App: React.FC = () => {
             subjectCategory: category, // Store detection result
             isGenerating: false
         }));
+
+        if (appState.user) {
+            void saveGenerationHistory({
+                uid: appState.user.uid,
+                frames,
+                styleId: appState.selectedStyleId,
+                subjectCategory: category,
+                motionPreset: appState.motionPreset,
+                motionPrompt: effectiveMotionPrompt,
+                useTurbo: forceTurbo || appState.useTurbo,
+                superMode: forceSuper || appState.superMode,
+                cutoutMode: appState.cutoutMode,
+            }).catch(error => {
+                console.error('Failed to store generation history:', error);
+            });
+        }
     } catch (e: any) {
         console.error("Generation Failed:", e);
         const msg = e.message || "Unknown error";
@@ -193,6 +317,12 @@ const App: React.FC = () => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      if (appState.user) {
+          void saveProjectToFirestore({ uid: appState.user.uid, project }).catch(error => {
+              console.error('Failed to save project to Firestore:', error);
+          });
+      }
   };
 
   const loadProject = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,6 +369,12 @@ const App: React.FC = () => {
     }
   };
 
+  const profilePhoto = appState.user
+      ? appState.user.photoURL ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(appState.user.name)}&background=random`
+      : '';
+  const userTierLabel = appState.userTier === 'pro' ? 'PRO TIER' : 'FREE TIER';
+
   return (
     <div className="min-h-screen relative text-gray-100 font-sans overflow-hidden selection:bg-brand-500/30 selection:text-white">
       
@@ -252,12 +388,13 @@ const App: React.FC = () => {
         <AuthModal 
             isOpen={appState.showAuthModal} 
             onClose={() => setAppState(prev => ({ ...prev, showAuthModal: false }))}
-            onLogin={handleLogin}
+            onGoogleLogin={handleGoogleLogin}
+            onEmailLogin={handleEmailLogin}
         />
         <PaymentModal
             isOpen={appState.showPaymentModal}
             onClose={() => setAppState(prev => ({ ...prev, showPaymentModal: false }))}
-            onSuccess={handlePaymentSuccess}
+            onCheckout={handleCheckout}
         />
 
         {/* HEADER */}
@@ -296,7 +433,7 @@ const App: React.FC = () => {
                 <div 
                     className="hidden md:flex items-center gap-2 bg-black/40 px-5 py-2 rounded-full border border-white/10 cursor-pointer hover:border-yellow-400/50 transition-all hover:bg-white/5 hover:scale-105 group"
                     onMouseEnter={() => triggerImpulse('hover', 0.3)}
-                    onClick={() => setAppState(prev => ({ ...prev, showPaymentModal: true }))}
+                    onClick={handleBuyCredits}
                 >
                     <Zap size={16} className="text-yellow-400 fill-yellow-400 group-hover:animate-bounce" />
                     <span className="text-sm font-bold text-gray-200 tracking-wide font-mono">{appState.credits} CR</span>
@@ -306,9 +443,9 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3 pl-4 border-l border-white/10">
                         <div className="text-right hidden sm:block">
                             <p className="text-sm font-bold text-white leading-tight tracking-wider">{appState.user.name}</p>
-                            <p className="text-[10px] text-brand-300 font-mono uppercase">PRO TIER</p>
+                            <p className="text-[10px] text-brand-300 font-mono uppercase">{userTierLabel}</p>
                         </div>
-                        <img src={appState.user.photoURL} alt="Profile" className="w-10 h-10 rounded-full ring-2 ring-brand-500/50 hover:ring-brand-400 transition-all cursor-pointer" />
+                        <img src={profilePhoto} alt="Profile" className="w-10 h-10 rounded-full ring-2 ring-brand-500/50 hover:ring-brand-400 transition-all cursor-pointer" />
                     </div>
                 ) : (
                     <button 
