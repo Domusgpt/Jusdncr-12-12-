@@ -2,12 +2,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../engine/golem_mixer.dart';
 
-/// Radial pattern selector joystick
+/// Radial pattern selector joystick - matches web player exactly
 class PatternJoystick extends StatefulWidget {
   final Function(PatternType pattern) onPatternSelect;
   final PatternType currentPattern;
   final bool visible;
   final Offset position;
+  final bool isKineticMode;
 
   const PatternJoystick({
     super.key,
@@ -15,6 +16,7 @@ class PatternJoystick extends StatefulWidget {
     required this.currentPattern,
     this.visible = false,
     this.position = Offset.zero,
+    this.isKineticMode = false,
   });
 
   @override
@@ -27,8 +29,22 @@ class _PatternJoystickState extends State<PatternJoystick>
   late Animation<double> _scaleAnim;
 
   int _hoveredIndex = -1;
-  static const double _ringSize = 140;
-  static const double _knobSize = 40;
+  static const double _ringSize = 160;
+  static const double _knobSize = 44;
+
+  // All 15 patterns (PATTERN mode uses all, KINETIC uses subset)
+  static const List<PatternType> _allPatterns = PatternType.values;
+  static const List<PatternType> _kineticPatterns = [
+    PatternType.pingPong,
+    PatternType.flow,
+    PatternType.stutter,
+    PatternType.chaos,
+    PatternType.vogue,
+    PatternType.buildDrop,
+  ];
+
+  List<PatternType> get _activePatterns =>
+      widget.isKineticMode ? _kineticPatterns : _allPatterns;
 
   @override
   void initState() {
@@ -59,18 +75,15 @@ class _PatternJoystickState extends State<PatternJoystick>
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
-    // Calculate angle from center
     final center = Offset(_ringSize / 2, _ringSize / 2);
     final delta = details.localPosition - center;
-    final angle = atan2(delta.dy, delta.dx);
     final distance = delta.distance;
 
-    // Only select if dragged far enough from center
     if (distance > _knobSize) {
-      // Map angle to pattern index (15 patterns around the ring)
+      final angle = atan2(delta.dy, delta.dx);
       final normalizedAngle = (angle + pi) / (2 * pi);
-      final index = (normalizedAngle * PatternType.values.length).floor() %
-          PatternType.values.length;
+      final index = (normalizedAngle * _activePatterns.length).floor() %
+          _activePatterns.length;
 
       setState(() {
         _hoveredIndex = index;
@@ -83,17 +96,25 @@ class _PatternJoystickState extends State<PatternJoystick>
   }
 
   void _handlePanEnd(DragEndDetails details) {
-    if (_hoveredIndex >= 0 && _hoveredIndex < PatternType.values.length) {
-      widget.onPatternSelect(PatternType.values[_hoveredIndex]);
+    if (_hoveredIndex >= 0 && _hoveredIndex < _activePatterns.length) {
+      widget.onPatternSelect(_activePatterns[_hoveredIndex]);
     }
     setState(() {
       _hoveredIndex = -1;
     });
   }
 
+  String _getPatternLabel(PatternType pattern) {
+    return GolemMixer.patternNames[pattern.index].substring(0, min(4, GolemMixer.patternNames[pattern.index].length));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.visible) return const SizedBox.shrink();
+
+    final accentColor = widget.isKineticMode
+        ? const Color(0xFFFF00FF)  // Magenta for KINETIC
+        : const Color(0xFF00FFFF); // Cyan for PATTERN
 
     return Positioned(
       left: widget.position.dx - _ringSize / 2,
@@ -108,9 +129,11 @@ class _PatternJoystickState extends State<PatternJoystick>
             height: _ringSize,
             child: CustomPaint(
               painter: _JoystickPainter(
-                patterns: PatternType.values,
+                patterns: _activePatterns,
                 currentPattern: widget.currentPattern,
                 hoveredIndex: _hoveredIndex,
+                accentColor: accentColor,
+                getLabel: _getPatternLabel,
               ),
               child: Center(
                 child: Container(
@@ -118,10 +141,15 @@ class _PatternJoystickState extends State<PatternJoystick>
                   height: _knobSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF8B5CF6),
+                    gradient: RadialGradient(
+                      colors: [
+                        accentColor,
+                        accentColor.withOpacity(0.7),
+                      ],
+                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF8B5CF6).withOpacity(0.5),
+                        color: accentColor.withOpacity(0.5),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
@@ -129,12 +157,12 @@ class _PatternJoystickState extends State<PatternJoystick>
                   ),
                   child: Center(
                     child: Text(
-                      widget.currentPattern.name[0].toUpperCase(),
+                      _getPatternLabel(widget.currentPattern),
                       style: const TextStyle(
                         fontFamily: 'Rajdhani',
-                        fontSize: 16,
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        color: Colors.white,
+                        color: Colors.black,
                       ),
                     ),
                   ),
@@ -152,11 +180,15 @@ class _JoystickPainter extends CustomPainter {
   final List<PatternType> patterns;
   final PatternType currentPattern;
   final int hoveredIndex;
+  final Color accentColor;
+  final String Function(PatternType) getLabel;
 
   _JoystickPainter({
     required this.patterns,
     required this.currentPattern,
     required this.hoveredIndex,
+    required this.accentColor,
+    required this.getLabel,
   });
 
   @override
@@ -181,24 +213,24 @@ class _JoystickPainter extends CustomPainter {
       // Draw segment arc
       final segmentPaint = Paint()
         ..color = isHovered
-            ? const Color(0xFF8B5CF6).withOpacity(0.5)
+            ? accentColor.withOpacity(0.6)
             : isSelected
-                ? const Color(0xFF00FFFF).withOpacity(0.3)
-                : Colors.white.withOpacity(0.1)
+                ? accentColor.withOpacity(0.4)
+                : Colors.white.withOpacity(0.15)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isHovered ? 20 : isSelected ? 16 : 12;
 
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: radius - 20),
         startAngle,
-        segmentAngle * 0.8,
+        segmentAngle * 0.85,
         false,
         segmentPaint,
       );
 
       // Draw pattern label
       final labelAngle = startAngle + segmentAngle / 2;
-      final labelRadius = radius - 35;
+      final labelRadius = radius - 38;
       final labelPos = Offset(
         center.dx + cos(labelAngle) * labelRadius,
         center.dy + sin(labelAngle) * labelRadius,
@@ -206,10 +238,10 @@ class _JoystickPainter extends CustomPainter {
 
       final textPainter = TextPainter(
         text: TextSpan(
-          text: patterns[i].name[0].toUpperCase(),
+          text: getLabel(patterns[i]),
           style: TextStyle(
             fontFamily: 'Rajdhani',
-            fontSize: 10,
+            fontSize: 9,
             fontWeight: FontWeight.w700,
             color: isHovered || isSelected
                 ? Colors.white
