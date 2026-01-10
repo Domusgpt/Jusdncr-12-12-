@@ -1,0 +1,194 @@
+{
+  "generatedAt": "2026-01-03T21:44:56.218Z",
+  "defaultProvider": {
+    "id": "gemini-2.5-flash-image",
+    "provider": "Google",
+    "model": "Gemini 2.5 Flash Image",
+    "imageGenCost": 0.003,
+    "notes": "Generates 4x4 sprite sheets; priced per image generation call",
+    "source": "https://ai.google.dev/pricing"
+  },
+  "providers": [
+    {
+      "id": "gemini-2.5-flash-image",
+      "provider": "Google",
+      "model": "Gemini 2.5 Flash Image",
+      "imageGenCost": 0.003,
+      "notes": "Generates 4x4 sprite sheets; priced per image generation call",
+      "source": "https://ai.google.dev/pricing"
+    },
+    {
+      "id": "gpt-4o",
+      "provider": "OpenAI",
+      "model": "GPT-4o",
+      "imageGenCost": 0.04,
+      "notes": "Reference pricing for image generation tier",
+      "source": "https://openai.com/api/pricing/"
+    },
+    {
+      "id": "claude-3-5-sonnet",
+      "provider": "Anthropic",
+      "model": "Claude 3.5 Sonnet",
+      "imageGenCost": 0.04,
+      "notes": "Reference pricing for image generation via Sonnet vision",
+      "source": "https://www.anthropic.com/api"
+    }
+  ],
+  "storage": {
+    "firebaseStoragePerGBMonth": 0.026,
+    "source": "https://cloud.google.com/storage/pricing#storage-pricing"
+  },
+  "bandwidth": {
+    "firebaseEgressPerGB": 0.12,
+    "source": "https://cloud.google.com/storage/pricing#network-egress"
+  },
+  "firestore": {
+    "readPer100k": 0.06,
+    "writePer100k": 0.18,
+    "storagePerGBMonth": 0.026,
+    "source": "https://firebase.google.com/pricing"
+  },
+  "assumptions": {
+    "assetSizeMB": 12,
+    "bandwidthPerGenMB": 12,
+    "firestoreReadsPerGen": 8,
+    "firestoreWritesPerGen": 3,
+    "monthlyFixedPlatformCost": 150,
+    "pricePoints": [
+      0.2,
+      0.5,
+      0.75
+    ],
+    "lowMedHighUsers": [
+      100,
+      500,
+      2000
+    ],
+    "generationsPerUserPerDay": 5,
+    "generationProfiles": {
+      "turbo": {
+        "label": "Turbo (default)",
+        "sheetCount": 2,
+        "sheets": [
+          "base",
+          "flourish"
+        ],
+        "notes": "Matches App.tsx defaults: base + flourish sheets for 32 frames with mirroring"
+      },
+      "quality": {
+        "label": "Quality (Turbo off)",
+        "sheetCount": 3,
+        "sheets": [
+          "base",
+          "flourish",
+          "alt"
+        ],
+        "notes": "Adds alternate movement sheet when useTurbo is disabled"
+      },
+      "super": {
+        "label": "Super (paid)",
+        "sheetCount": 4,
+        "sheets": [
+          "base",
+          "flourish",
+          "alt",
+          "smooth"
+        ],
+        "notes": "Adds smoothing/interpolation sheet when superMode is enabled"
+      }
+    },
+    "defaultProfile": "turbo"
+  },
+  "baseInfraCost": 0.0017211375,
+  "generationProfiles": [
+    {
+      "id": "turbo",
+      "label": "Turbo (default)",
+      "notes": "Matches App.tsx defaults: base + flourish sheets for 32 frames with mirroring",
+      "sheetCount": 2,
+      "sheets": [
+        "base",
+        "flourish"
+      ],
+      "modelCostPerGen": 0.006,
+      "totalPerGen": 0.0077211375
+    },
+    {
+      "id": "quality",
+      "label": "Quality (Turbo off)",
+      "notes": "Adds alternate movement sheet when useTurbo is disabled",
+      "sheetCount": 3,
+      "sheets": [
+        "base",
+        "flourish",
+        "alt"
+      ],
+      "modelCostPerGen": 0.009000000000000001,
+      "totalPerGen": 0.010721137500000002
+    },
+    {
+      "id": "super",
+      "label": "Super (paid)",
+      "notes": "Adds smoothing/interpolation sheet when superMode is enabled",
+      "sheetCount": 4,
+      "sheets": [
+        "base",
+        "flourish",
+        "alt",
+        "smooth"
+      ],
+      "modelCostPerGen": 0.012,
+      "totalPerGen": 0.013721137500000001
+    }
+  ],
+  "perGenerationCost": 0.0077211375,
+  "perUserMonthlyCost": 1.158170625,
+  "monthlyGenerationsPerUser": 150,
+  "scenarios": [
+    {
+      "label": "100 users",
+      "users": 100,
+      "monthlyCost": 115.81706249999999,
+      "monthlyRevenue": 7500,
+      "grossMarginPct": 98.4557725
+    },
+    {
+      "label": "500 users",
+      "users": 500,
+      "monthlyCost": 579.0853125,
+      "monthlyRevenue": 37500,
+      "grossMarginPct": 98.45577250000001
+    },
+    {
+      "label": "2,000 users",
+      "users": 2000,
+      "monthlyCost": 2316.34125,
+      "monthlyRevenue": 150000,
+      "grossMarginPct": 98.45577250000001
+    }
+  ],
+  "marginByPrice": [
+    {
+      "price": 0.2,
+      "marginPerGen": 0.1922788625,
+      "grossMarginPct": 96.13943125,
+      "breakEvenGenerations": 780.116951232744
+    },
+    {
+      "price": 0.5,
+      "marginPerGen": 0.4922788625,
+      "grossMarginPct": 98.45577250000001,
+      "breakEvenGenerations": 304.70534371156344
+    },
+    {
+      "price": 0.75,
+      "marginPerGen": 0.7422788625,
+      "grossMarginPct": 98.97051499999999,
+      "breakEvenGenerations": 202.0803872749374
+    }
+  ],
+  "warningThresholds": {
+    "perGenCostWarning": 0.375,
+    "perUserMonthlyWarning": 37.5
+  }
+}

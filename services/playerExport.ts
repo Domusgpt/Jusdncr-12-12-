@@ -478,13 +478,114 @@ export const generatePlayerHTML = (
         #helpOverlay .hotkey-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 12px; gap: 8px; }
         #helpOverlay .key { background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 10px; white-space: nowrap; }
         #helpOverlay .desc { color: rgba(255,255,255,0.6); text-align: right; }
+
+        /* ============ GESTURE GATE ============ */
+        #gestureGate {
+            position: fixed; inset: 0; z-index: 600; display: flex; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.92); backdrop-filter: blur(12px);
+        }
+        #gestureGate .inner {
+            background: rgba(20,20,25,0.96); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 20px; max-width: 420px;
+            text-align: center; display: flex; flex-direction: column; gap: 12px;
+        }
+        #gestureGate button { padding: 12px 16px; border-radius: 12px; border: none; background: linear-gradient(135deg,#8b5cf6,#14b8a6); color: white; font-weight: 800; cursor: pointer; }
+        #gestureGate .muted { font-size: 12px; color: rgba(255,255,255,0.6); }
+
+        /* ============ ADAPTER TRAY ============ */
+        #adapterTray { position: fixed; right: 12px; top: 70px; z-index: 120; display: flex; gap: 6px; flex-wrap: wrap; max-width: 320px; }
+        .adapter-pill { background: rgba(255,255,255,0.08); color: #e4e4e7; border: 1px solid rgba(255,255,255,0.15); padding: 8px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .adapter-pill .dot { width: 10px; height: 10px; border-radius: 50%; background: #8b5cf6; box-shadow: 0 0 6px rgba(139,92,246,0.6); }
+        .adapter-pill.active { background: linear-gradient(135deg, #8b5cf6, #14b8a6); border-color: rgba(255,255,255,0.25); color: #fff; }
+
+        /* ============ TOUCH ZONE CONTROLLER ============ */
+        #touchZone {
+            position: fixed; inset: 0; z-index: 10;
+            touch-action: none; pointer-events: auto;
+        }
+        .zone-half { position: absolute; top: 0; bottom: 0; width: 50%; transition: background 0.15s; }
+        .zone-half.left { left: 0; }
+        .zone-half.right { right: 0; }
+        .zone-half.active-left { background: rgba(0,255,255,0.08); }
+        .zone-half.active-right { background: rgba(139,92,246,0.08); }
+        .zone-divider { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.03); }
+        .zone-label {
+            position: absolute; top: 8px; font-size: 10px; font-weight: 700;
+            opacity: 0; transition: opacity 0.15s; pointer-events: none;
+        }
+        .zone-label.left { left: 25%; transform: translateX(-50%); color: rgba(0,255,255,0.8); }
+        .zone-label.right { right: 25%; transform: translateX(50%); color: rgba(139,92,246,0.8); }
+        .zone-label.visible { opacity: 1; }
+
+        /* ============ PATTERN JOYSTICK ============ */
+        #patternJoystick {
+            position: fixed; pointer-events: none; z-index: 15;
+            display: none; transform: translate(-50%, -50%);
+        }
+        #patternJoystick.visible { display: block; }
+        .joystick-ring {
+            position: relative; border-radius: 50%;
+            border: 2px solid rgba(0,255,255,0.3); display: flex; align-items: center; justify-content: center;
+        }
+        .joystick-ring.kinetic { border-color: rgba(139,92,246,0.3); }
+        .joystick-knob {
+            position: absolute; width: 32px; height: 32px; border-radius: 50%;
+            background: #0ff; box-shadow: 0 0 15px rgba(0,255,255,0.5);
+            transition: transform 0.05s; left: 50%; top: 50%;
+        }
+        .joystick-knob.kinetic { background: #8b5cf6; box-shadow: 0 0 15px rgba(139,92,246,0.5); }
+        .pattern-label {
+            position: absolute; font-size: 7px; font-weight: 700;
+            color: rgba(255,255,255,0.4); transition: all 0.1s;
+        }
+        .pattern-label.active { color: white; transform: scale(1.15); }
+        .pattern-indicator {
+            position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+            padding: 8px 16px; border-radius: 12px; font-size: 12px; font-weight: 700;
+            opacity: 0; transition: opacity 0.15s; pointer-events: none; z-index: 16;
+        }
+        .pattern-indicator.visible { opacity: 1; }
+        .pattern-indicator.pattern-mode { background: rgba(0,255,255,0.9); color: #000; }
+        .pattern-indicator.kinetic-mode { background: rgba(139,92,246,0.9); color: white; }
     </style>
 </head>
 <body>
 
     <canvas id="bgCanvas"></canvas>
     <canvas id="charCanvas"></canvas>
-    
+
+    <!-- GESTURE GATE - Tap to unlock audio/mic -->
+    <div id="gestureGate">
+        <div class="inner">
+            <div style="font-size:24px;font-weight:900;">🎵 jusDNCE</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.7);">Tap to arm audio + mic permissions</div>
+            <button id="gestureStart">START</button>
+            <div class="muted">Audio will react to your music or microphone</div>
+        </div>
+    </div>
+
+    <!-- TOUCH ZONE CONTROLLER -->
+    <div id="touchZone">
+        <div class="zone-half left"></div>
+        <div class="zone-divider"></div>
+        <div class="zone-half right"></div>
+        <div class="zone-label left">PATTERN</div>
+        <div class="zone-label right">KINETIC</div>
+    </div>
+    <div id="patternJoystick">
+        <div class="joystick-ring" style="width:140px;height:140px;">
+            <div class="joystick-knob"></div>
+        </div>
+    </div>
+    <div class="pattern-indicator"></div>
+
+    <!-- ADAPTER TRAY -->
+    <div id="adapterTray">
+        <div class="adapter-pill active" data-adapter="file"><span class="dot"></span>File</div>
+        <div class="adapter-pill" data-adapter="mic"><span class="dot"></span>Mic</div>
+        <div class="adapter-pill" data-adapter="system"><span class="dot"></span>System</div>
+    </div>
+    <input type="file" id="fileAdapter" accept="audio/*,video/*" style="display:none">
+
     <div id="loader">
         <div class="spinner"></div>
         <div style="color: #888; font-size: 14px; letter-spacing: 4px; font-weight: 700;">INITIALIZING NEURAL RIG...</div>
@@ -2247,6 +2348,192 @@ export const generatePlayerHTML = (
         const btnHelp = document.getElementById('btnHelp');
         const shuffleBtn = document.getElementById('shuffleBtn');
         const PATTERNS = ['PING_PONG','BUILD_DROP','STUTTER','VOGUE','FLOW','CHAOS','ABAB','AABB','ABAC','SNARE_ROLL','GROOVE','EMOTE','FOOTWORK','IMPACT','MINIMAL'];
+        const KINETIC_PATTERNS = ['PING_PONG', 'FLOW', 'STUTTER', 'CHAOS', 'VOGUE', 'BUILD_DROP'];
+
+        // --- GESTURE GATE ---
+        const gestureGate = document.getElementById('gestureGate');
+        const gestureStart = document.getElementById('gestureStart');
+        let gestureResolved = false;
+
+        function resolveGesture() {
+            if (gestureResolved) return;
+            gestureResolved = true;
+            gestureGate.style.display = 'none';
+            audioCtx.resume();
+        }
+        gestureStart.onclick = resolveGesture;
+
+        // --- ADAPTER PILLS ---
+        const adapterTray = document.getElementById('adapterTray');
+        const fileAdapterInput = document.getElementById('fileAdapter');
+
+        function activateAdapter(adapter) {
+            document.querySelectorAll('.adapter-pill').forEach(pill =>
+                pill.classList.toggle('active', pill.dataset.adapter === adapter)
+            );
+            if (adapter === 'file') {
+                fileAdapterInput.click();
+            } else if (adapter === 'mic') {
+                resolveGesture();
+                requestMic();
+            } else if (adapter === 'system') {
+                resolveGesture();
+                captureSystemAudio();
+            }
+        }
+
+        async function captureSystemAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+                const audioTracks = stream.getAudioTracks();
+                if (audioTracks.length === 0) throw new Error('No system audio');
+                const audioOnly = new MediaStream(audioTracks);
+                stream.getVideoTracks().forEach(t => t.stop());
+                if (micSource) micSource.disconnect();
+                micSource = audioCtx.createMediaStreamSource(audioOnly);
+                micSource.connect(analyser);
+                STATE.syntheticBeat = false;
+                audioEl.pause();
+            } catch (e) {
+                console.warn('System audio failed', e);
+                alert('System audio blocked. Try file or mic.');
+            }
+        }
+
+        fileAdapterInput.onchange = () => {
+            const file = fileAdapterInput.files?.[0];
+            if (!file) return;
+            resolveGesture();
+            const url = URL.createObjectURL(file);
+            audioEl.src = url;
+            audioEl.play();
+            STATE.syntheticBeat = false;
+        };
+
+        adapterTray.querySelectorAll('.adapter-pill').forEach(pill =>
+            pill.addEventListener('click', () => activateAdapter(pill.dataset.adapter))
+        );
+
+        // --- TOUCH ZONE CONTROLLER ---
+        const touchZone = document.getElementById('touchZone');
+        const patternJoystick = document.getElementById('patternJoystick');
+        const joystickRing = patternJoystick.querySelector('.joystick-ring');
+        const joystickKnob = patternJoystick.querySelector('.joystick-knob');
+        const patternIndicator = document.querySelector('.pattern-indicator');
+        const zoneLabels = document.querySelectorAll('.zone-label');
+        const zoneHalves = document.querySelectorAll('.zone-half');
+
+        let touchState = { active: false, startX: 0, startY: 0, side: null };
+
+        function getPatternFromAngle(x, y, patterns) {
+            const angle = Math.atan2(y, x);
+            const normalizedAngle = (angle + Math.PI) / (2 * Math.PI);
+            const index = Math.floor(normalizedAngle * patterns.length) % patterns.length;
+            return patterns[index];
+        }
+
+        function getSide(clientX) {
+            return clientX < window.innerWidth / 2 ? 'left' : 'right';
+        }
+
+        function updateJoystickLabels(patterns, currentPattern) {
+            const ringSize = patterns.length > 8 ? 180 : 140;
+            joystickRing.style.width = ringSize + 'px';
+            joystickRing.style.height = ringSize + 'px';
+            joystickRing.querySelectorAll('.pattern-label').forEach(l => l.remove());
+            const radius = ringSize / 2 - 20;
+            patterns.forEach((p, i) => {
+                const anglePerPattern = (Math.PI * 2) / patterns.length;
+                const angle = (i * anglePerPattern) - Math.PI / 2;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                const label = document.createElement('div');
+                label.className = 'pattern-label' + (p === currentPattern ? ' active' : '');
+                label.textContent = p.replace('_', '').slice(0, 3);
+                label.style.left = 'calc(50% + ' + x + 'px)';
+                label.style.top = 'calc(50% + ' + y + 'px)';
+                label.style.transform = 'translate(-50%, -50%)';
+                joystickRing.appendChild(label);
+            });
+        }
+
+        function handleTouchStart(clientX, clientY) {
+            resolveGesture();
+            const side = getSide(clientX);
+            touchState = { active: true, startX: clientX, startY: clientY, side };
+            STATE.engineMode = side === 'left' ? 'PATTERN' : 'KINETIC';
+            document.querySelectorAll('.engine-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.mode === STATE.engineMode)
+            );
+            const patterns = side === 'left' ? PATTERNS : KINETIC_PATTERNS;
+            patternJoystick.style.left = clientX + 'px';
+            patternJoystick.style.top = clientY + 'px';
+            patternJoystick.classList.add('visible');
+            joystickRing.classList.toggle('kinetic', side === 'right');
+            joystickKnob.classList.toggle('kinetic', side === 'right');
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+            updateJoystickLabels(patterns, STATE.pattern);
+            zoneHalves.forEach(z => {
+                z.classList.remove('active-left', 'active-right');
+                if (z.classList.contains(side)) z.classList.add('active-' + side);
+            });
+            zoneLabels.forEach(l => l.classList.toggle('visible', l.classList.contains(side)));
+            patternIndicator.textContent = STATE.pattern.replace('_', ' ');
+            patternIndicator.className = 'pattern-indicator visible ' + (side === 'left' ? 'pattern-mode' : 'kinetic-mode');
+        }
+
+        function handleTouchMove(clientX, clientY) {
+            if (!touchState.active) return;
+            const deltaX = clientX - touchState.startX;
+            const deltaY = clientY - touchState.startY;
+            const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            const maxRadius = 60;
+            const clampedDistance = Math.min(distance, maxRadius);
+            const angle = Math.atan2(deltaY, deltaX);
+            const joyX = Math.cos(angle) * clampedDistance;
+            const joyY = Math.sin(angle) * clampedDistance;
+            joystickKnob.style.transform = 'translate(calc(-50% + ' + joyX + 'px), calc(-50% + ' + joyY + 'px))';
+            if (distance > 30) {
+                const patterns = touchState.side === 'left' ? PATTERNS : KINETIC_PATTERNS;
+                const newPattern = getPatternFromAngle(deltaX, deltaY, patterns);
+                if (newPattern !== STATE.pattern) {
+                    STATE.pattern = newPattern;
+                    patternIndicator.textContent = newPattern.replace('_', ' ');
+                    patternGrid.querySelectorAll('.pattern-btn').forEach(b =>
+                        b.classList.toggle('active', b.dataset.pattern === newPattern)
+                    );
+                    updateJoystickLabels(patterns, newPattern);
+                }
+            }
+        }
+
+        function handleTouchEnd() {
+            touchState.active = false;
+            patternJoystick.classList.remove('visible');
+            zoneHalves.forEach(z => z.classList.remove('active-left', 'active-right'));
+            zoneLabels.forEach(l => l.classList.remove('visible'));
+            patternIndicator.classList.remove('visible');
+        }
+
+        touchZone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            handleTouchStart(t.clientX, t.clientY);
+        }, { passive: false });
+
+        touchZone.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const t = e.touches[0];
+            handleTouchMove(t.clientX, t.clientY);
+        }, { passive: false });
+
+        touchZone.addEventListener('touchend', handleTouchEnd);
+        touchZone.addEventListener('touchcancel', handleTouchEnd);
+
+        touchZone.addEventListener('mousedown', (e) => handleTouchStart(e.clientX, e.clientY));
+        touchZone.addEventListener('mousemove', (e) => { if (touchState.active) handleTouchMove(e.clientX, e.clientY); });
+        touchZone.addEventListener('mouseup', handleTouchEnd);
+        touchZone.addEventListener('mouseleave', () => { if (touchState.active) handleTouchEnd(); });
 
         // Help button and overlay
         function toggleHelp() {

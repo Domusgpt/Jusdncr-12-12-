@@ -3,8 +3,9 @@
 
 const costInputs = {
   compute: {
-    turbo: 0.017, // USD per Turbo 4-frame generation
-    highRes: 0.03 // USD per 8-frame high-res generation
+    turbo: 0.006, // USD per Turbo generation (2 sheets @ $0.003/sheet)
+    quality: 0.009, // USD per Quality generation (3 sheets @ $0.003/sheet)
+    super: 0.012 // USD per Super generation (4 sheets @ $0.003/sheet)
   },
   storage: {
     perGb: 0.026, // USD per GB-month (Firebase/Cloud Storage assumption)
@@ -30,10 +31,10 @@ const offerings = {
   starterExport: { price: 1, runsIncluded: 1, quality: 'turbo' },
   golemPacks: [
     { name: 'Bronze Golem', price: 3, runsIncluded: 3, quality: 'turbo' },
-    { name: 'Silver Golem', price: 7, runsIncluded: 8, quality: 'turbo' },
-    { name: 'Gold Golem', price: 12, runsIncluded: 15, quality: 'highRes' }
+    { name: 'Silver Golem', price: 7, runsIncluded: 8, quality: 'quality' },
+    { name: 'Gold Golem', price: 12, runsIncluded: 15, quality: 'super' }
   ],
-  proMonthly: { price: 9.99, runsPerDay: 1, billingDays: 30, quality: 'highRes' }
+  proMonthly: { price: 9.99, runsPerDay: 1, billingDays: 30, quality: 'super' }
 };
 
 function calcFirestoreCost() {
@@ -43,8 +44,13 @@ function calcFirestoreCost() {
 }
 
 function calcCostPerGen(quality) {
-  const compute = quality === 'highRes' ? costInputs.compute.highRes : costInputs.compute.turbo;
-  const egressGb = quality === 'highRes' ? costInputs.egress.gbPerGen.highRes : costInputs.egress.gbPerGen.turbo;
+  const computeCosts = {
+    turbo: costInputs.compute.turbo,
+    quality: costInputs.compute.quality,
+    super: costInputs.compute.super
+  };
+  const compute = computeCosts[quality] || costInputs.compute.turbo;
+  const egressGb = quality === 'super' ? costInputs.egress.gbPerGen.highRes : costInputs.egress.gbPerGen.turbo;
   const storageGb = costInputs.storage.gbPerGen;
   const bandwidth = egressGb * costInputs.egress.perGb;
   const storage = storageGb * costInputs.storage.perGb;
@@ -84,8 +90,9 @@ function printOffer(offer) {
 function main() {
   printHeader('Per-generation Costs');
   console.table([
-    { quality: 'turbo', costPerGen: calcCostPerGen('turbo') },
-    { quality: 'highRes', costPerGen: calcCostPerGen('highRes') }
+    { quality: 'turbo', sheets: 2, costPerGen: calcCostPerGen('turbo') },
+    { quality: 'quality', sheets: 3, costPerGen: calcCostPerGen('quality') },
+    { quality: 'super', sheets: 4, costPerGen: calcCostPerGen('super') }
   ]);
 
   printHeader('A la carte offers');
@@ -96,8 +103,9 @@ function main() {
 
   printHeader('Scenario: 5 runs/day/user pay-per-export');
   console.table([
-    scenarioMonthlyUsers({ users: 1000, runsPerDay: 5, quality: 'turbo', pricePerRun: 1, days: 30 }),
-    scenarioMonthlyUsers({ users: 100, runsPerDay: 5, quality: 'highRes', pricePerRun: 1.5, days: 30 })
+    scenarioMonthlyUsers({ users: 1000, runsPerDay: 5, quality: 'turbo', pricePerRun: 0.5, days: 30 }),
+    scenarioMonthlyUsers({ users: 500, runsPerDay: 5, quality: 'quality', pricePerRun: 0.75, days: 30 }),
+    scenarioMonthlyUsers({ users: 100, runsPerDay: 5, quality: 'super', pricePerRun: 1, days: 30 })
   ]);
 
   printHeader('Scenario: Pro monthly with daily allowance');
