@@ -103,9 +103,13 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
   const [showStreamLinkInput, setShowStreamLinkInput] = useState(false);
   const [showAudioSourceSelector, setShowAudioSourceSelector] = useState(false);
-  const [audioSourceType, setAudioSourceType] = useState<AudioSourceType>(
-    state.audioSourceType === 'url' ? 'stream' : state.audioSourceType === 'mic' ? 'mic' : 'file'
-  );
+  const [audioSourceType, setAudioSourceType] = useState<AudioSourceType>(() => {
+    // Map state.audioSourceType to our AudioSourceType
+    const srcType = state.audioSourceType;
+    if (srcType === 'url') return 'stream';
+    if (srcType === 'mic') return 'mic';
+    return 'file';
+  });
   const [streamLink, setStreamLink] = useState(state.audioSourceType === 'url' ? state.audioPreviewUrl || '' : '');
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [isLinkLoading, setIsLinkLoading] = useState(false);

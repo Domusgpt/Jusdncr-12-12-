@@ -38,7 +38,16 @@ interface AudioSourceSelectorProps {
   compact?: boolean;
 }
 
-const SOURCE_CONFIG = {
+type SourceColor = 'brand' | 'red' | 'cyan' | 'pink';
+
+interface SourceConfig {
+  icon: typeof Music;
+  label: string;
+  description: string;
+  color: SourceColor;
+}
+
+const SOURCE_CONFIG: Record<AudioSourceType, SourceConfig> = {
   file: {
     icon: Music,
     label: 'FILE',
@@ -63,7 +72,7 @@ const SOURCE_CONFIG = {
     description: 'Capture',
     color: 'pink',
   },
-} as const;
+};
 
 export const AudioSourceSelector: React.FC<AudioSourceSelectorProps> = ({
   activeSource,
@@ -200,7 +209,7 @@ export const AudioSourceSelector: React.FC<AudioSourceSelectorProps> = ({
         ">
           {/* Source Pills */}
           <div className="grid grid-cols-4 gap-1 p-2">
-            {(Object.entries(SOURCE_CONFIG) as [AudioSourceType, typeof SOURCE_CONFIG['file']][]).map(([source, config]) => {
+            {(Object.entries(SOURCE_CONFIG) as [AudioSourceType, SourceConfig][]).map(([source, config]) => {
               const Icon = config.icon;
               const isActive = activeSource === source;
               const isHot = isSourceHot(source);
