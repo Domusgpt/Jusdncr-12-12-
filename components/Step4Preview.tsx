@@ -10,6 +10,7 @@ import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { FXState } from './UnifiedMixerPanel';
+import { TelemetryService } from '../services/telemetry/TelemetryService';
 // New UI Components
 import { StatusBar } from './StatusBar';
 import { FXRail, FXAxisMapping, FXKey } from './FXRail';
@@ -55,6 +56,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const charCanvasRef = useRef<HTMLCanvasElement>(null); 
   const containerRef = useRef<HTMLDivElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
+  const exportStartRef = useRef<number | null>(null);
   
   // -- Audio Hook --
   const {
@@ -569,6 +571,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     const handleError = () => {
       setStreamStatus('Stream blocked or unsupported. Use HTTPS MP3/AAC links.');
+      TelemetryService.trackAudioStreamError({
+        sourceType: state.audioSourceType ?? 'unknown',
+        url: state.audioPreviewUrl ?? 'unknown',
+        code: audioEl.error?.code ?? null
+      });
     };
 
     audioEl.crossOrigin = 'anonymous';
@@ -1297,23 +1304,38 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
 
   const handleExportWidget = () => {
-      if(!hologramRef.current) return;
-      // We need to pass virtual frames logic or processed frames to the player
-      // For simplicity in the player, we'll pass the processed list that Step4 uses
-      // We will re-construct the virtual frames in the player script for size efficiency, but passing raw logic
-      const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
-      const blob = new Blob([html], {type: 'text/html'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `jusdnce_rig_${Date.now()}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      if(!hologramRef.current) {
+          TelemetryService.trackExportResult({ type: 'html', success: false, error: 'missing_hologram' });
+          return;
+      }
+      try {
+          // We need to pass virtual frames logic or processed frames to the player
+          // For simplicity in the player, we'll pass the processed list that Step4 uses
+          // We will re-construct the virtual frames in the player script for size efficiency, but passing raw logic
+          const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
+          const blob = new Blob([html], {type: 'text/html'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `jusdnce_rig_${Date.now()}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          TelemetryService.trackExportResult({ type: 'html', success: true, frameCount: state.generatedFrames.length });
+      } catch (error) {
+          TelemetryService.trackExportResult({
+              type: 'html',
+              success: false,
+              error: error instanceof Error ? error.message : 'unknown_error'
+          });
+      }
   };
 
   const startRecording = () => {
-      if (!recordCanvasRef.current) return;
+      if (!recordCanvasRef.current) {
+          TelemetryService.trackExportResult({ type: 'video', success: false, error: 'missing_record_canvas' });
+          return;
+      }
 
       let w = 1080;
       let h = 1920;
@@ -1328,60 +1350,83 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       recordCanvasRef.current.width = Math.floor(w);
       recordCanvasRef.current.height = Math.floor(h);
 
-      const stream = recordCanvasRef.current.captureStream(60);
+      try {
+          const stream = recordCanvasRef.current.captureStream(60);
 
-      const recordingFormats = [
-        { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
-        { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
-        { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' }
-      ];
+          const recordingFormats = [
+            { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
+            { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+            { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' }
+          ];
 
-      const selectedFormat = recordingFormats.find(fmt =>
-        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fmt.mimeType)
-      ) || recordingFormats[1];
+          const selectedFormat = recordingFormats.find(fmt =>
+            typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fmt.mimeType)
+          ) || recordingFormats[1];
 
-      mediaRecorderFormatRef.current = selectedFormat;
+          mediaRecorderFormatRef.current = selectedFormat;
 
-      // Use audioDest from hook
-      if (audioDestRef.current) {
-          const audioTracks = audioDestRef.current.stream.getAudioTracks();
-          if (audioTracks.length > 0) {
-              stream.addTrack(audioTracks[0]);
+          // Use audioDest from hook
+          if (audioDestRef.current) {
+              const audioTracks = audioDestRef.current.stream.getAudioTracks();
+              if (audioTracks.length > 0) {
+                  stream.addTrack(audioTracks[0]);
+              }
           }
-      }
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: selectedFormat.mimeType,
-        videoBitsPerSecond: 6000000
-      });
-      mediaRecorderRef.current = recorder;
-      recordedChunksRef.current = [];
-      
-      recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      
-      recorder.onstop = () => {
-          const { mimeType, ext } = mediaRecorderFormatRef.current;
-          const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-      };
-      
-      recorder.start();
-      setIsRecording(true);
-      setShowExportMenu(false); 
-      
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-          setRecordingTime(Date.now() - startTime);
-      }, 100);
-      (mediaRecorderRef.current as any).timerInterval = interval;
+          const recorder = new MediaRecorder(stream, {
+            mimeType: selectedFormat.mimeType,
+            videoBitsPerSecond: 6000000
+          });
+          mediaRecorderRef.current = recorder;
+          recordedChunksRef.current = [];
+
+          recorder.ondataavailable = (e) => {
+              if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+
+          recorder.onerror = (event) => {
+              TelemetryService.trackExportResult({
+                  type: 'video',
+                  success: false,
+                  error: event.error?.message || 'media_recorder_error'
+              });
+          };
+
+          recorder.onstop = () => {
+              const { mimeType, ext } = mediaRecorderFormatRef.current;
+              const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              TelemetryService.trackExportResult({
+                  type: 'video',
+                  success: true,
+                  durationMs: exportStartRef.current ? Date.now() - exportStartRef.current : null,
+                  format: ext
+              });
+          };
+
+          exportStartRef.current = Date.now();
+          recorder.start();
+          setIsRecording(true);
+          setShowExportMenu(false); 
+
+          const startTime = Date.now();
+          const interval = setInterval(() => {
+              setRecordingTime(Date.now() - startTime);
+          }, 100);
+          (mediaRecorderRef.current as any).timerInterval = interval;
+      } catch (error) {
+          TelemetryService.trackExportResult({
+              type: 'video',
+              success: false,
+              error: error instanceof Error ? error.message : 'recording_setup_failed'
+          });
+      }
   };
 
   const stopRecording = () => {
