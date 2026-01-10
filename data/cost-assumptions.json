@@ -1,0 +1,32 @@
+{
+  "currency": "USD",
+  "compute": {
+    "turboPerGeneration": 0.003,
+    "highResPerGeneration": 0.03
+  },
+  "storage": {
+    "perGbMonth": 0.026,
+    "gbPerGeneration": 0.005,
+    "retentionDays": 30
+  },
+  "egress": {
+    "perGb": 0.12,
+    "gbPerGeneration": {
+      "turbo": 0.012,
+      "highRes": 0.018
+    }
+  },
+  "firestore": {
+    "readsPerGeneration": 8,
+    "writesPerGeneration": 3,
+    "costPerRead": 0.06,
+    "costPerWrite": 0.18,
+    "unit": "per100k"
+  },
+  "notes": [
+    "Compute includes Gemini generation + encode overhead.",
+    "Storage cost assumes 5MB retained for 30 days.",
+    "Egress covers MP4 preview + QR payloads.",
+    "Firestore counts include session + usage events."
+  ]
+}

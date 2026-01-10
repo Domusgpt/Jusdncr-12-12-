@@ -1,0 +1,89 @@
+{
+  "updatedAt": "2025-02-12",
+  "perGeneration": {
+    "turbo": 0.0046,
+    "highRes": 0.0323
+  },
+  "offers": [
+    {
+      "name": "Trial (preview)",
+      "price": 0,
+      "runs": 1,
+      "quality": "turbo",
+      "costPerRun": 0.0046,
+      "margin": 0
+    },
+    {
+      "name": "Starter Export",
+      "price": 1,
+      "runs": 1,
+      "quality": "turbo",
+      "costPerRun": 0.0046,
+      "margin": 99.54
+    },
+    {
+      "name": "Bronze Golem Pack",
+      "price": 3,
+      "runs": 3,
+      "quality": "turbo",
+      "costPerRun": 0.0046,
+      "margin": 99.54
+    },
+    {
+      "name": "Silver Golem Pack",
+      "price": 7,
+      "runs": 8,
+      "quality": "turbo",
+      "costPerRun": 0.0046,
+      "margin": 99.47
+    },
+    {
+      "name": "Gold Golem Pack",
+      "price": 12,
+      "runs": 15,
+      "quality": "highRes",
+      "costPerRun": 0.0323,
+      "margin": 95.96
+    },
+    {
+      "name": "Pro Monthly",
+      "price": 9.99,
+      "runs": 30,
+      "quality": "highRes",
+      "costPerRun": 0.0323,
+      "margin": 90.3
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "Pay-per-export (Turbo)",
+      "users": 1000,
+      "runsPerDay": 5,
+      "pricePerRun": 1,
+      "quality": "turbo",
+      "monthlyRevenue": 150000,
+      "monthlyCost": 690,
+      "margin": 99.54
+    },
+    {
+      "name": "Pay-per-export (High-Res)",
+      "users": 100,
+      "runsPerDay": 5,
+      "pricePerRun": 1.5,
+      "quality": "highRes",
+      "monthlyRevenue": 22500,
+      "monthlyCost": 484.5,
+      "margin": 97.85
+    },
+    {
+      "name": "Pro monthly (High-Res)",
+      "users": 500,
+      "runsPerDay": 1,
+      "pricePerRun": 0.333,
+      "quality": "highRes",
+      "monthlyRevenue": 4995,
+      "monthlyCost": 484.5,
+      "margin": 90.3
+    }
+  ]
+}

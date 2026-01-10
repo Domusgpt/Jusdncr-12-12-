@@ -1,12 +1,12 @@
 
 import React, { useState } from 'react';
-import { Zap, Layers, LogIn, Activity, FastForward, Upload, FileJson } from 'lucide-react';
+import { Zap, Layers, LogIn, Activity, FastForward, Upload, FileJson, BarChart3 } from 'lucide-react';
 import { AppState, AppStep, DEFAULT_STATE, AuthUser, SavedProject } from './types';
 import { STYLE_PRESETS, CREDITS_PER_PACK } from './constants';
 import { Step1Assets, Step2Director } from './components/Steps';
 import { Step4Preview } from './components/Step4Preview';
 import { generateDanceFrames, fileToGenericBase64 } from './services/gemini';
-import { AuthModal, PaymentModal } from './components/Modals';
+import { AuthModal, CostInsightsModal, PaymentModal } from './components/Modals';
 import { GlobalBackground } from './components/GlobalBackground';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -259,6 +259,10 @@ const App: React.FC = () => {
             onClose={() => setAppState(prev => ({ ...prev, showPaymentModal: false }))}
             onSuccess={handlePaymentSuccess}
         />
+        <CostInsightsModal
+            isOpen={appState.showCostInsightsModal}
+            onClose={() => setAppState(prev => ({ ...prev, showCostInsightsModal: false }))}
+        />
 
         {/* HEADER */}
         <header className="border-b border-white/5 bg-black/10 backdrop-blur-md sticky top-0 z-50">
@@ -292,6 +296,13 @@ const App: React.FC = () => {
                     <FileJson size={14} className="text-brand-300" /> IMPORT RIG
                 </button>
                 <input ref={importRef} type="file" accept=".jusdnce" onChange={loadProject} className="hidden" />
+
+                <button
+                    onClick={() => setAppState(prev => ({ ...prev, showCostInsightsModal: true }))}
+                    className="glass-button px-4 py-2 rounded-full text-xs font-bold text-white flex items-center gap-2 border border-white/10 hover:border-brand-400/50"
+                >
+                    <BarChart3 size={14} className="text-brand-300" /> COST INSIGHTS
+                </button>
 
                 <div 
                     className="hidden md:flex items-center gap-2 bg-black/40 px-5 py-2 rounded-full border border-white/10 cursor-pointer hover:border-yellow-400/50 transition-all hover:bg-white/5 hover:scale-105 group"
