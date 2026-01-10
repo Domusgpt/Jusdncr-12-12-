@@ -4,12 +4,14 @@ import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X,
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
+import { buildDkgExport } from '../services/export/dkgExport';
 import { createQrForTarget, QRTarget } from '../services/qrCodes';
 import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { FXState } from './UnifiedMixerPanel';
+import { TelemetryService } from '../services/telemetry/TelemetryService';
 // New UI Components
 import { StatusBar } from './StatusBar';
 import { FXRail, FXAxisMapping, FXKey } from './FXRail';
@@ -55,6 +57,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   const charCanvasRef = useRef<HTMLCanvasElement>(null); 
   const containerRef = useRef<HTMLDivElement>(null);
   const audioElementRef = useRef<HTMLAudioElement>(null);
+  const exportStartRef = useRef<number | null>(null);
   
   // -- Audio Hook --
   const {
@@ -91,6 +94,8 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showDkgExportModal, setShowDkgExportModal] = useState(false);
+  const [isDkgExporting, setIsDkgExporting] = useState(false);
   const [qrTarget, setQrTarget] = useState<QRTarget>('preview');
   const [shareLink, setShareLink] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -569,6 +574,11 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
     const handleError = () => {
       setStreamStatus('Stream blocked or unsupported. Use HTTPS MP3/AAC links.');
+      TelemetryService.trackAudioStreamError({
+        sourceType: state.audioSourceType ?? 'unknown',
+        url: state.audioPreviewUrl ?? 'unknown',
+        code: audioEl.error?.code ?? null
+      });
     };
 
     audioEl.crossOrigin = 'anonymous';
@@ -1296,24 +1306,70 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   }, [isPlaying, connectFileAudio]);
 
 
-  const handleExportWidget = () => {
+  const handleExportDkg = async () => {
+      if (isDkgExporting) return;
+      setIsDkgExporting(true);
+      try {
+          const { blob } = await buildDkgExport(state.generatedFrames, state.subjectCategory);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `jusdnce_${Date.now()}.dkg`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setShowDkgExportModal(true);
+      } catch (error) {
+          console.error('DKG export failed', error);
+      } finally {
+          setIsDkgExporting(false);
+      }
+  };
+
+  const handleExportHtmlPreview = () => {
       if(!hologramRef.current) return;
-      // We need to pass virtual frames logic or processed frames to the player
-      // For simplicity in the player, we'll pass the processed list that Step4 uses
-      // We will re-construct the virtual frames in the player script for size efficiency, but passing raw logic
       const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
       const blob = new Blob([html], {type: 'text/html'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `jusdnce_rig_${Date.now()}.html`;
+      a.download = `jusdnce_preview_${Date.now()}.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+  const handleExportWidget = () => {
+      if(!hologramRef.current) {
+          TelemetryService.trackExportResult({ type: 'html', success: false, error: 'missing_hologram' });
+          return;
+      }
+      try {
+          // We need to pass virtual frames logic or processed frames to the player
+          // For simplicity in the player, we'll pass the processed list that Step4 uses
+          // We will re-construct the virtual frames in the player script for size efficiency, but passing raw logic
+          const html = generatePlayerHTML(state.generatedFrames, hologramRef.current.params, state.subjectCategory);
+          const blob = new Blob([html], {type: 'text/html'});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `jusdnce_rig_${Date.now()}.html`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          TelemetryService.trackExportResult({ type: 'html', success: true, frameCount: state.generatedFrames.length });
+      } catch (error) {
+          TelemetryService.trackExportResult({
+              type: 'html',
+              success: false,
+              error: error instanceof Error ? error.message : 'unknown_error'
+          });
+      }
   };
 
   const startRecording = () => {
-      if (!recordCanvasRef.current) return;
+      if (!recordCanvasRef.current) {
+          TelemetryService.trackExportResult({ type: 'video', success: false, error: 'missing_record_canvas' });
+          return;
+      }
 
       let w = 1080;
       let h = 1920;
@@ -1328,60 +1384,83 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       recordCanvasRef.current.width = Math.floor(w);
       recordCanvasRef.current.height = Math.floor(h);
 
-      const stream = recordCanvasRef.current.captureStream(60);
+      try {
+          const stream = recordCanvasRef.current.captureStream(60);
 
-      const recordingFormats = [
-        { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
-        { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
-        { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' }
-      ];
+          const recordingFormats = [
+            { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
+            { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+            { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' }
+          ];
 
-      const selectedFormat = recordingFormats.find(fmt =>
-        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fmt.mimeType)
-      ) || recordingFormats[1];
+          const selectedFormat = recordingFormats.find(fmt =>
+            typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fmt.mimeType)
+          ) || recordingFormats[1];
 
-      mediaRecorderFormatRef.current = selectedFormat;
+          mediaRecorderFormatRef.current = selectedFormat;
 
-      // Use audioDest from hook
-      if (audioDestRef.current) {
-          const audioTracks = audioDestRef.current.stream.getAudioTracks();
-          if (audioTracks.length > 0) {
-              stream.addTrack(audioTracks[0]);
+          // Use audioDest from hook
+          if (audioDestRef.current) {
+              const audioTracks = audioDestRef.current.stream.getAudioTracks();
+              if (audioTracks.length > 0) {
+                  stream.addTrack(audioTracks[0]);
+              }
           }
-      }
 
-      const recorder = new MediaRecorder(stream, {
-        mimeType: selectedFormat.mimeType,
-        videoBitsPerSecond: 6000000
-      });
-      mediaRecorderRef.current = recorder;
-      recordedChunksRef.current = [];
-      
-      recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      
-      recorder.onstop = () => {
-          const { mimeType, ext } = mediaRecorderFormatRef.current;
-          const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-      };
-      
-      recorder.start();
-      setIsRecording(true);
-      setShowExportMenu(false); 
-      
-      const startTime = Date.now();
-      const interval = setInterval(() => {
-          setRecordingTime(Date.now() - startTime);
-      }, 100);
-      (mediaRecorderRef.current as any).timerInterval = interval;
+          const recorder = new MediaRecorder(stream, {
+            mimeType: selectedFormat.mimeType,
+            videoBitsPerSecond: 6000000
+          });
+          mediaRecorderRef.current = recorder;
+          recordedChunksRef.current = [];
+
+          recorder.ondataavailable = (e) => {
+              if (e.data.size > 0) recordedChunksRef.current.push(e.data);
+          };
+
+          recorder.onerror = (event) => {
+              TelemetryService.trackExportResult({
+                  type: 'video',
+                  success: false,
+                  error: event.error?.message || 'media_recorder_error'
+              });
+          };
+
+          recorder.onstop = () => {
+              const { mimeType, ext } = mediaRecorderFormatRef.current;
+              const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              TelemetryService.trackExportResult({
+                  type: 'video',
+                  success: true,
+                  durationMs: exportStartRef.current ? Date.now() - exportStartRef.current : null,
+                  format: ext
+              });
+          };
+
+          exportStartRef.current = Date.now();
+          recorder.start();
+          setIsRecording(true);
+          setShowExportMenu(false); 
+
+          const startTime = Date.now();
+          const interval = setInterval(() => {
+              setRecordingTime(Date.now() - startTime);
+          }, 100);
+          (mediaRecorderRef.current as any).timerInterval = interval;
+      } catch (error) {
+          TelemetryService.trackExportResult({
+              type: 'video',
+              success: false,
+              error: error instanceof Error ? error.message : 'recording_setup_failed'
+          });
+      }
   };
 
   const stopRecording = () => {
@@ -1529,6 +1608,42 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             </div>
             <p className="text-[11px] text-gray-400 mt-2">HTTPS streams work best. Links must permit CORS-enabled playback.</p>
             {streamStatus && <p className="text-xs text-brand-300 mt-1">{streamStatus}</p>}
+          </div>
+        </div>
+      )}
+
+      {showDkgExportModal && (
+        <div className="fixed inset-0 z-[70] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-dark-surface border border-brand-500/40 rounded-2xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowDkgExportModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              aria-label="Close export modal"
+            >
+              <X size={18} />
+            </button>
+            <h3 className="text-xl font-bold text-white mb-2">Exported .dkg</h3>
+            <p className="text-sm text-gray-300 mb-5">
+              Your DKG file is ready. Open it in the DKG Player app to remix and preview.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <a
+                href="https://apps.apple.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold tracking-widest text-white hover:border-brand-400"
+              >
+                APP STORE
+              </a>
+              <a
+                href="https://play.google.com/store"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-3 text-xs font-bold tracking-widest text-white hover:border-brand-400"
+              >
+                GOOGLE PLAY
+              </a>
+            </div>
           </div>
         </div>
       )}
@@ -1706,16 +1821,27 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
             <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
           </div>
         )}
-        {/* HTML PLAYER DOWNLOAD - More visible */}
         <button
-          onClick={handleExportWidget}
-          className="bg-gradient-to-r from-cyan-500/20 to-purple-500/20 backdrop-blur-md
-                     border border-cyan-500/30 px-3 py-2 rounded-xl
+          onClick={handleExportDkg}
+          disabled={isDkgExporting}
+          className="bg-gradient-to-r from-brand-500/30 to-purple-500/30 backdrop-blur-md
+                     border border-brand-400/40 px-3 py-2 rounded-xl
+                     text-white/90 hover:text-white hover:border-brand-300/60
+                     transition-all flex items-center gap-2 shadow-lg disabled:opacity-60"
+          title="Export .dkg package"
+        >
+          {isDkgExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+          <span className="text-[10px] font-bold tracking-wider">.DKG</span>
+        </button>
+        <button
+          onClick={handleExportHtmlPreview}
+          className="bg-white/10 backdrop-blur-md
+                     border border-white/15 px-3 py-2 rounded-xl
                      text-white/80 hover:text-white hover:border-cyan-400/50
                      transition-all flex items-center gap-2 shadow-lg"
-          title="Download Standalone HTML Player"
+          title="Download HTML preview (no audio)"
         >
-          <Download size={16} />
+          <Download size={14} />
           <span className="text-[10px] font-bold tracking-wider">.HTML</span>
         </button>
       </div>
