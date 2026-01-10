@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.554.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
