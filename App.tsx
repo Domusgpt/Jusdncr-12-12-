@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Zap, Layers, LogIn, Activity, FastForward, Upload, FileJson } from 'lucide-react';
 import { AppState, AppStep, DEFAULT_STATE, AuthUser, SavedProject } from './types';
 import { STYLE_PRESETS, CREDITS_PER_PACK } from './constants';
@@ -8,6 +8,8 @@ import { Step4Preview } from './components/Step4Preview';
 import { generateDanceFrames, fileToGenericBase64 } from './services/gemini';
 import { AuthModal, PaymentModal } from './components/Modals';
 import { GlobalBackground } from './components/GlobalBackground';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { TelemetryService } from './services/telemetry/TelemetryService';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
     const event = new CustomEvent('ui-interaction', { detail: { type, intensity } });
@@ -17,6 +19,7 @@ const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(DEFAULT_STATE);
   const importRef = React.useRef<HTMLInputElement>(null);
+  const generationStartRef = useRef<number | null>(null);
 
   const handleImageUpload = async (file: File) => {
     try {
@@ -119,6 +122,15 @@ const App: React.FC = () => {
 
   const handleGenerate = async (forceTurbo: boolean = false, forceSuper: boolean = false) => {
     if (!appState.imagePreviewUrl) return;
+
+    generationStartRef.current = Date.now();
+    TelemetryService.trackGenerationStart({
+      turbo: forceTurbo || appState.useTurbo,
+      superMode: forceSuper || appState.superMode,
+      motionPreset: appState.motionPreset,
+      styleId: appState.selectedStyleId,
+      hasAudio: Boolean(appState.audioPreviewUrl)
+    });
     
     setAppState(prev => ({ ...prev, isGenerating: true, step: AppStep.PREVIEW, generatedFrames: [] }));
 
@@ -156,9 +168,20 @@ const App: React.FC = () => {
             subjectCategory: category, // Store detection result
             isGenerating: false
         }));
+        TelemetryService.trackGenerationEnd({
+          success: true,
+          durationMs: Date.now() - (generationStartRef.current ?? Date.now()),
+          frameCount: frames.length,
+          category
+        });
     } catch (e: any) {
         console.error("Generation Failed:", e);
         const msg = e.message || "Unknown error";
+        TelemetryService.trackGenerationEnd({
+          success: false,
+          durationMs: Date.now() - (generationStartRef.current ?? Date.now()),
+          error: msg
+        });
         if (msg.includes('403') || msg.includes('PERMISSION_DENIED')) {
             alert("API Permission Denied (403). Please ensure your API Key has access to 'gemini-2.5-flash-image'.");
         } else {
@@ -350,14 +373,19 @@ const App: React.FC = () => {
 
             {appState.step === AppStep.PREVIEW && (
                 <div className="animate-holo-reveal h-[calc(100vh-10rem)] min-h-[600px]">
-                    <Step4Preview
-                        state={appState}
-                        onGenerateMore={handleGenerateClick}
-                        onSpendCredit={handleSpendCredit}
-                        onUploadAudio={handleAudioUpload}
-                        onSetAudioLink={handleAudioLink}
-                        onSaveProject={saveProject}
-                    />
+                    <ErrorBoundary
+                        title="Preview interrupted."
+                        subtitle="We hit turbulence in the Step 4 flow. Refresh to recover your session."
+                    >
+                        <Step4Preview
+                            state={appState}
+                            onGenerateMore={handleGenerateClick}
+                            onSpendCredit={handleSpendCredit}
+                            onUploadAudio={handleAudioUpload}
+                            onSetAudioLink={handleAudioLink}
+                            onSaveProject={saveProject}
+                        />
+                    </ErrorBoundary>
                 </div>
             )}
         </main>
