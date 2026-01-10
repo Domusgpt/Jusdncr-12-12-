@@ -1,0 +1,20 @@
+{
+  "updatedAt": "2026-01-10T00:00:00Z",
+  "currency": "USD",
+  "perGeneration": {
+    "turbo": {
+      "compute": 0.006,
+      "storage": 0.00013,
+      "egress": 0.00144,
+      "firestore": 0.0000084,
+      "total": 0.0076
+    },
+    "highRes": {
+      "compute": 0.012,
+      "storage": 0.00013,
+      "egress": 0.00216,
+      "firestore": 0.0000084,
+      "total": 0.0143
+    }
+  }
+}

@@ -6,7 +6,7 @@ import { STYLE_PRESETS, CREDITS_PER_PACK } from './constants';
 import { Step1Assets, Step2Director } from './components/Steps';
 import { Step4Preview } from './components/Step4Preview';
 import { generateDanceFrames, fileToGenericBase64 } from './services/gemini';
-import { AuthModal, PaymentModal } from './components/Modals';
+import { AuthModal, PaymentModal, CostInsightsModal } from './components/Modals';
 import { GlobalBackground } from './components/GlobalBackground';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -259,6 +259,10 @@ const App: React.FC = () => {
             onClose={() => setAppState(prev => ({ ...prev, showPaymentModal: false }))}
             onSuccess={handlePaymentSuccess}
         />
+        <CostInsightsModal
+            isOpen={appState.showCostInsightsModal}
+            onClose={() => setAppState(prev => ({ ...prev, showCostInsightsModal: false }))}
+        />
 
         {/* HEADER */}
         <header className="border-b border-white/5 bg-black/10 backdrop-blur-md sticky top-0 z-50">
@@ -301,6 +305,15 @@ const App: React.FC = () => {
                     <Zap size={16} className="text-yellow-400 fill-yellow-400 group-hover:animate-bounce" />
                     <span className="text-sm font-bold text-gray-200 tracking-wide font-mono">{appState.credits} CR</span>
                 </div>
+
+                <button
+                    onClick={() => setAppState(prev => ({ ...prev, showCostInsightsModal: true }))}
+                    onMouseEnter={() => triggerImpulse('hover', 0.3)}
+                    className="hidden md:flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/10 hover:border-brand-400/50 transition-all hover:bg-white/5 hover:scale-105"
+                >
+                    <Layers size={14} className="text-brand-300" />
+                    <span className="text-[11px] font-semibold text-gray-200 tracking-wider">COSTS</span>
+                </button>
 
                 {appState.user ? (
                     <div className="flex items-center gap-3 pl-4 border-l border-white/10">

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, Lock, CreditCard, Sparkles, Shield, User } from 'lucide-react';
+import { X, Check, Lock, CreditCard, Sparkles, Shield, User, Activity } from 'lucide-react';
 import { CREDITS_PACK_PRICE, CREDITS_PER_PACK } from '../constants';
 
 const triggerImpulse = (type: 'click' | 'hover' | 'type', intensity: number = 1.0) => {
@@ -198,6 +198,56 @@ export const PaymentModal: React.FC<{ isOpen: boolean; onClose: () => void; onSu
                     <p className="text-gray-400">Credits have been added to your account.</p>
                 </div>
             )}
+        </Modal>
+    );
+};
+
+export const CostInsightsModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+    const costCards = [
+        {
+            label: 'Turbo',
+            cost: '$0.0076',
+            detail: '2 sheets · fast preview'
+        },
+        {
+            label: 'High-Res',
+            cost: '$0.0143',
+            detail: '4 sheets · premium export'
+        }
+    ];
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Cost Insights">
+            <div className="space-y-6">
+                <div className="flex items-center gap-3 rounded-xl border border-brand-500/20 bg-brand-500/10 px-4 py-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-500/20 text-brand-300">
+                        <Activity size={18} />
+                    </div>
+                    <div>
+                        <p className="text-sm font-semibold text-white">Generation cost outlook</p>
+                        <p className="text-xs text-gray-400">Live estimate based on current cost model.</p>
+                    </div>
+                </div>
+
+                <div className="grid gap-3">
+                    {costCards.map(card => (
+                        <div key={card.label} className="rounded-xl border border-white/10 bg-black/40 px-4 py-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-bold text-white">{card.label}</p>
+                                    <p className="text-xs text-gray-500">{card.detail}</p>
+                                </div>
+                                <span className="text-lg font-black text-brand-300">{card.cost}</span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-xs text-gray-400 space-y-2">
+                    <p>Includes compute, storage, bandwidth, and Firestore reads/writes.</p>
+                    <p>Update assumptions with <span className="text-brand-300 font-semibold">npm run costs:generate</span>.</p>
+                </div>
+            </div>
         </Modal>
     );
 };

@@ -100,3 +100,8 @@
 - Expanded refactor services with a telemetry queue and basic audio reactivity channel stub.
 - Updated refactor architecture notes and exports to include telemetry and reactivity surfaces.
 - Next: connect telemetry events to coordinator actions and define cost/usage payload shapes.
+
+## 2026-01-10T00:15:00Z
+- Added Firebase hosting/rules configuration files plus cost data inputs and generator script.
+- Wired Cost Insights modal into the header and corrected Turbo compute cost assumptions.
+- Next: sync the Cost Insights modal with dynamic dashboard output and validate Firebase deploy flow.
