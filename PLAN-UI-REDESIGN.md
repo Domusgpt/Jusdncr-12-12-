@@ -285,29 +285,179 @@ if (!frame || frame.pose === this.currentFrame?.pose) return;
 
 ---
 
-## Implementation Order
+## Implementation Order (REVISED based on screenshots analysis)
 
-### Phase 1: Fix Bugs (30 min)
-1. Fix `triggerFrame()` pose comparison
-2. Revert KINETIC probability to 30%
-3. Test pattern modes work correctly
+### Current State Problems (from screenshots):
+1. **FX Panel** - 300px wide with 4 pressure paddles + 9 toggles + MAP buttons = TOO BIG
+2. **Engine Panel** - 280px wide with MODE/SEQUENCE/PHYSICS/INTENSITY = TOO BIG
+3. **Deck Panel** - Shows all 4 decks expanded at once = BLOCKS ANIMATION
+4. **Stacking** - FX + Engine both on left side = 60% screen blocked
+5. **No layers** - Panels are blocky modals, not thin overlays
 
-### Phase 2: Layout Foundation (1-2 hrs)
-1. Remove FXPanel modal - replace with FX Rail
-2. Remove 5-column grid - replace with Control Dock
-3. Create Pressure Paddle component
-4. Update Step4Preview.tsx layout structure
+### Phase 1: Slim Down Panels (CRITICAL)
 
-### Phase 3: GolemMixer Drawer (1 hr)
-1. Convert GolemMixerPanel to bottom sheet
-2. Add swipe gesture support
-3. Context-aware sections (patterns only in PATTERN mode)
+**1a. FX Rail (56px wide max)**
+- Remove 4 pressure paddles entirely from FXPanel
+- Keep ONLY the 9 FX toggle buttons in a vertical strip
+- 56px wide, left edge, 9 buttons stacked (48px each)
+- Collapsed state: 8px grip handle
+- NO "TAP TO TOGGLE FX" expanded view - just icons
 
-### Phase 4: Polish (30 min)
-1. Status bar fade behavior
-2. Beat indicator animations
-3. Touch feedback (scale on press)
-4. FX Rail collapse/expand gesture
+**1b. Single X/Y Pressure Pad (right edge)**
+- Create new `PressurePadXY.tsx` component
+- 80px wide x 200px tall on right edge
+- X-axis = FX intensity (0-1)
+- Y-axis = which FX cluster (top=subtle, bottom=aggressive)
+- Touch position controls ACTIVE FX from the rail
+
+**1c. Engine Strip (top, not left)**
+- Convert EnginePanel to horizontal strip at TOP
+- 100% width, 48px height max
+- Layout: `[KIN|PAT] [GRV|EMT|IMP|FT] [LABAN|LEG] [slider]`
+- Collapsed: Just shows current mode as pill (e.g., "KINETIC • GRV")
+- Tap to expand momentarily, auto-collapse after 3s
+
+### Phase 2: Bottom Drawer for Mixer
+
+**2a. Deck Mixer as Bottom Sheet**
+- Remove DeckMixerPanel as floating panel
+- Create `MixerDrawer.tsx` - swipe up from dock
+- Peek state: Shows 0px (hidden)
+- Half state: 40% screen - shows deck strips (compact)
+- Full state: 60% screen - shows deck thumbnails
+- NEVER covers more than 60% of screen
+
+**2b. Deck Strip Design (compact)**
+```
+┌─────────────────────────────────────────┐
+│ D1 [SEQ] ████████░░ 1/112  [▼ expand]   │
+│ D2 [OFF] -- empty --       [+ LOAD]     │
+│ D3 [OFF] -- empty --       [+ LOAD]     │
+│ D4 [OFF] -- empty --       [+ LOAD]     │
+└─────────────────────────────────────────┘
+```
+Each deck: 48px height, expands to 120px when tapped
+
+### Phase 3: Pattern Grid (Only when needed)
+
+**3a. Pattern Selection**
+- Only visible in PATTERN engine mode
+- Appears as overlay grid (3x5) when "PAT" is selected
+- 15 patterns in compact 48px buttons
+- Tap selects, then grid auto-dismisses
+- Current pattern shown in Engine Strip pill
+
+### Phase 4: Control Dock Refinements
+
+Keep current ControlDock but ensure:
+- Play button: 64px (larger, left side)
+- Other buttons: 48px
+- Beat indicator below buttons
+- MORE menu stays as floating pill popup
+
+### Files to Modify (in order):
+
+1. `components/FXPanel.tsx` → Completely rewrite as thin rail
+2. NEW: `components/PressurePadXY.tsx` → X/Y expression controller
+3. `components/EnginePanel.tsx` → Convert to horizontal strip
+4. `components/DeckMixerPanel.tsx` → Convert to bottom sheet drawer
+5. `components/Step4Preview.tsx` → Update layout to use new components
+6. `components/ControlDock.tsx` → Minor refinements
+
+### Layout After Implementation (REVISED v2 - Animation Zone as Controller):
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [▶] [🎤] [♫] [BPM:128] ════beat════ [📷] [⋯]              │  STATUS BAR (48px)
+├────┬───────────────────────────────────────────────────┬────┤
+│ FX │                                                   │ FX │
+│ ── │   ┌─────────────────┬─────────────────┐          │ ── │
+│ RGB│   │     LEGACY      │     KINETIC     │          │ X→ │  X-AXIS FX
+│ STR│   │      ZONE       │      ZONE       │          │────│
+│ GHO│   │                 │                 │          │    │
+│ INV│   │  D1 ─────  D2   │   D3 ─────  D4  │          │ Y↓ │  Y-AXIS FX
+│ B&W│   │  (quadrants)    │   (quadrants)   │          │    │
+│ SCN│   │                 │                 │          │    │
+│ GLI│   │  touch+drag =   │  touch+drag =   │          │    │
+│ SHK│   │  pattern joy    │  pattern joy    │          │    │
+│ ZOO│   └─────────────────┴─────────────────┘          │    │
+├────┴───────────────────────────────────────────────────┴────┤
+│  [LEG|KIN] [GRV|EMT|IMP|FT] ════ intensity ════ [▲MIXER]   │  ENGINE STRIP (56px)
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Animation Zone Touch Interactions:
+
+**1. Physics Mode (Left/Right Half):**
+- Touch LEFT half → Activates LEGACY mode while held
+- Touch RIGHT half → Activates KINETIC mode while held
+- Visual: Subtle glow shows which mode is active
+
+**2. Pattern Joystick (Drag):**
+- While touching, DRAG to select pattern
+- Position maps to pattern radially (like virtual joystick)
+- LEGACY side: All 15 patterns available
+- KINETIC side: 6 core patterns (PING_PONG, FLOW, STUTTER, CHAOS, VOGUE, BUILD_DROP)
+- Release: Pattern stays selected, snaps back visually
+
+**3. Deck Quadrants:**
+```
+┌─────────────┬─────────────┐
+│ D1 (top-L)  │ D2 (top-R)  │
+│ TAP = ON/OFF│             │
+│ FLICK ↑ SEQ │             │
+│ FLICK ↓ LAY │             │
+├─────────────┼─────────────┤
+│ D3 (bot-L)  │ D4 (bot-R)  │
+│             │             │
+└─────────────┴─────────────┘
+```
+- Quick TAP in quadrant = Toggle deck ON/OFF
+- FLICK UP = Cycle to SEQ mode
+- FLICK DOWN = Cycle to LAY mode
+- Visual: Quadrant briefly highlights on interaction
+
+**4. FX Intensity (Touch Position):**
+- X position (left→right) = X-axis mapped FX intensity
+- Y position (top→bottom) = Y-axis mapped FX intensity
+- User assigns which effects go to X vs Y in FX Rail
+
+### FX Rail with Axis Mapping:
+
+```
+┌────┐        ┌────┐
+│ RGB│ [X]    │ X→ │  Effects assigned to X-axis
+│ STR│ [Y]    │────│
+│ GHO│ [X]    │ Y↓ │  Effects assigned to Y-axis
+│ INV│ [ ]    │    │
+│ B&W│ [Y]    │    │  Touch position in zone
+│ SCN│ [ ]    │    │  controls these intensities
+│ GLI│ [X][Y] │    │  (can be both!)
+│ SHK│ [X]    │    │
+│ ZOO│ [Y]    │    │
+└────┘        └────┘
+```
+- Tap FX to toggle ON/OFF
+- Long-press to assign to X, Y, or both axes
+- Effects with [X] respond to horizontal touch position
+- Effects with [Y] respond to vertical touch position
+
+### MIXER Drawer (swipe up from bottom):
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ═════════════ drag handle ═════════════                    │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │     D1          D2          D3          D4          │   │
+│  │    ┌──┐        ┌──┐        ┌──┐        ┌──┐        │   │
+│  │    │● │        │  │        │  │        │  │        │   │  <- DECK X/Y (optional)
+│  │    └──┘        └──┘        └──┘        └──┘        │   │     drag toward deck
+│  │   [SEQ]       [OFF]       [OFF]       [OFF]        │   │
+│  │   112fr        ---         ---         ---         │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  [+ LOAD D2] [+ LOAD D3] [+ LOAD D4]                       │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -344,6 +494,48 @@ const STATUS_FADE_DELAY = 3000; // ms
 
 ---
 
+## Feature Checklist (MUST preserve all)
+
+### Engine System (EnginePanel)
+- [ ] ENGINE MODE toggle: KINETIC / PATTERN
+- [ ] 15 patterns: PING_PONG, BUILD_DROP, STUTTER, VOGUE, FLOW, CHAOS, MINIMAL, ABAB, AABB, ABAC, SNARE_ROLL, GROOVE, EMOTE, FOOTWORK, IMPACT
+- [ ] 4 sequence modes: GROOVE, EMOTE, IMPACT, FOOTWORK
+- [ ] PHYSICS toggle: LEGACY / LABAN
+- [ ] INTENSITY slider (0-100%)
+- [ ] BPM display
+
+### FX System (FXPanel)
+- [ ] 9 effects: RGB, STROBE, GHOST, INVERT, B&W, SCANLINES, GLITCH, SHAKE, ZOOM
+- [ ] Toggle on/off for each effect
+- [ ] Pressure intensity control (via new X/Y pad)
+- [ ] Visual feedback when active
+
+### Deck Mixer (DeckMixerPanel)
+- [ ] 4 deck channels (D1, D2, D3, D4)
+- [ ] Mode per deck: OFF / SEQUENCER / LAYER
+- [ ] Opacity slider per deck (0-100%)
+- [ ] Frame count display
+- [ ] Rig name display
+- [ ] LOAD button to import frames
+- [ ] Deck thumbnail preview (expanded state)
+
+### Control Dock
+- [ ] PLAY/PAUSE button
+- [ ] MIC toggle
+- [ ] MIXER toggle (opens drawer)
+- [ ] CAM toggle (SuperCam)
+- [ ] MORE menu
+- [ ] Beat indicator (4 bars)
+
+### MORE Menu
+- [ ] FRAMES viewer
+- [ ] NEW (create new)
+- [ ] SAVE
+- [ ] REC (record)
+- [ ] CLOSE
+
+---
+
 ## Summary
 
 This redesign embodies **elegance** through:
@@ -356,3 +548,13 @@ This redesign embodies **elegance** through:
 6. **Spatial consistency** - FX always left, expression always right, transport always bottom
 
 The dancer is the star. The UI is the stage lighting.
+
+---
+
+## Research Sources
+
+- [Traktor DJ iPad Review](https://djworx.com/review-1-traktor-dj-app-for-ipad/) - Layer-based interface design
+- [TouchOSC for Resolume](https://vjgalaxy.com/blogs/resolume-tutorials/how-to-control-resolume-via-touchosc) - Modular control surfaces
+- [TKFX Traktor Controller](https://apps.apple.com/us/app/tkfx-traktor-dj-controller/id898838871) - X/Y pad for effects
+- [Mobile UI Best Practices 2025](https://nextnative.dev/blog/mobile-app-ui-design-best-practices) - 44px touch targets
+- [Game UI Database](https://www.gameuidatabase.com/) - Reference for rhythm game UI

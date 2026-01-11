@@ -1,18 +1,22 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo } from 'lucide-react';
+import { Loader2, Activity, Download, CircleDot, Monitor, Smartphone, Square, X, FileVideo, Copy, RefreshCw, QrCode, Link2, Clipboard } from 'lucide-react';
 import { AppState, EnergyLevel, MoveDirection, FrameType, GeneratedFrame } from '../types';
 import { QuantumVisualizer } from './Visualizer/HolographicVisualizer';
 import { generatePlayerHTML } from '../services/playerExport';
+import { createQrForTarget, QRTarget } from '../services/qrCodes';
 import { STYLE_PRESETS } from '../constants';
 import { useAudioAnalyzer } from '../hooks/useAudioAnalyzer';
 import { useEnhancedChoreography, ChoreographyState } from '../hooks/useEnhancedChoreography';
 import { LabanEffort, DanceStyle } from '../engine/LabanEffortSystem';
 import { FXState } from './UnifiedMixerPanel';
-import { DeckMixerPanel } from './DeckMixerPanel';
-import { EnginePanel } from './EnginePanel';
-import { FXPanel } from './FXPanel';
-import { ControlDock } from './ControlDock';
+// New UI Components
+import { StatusBar } from './StatusBar';
+import { FXRail, FXAxisMapping, FXKey } from './FXRail';
+import { EngineStrip } from './EngineStrip';
+import { MixerDrawer } from './MixerDrawer';
+import { AnimationZoneController } from './AnimationZoneController';
+import { AudioSourceSelector, AudioSourceType } from './AudioSourceSelector';
 import {
   GolemMixer, createGolemMixer,
   EngineMode, SequenceMode, PatternType, MixMode, EffectsState, MixerTelemetry
@@ -22,7 +26,8 @@ interface Step4Props {
   state: AppState;
   onGenerateMore: () => void;
   onSpendCredit: (amount: number) => boolean;
-  onUploadAudio: (file: File) => void;
+  onUploadAudio: (file: File | null) => void;
+  onSetAudioLink: (url: string) => void;
   onSaveProject: () => void;
 }
 
@@ -46,7 +51,7 @@ interface FrameData {
     type?: FrameType;
 }
 
-export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSpendCredit, onUploadAudio, onSaveProject }) => {
+export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSpendCredit, onUploadAudio, onSetAudioLink, onSaveProject }) => {
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const charCanvasRef = useRef<HTMLCanvasElement>(null); 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -87,12 +92,32 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const [isRecording, setIsRecording] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [qrTarget, setQrTarget] = useState<QRTarget>('preview');
+  const [shareLink, setShareLink] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [qrError, setQrError] = useState<string | null>(null);
+  const [qrIsLoading, setQrIsLoading] = useState(false);
+  const [qrStatus, setQrStatus] = useState<string | null>(null);
 
-  // Collapsible panel states - each panel has open/expanded state
-  // Start with ENGINE open so users can see controls immediately
-  const [deckPanel, setDeckPanel] = useState({ open: false, expanded: false });
-  const [enginePanel, setEnginePanel] = useState({ open: true, expanded: false });
-  const [fxPanel, setFxPanel] = useState({ open: true, expanded: false });
+  // New UI panel states
+  const [isMixerDrawerOpen, setIsMixerDrawerOpen] = useState(false);
+  const [showStreamLinkInput, setShowStreamLinkInput] = useState(false);
+  const [showAudioSourceSelector, setShowAudioSourceSelector] = useState(false);
+  const [audioSourceType, setAudioSourceType] = useState<AudioSourceType>(
+    // Map state.audioSourceType ('file' | 'url' | null) to our AudioSourceType
+    // Note: 'mic' is tracked separately via isMicActive state
+    state.audioSourceType === 'url' ? 'stream' : 'file'
+  );
+  const [streamLink, setStreamLink] = useState(state.audioSourceType === 'url' ? state.audioPreviewUrl || '' : '');
+  const [streamStatus, setStreamStatus] = useState<string | null>(null);
+  const [isLinkLoading, setIsLinkLoading] = useState(false);
+
+  // FX X/Y axis mapping state
+  const [fxAxisMapping, setFxAxisMapping] = useState<FXAxisMapping>({
+    x: ['rgbSplit', 'shake'],
+    y: ['glitch', 'zoom']
+  });
+  const [fxIntensity, setFxIntensity] = useState({ x: 0, y: 0 });
 
   const [exportRatio, setExportRatio] = useState<AspectRatio>('9:16');
 
@@ -171,6 +196,79 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
     });
   };
 
+  const refreshQr = useCallback(async (target: QRTarget) => {
+    setQrIsLoading(true);
+    setQrError(null);
+    setQrStatus(null);
+    try {
+      const { link, dataUrl } = await createQrForTarget(target, {
+        userId: state.user?.uid,
+        projectId: state.user?.uid ? `${state.user.uid}-deck` : undefined,
+        campaign: target === 'paywall' ? 'upgrade' : 'preview'
+      });
+      setShareLink(link);
+      setQrDataUrl(dataUrl);
+      setQrStatus('QR ready to scan');
+    } catch (err) {
+      console.error('Failed generating QR', err);
+      setQrError('Could not generate QR. Try again.');
+    } finally {
+      setQrIsLoading(false);
+    }
+  }, [state.user]);
+
+  const copyShareLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setQrStatus('Link copied to clipboard');
+    } catch (err) {
+      console.error('copy failed', err);
+      setQrError('Copy failed.');
+    }
+  };
+
+  useEffect(() => {
+    if (showExportMenu) {
+      refreshQr(qrTarget);
+    }
+  }, [showExportMenu, qrTarget, refreshQr]);
+
+  // Handle FX intensity from touch position
+  const handleFXIntensityChange = useCallback((intensity: { x: number; y: number }) => {
+    setFxIntensity(intensity);
+
+    // Apply X-axis mapped effects
+    fxAxisMapping.x.forEach(fx => {
+      if (userEffects[fx]) {
+        if (fx === 'rgbSplit') rgbSplitRef.current = intensity.x * 0.8;
+        if (fx === 'shake') charBounceYRef.current = (Math.random() - 0.5) * intensity.x * 30;
+        if (fx === 'zoom') camZoomRef.current = BASE_ZOOM + intensity.x * 0.3;
+        if (fx === 'glitch') charSkewRef.current = (Math.random() - 0.5) * intensity.x;
+      }
+    });
+
+    // Apply Y-axis mapped effects
+    fxAxisMapping.y.forEach(fx => {
+      if (userEffects[fx]) {
+        if (fx === 'rgbSplit') rgbSplitRef.current = Math.max(rgbSplitRef.current, intensity.y * 0.8);
+        if (fx === 'shake') charBounceYRef.current = Math.max(charBounceYRef.current, (Math.random() - 0.5) * intensity.y * 30);
+        if (fx === 'zoom') camZoomRef.current = Math.max(camZoomRef.current, BASE_ZOOM + intensity.y * 0.3);
+        if (fx === 'glitch') charSkewRef.current = Math.max(charSkewRef.current, (Math.random() - 0.5) * intensity.y);
+        if (fx === 'strobe') flashIntensityRef.current = intensity.y * 0.5;
+      }
+    });
+
+    // Reset effects when no touch
+    if (intensity.x === 0 && intensity.y === 0) {
+      rgbSplitRef.current = 0;
+      charBounceYRef.current = 0;
+      charSkewRef.current = 0;
+      camZoomRef.current = BASE_ZOOM;
+      flashIntensityRef.current = 0;
+    }
+  }, [fxAxisMapping, userEffects]);
+
   // Intensity state (replaces PressurePaddle)
   const [intensity, setIntensity] = useState(0);
   const intensityRef = useRef(0);
@@ -194,6 +292,39 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       }
     }
   };
+
+  const handleStreamLinkSubmit = () => {
+    const trimmed = streamLink.trim();
+    if (!trimmed) return;
+    setIsLinkLoading(true);
+    onSetAudioLink(trimmed);
+    setIsPlaying(true);
+    setShowStreamLinkInput(false);
+    setStreamStatus('Stream linked for playback');
+    setTimeout(() => setStreamStatus(null), 2500);
+    setIsLinkLoading(false);
+  };
+
+  const handlePasteStreamLink = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        setStreamLink(text);
+        setStreamStatus('Pasted from clipboard');
+        setTimeout(() => setStreamStatus(null), 2000);
+      }
+    } catch (e) {
+        console.error('Clipboard read failed', e);
+        setStreamStatus('Clipboard blocked by browser');
+    }
+  };
+
+  useEffect(() => {
+    if (state.audioSourceType === 'url' && state.audioPreviewUrl) {
+      setStreamLink(state.audioPreviewUrl);
+    }
+  }, [state.audioPreviewUrl, state.audioSourceType]);
+
 
   // === GOLEM MIXER HANDLERS ===
   const handleDeckModeChange = (deckId: number, mode: MixMode) => {
@@ -340,7 +471,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           isActive: true,
           mixMode: 'sequencer',
           frameCount: state.generatedFrames.length,
-          rigName: 'Current Rig',
+          rigName: 'Current Golem',
           frames: state.generatedFrames // Include frames for thumbnails
         } : d)
       }));
@@ -348,6 +479,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
   }, [state.generatedFrames, state.subjectCategory]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaRecorderFormatRef = useRef<{ mimeType: string; ext: string }>({ mimeType: 'video/webm;codecs=vp9', ext: 'webm' });
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordCanvasRef = useRef<HTMLCanvasElement>(null); 
   const [recordingTime, setRecordingTime] = useState(0);
@@ -418,9 +550,50 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const poseImagesRef = useRef<Record<string, HTMLImageElement>>({}); 
   const [imagesReady, setImagesReady] = useState(false);
-  
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [superCamActive, setSuperCamActive] = useState(true);
+
+  useEffect(() => {
+    const audioEl = audioElementRef.current;
+    if (!audioEl) return;
+
+    if (!state.audioPreviewUrl) {
+      audioEl.pause();
+      audioEl.removeAttribute('src');
+      audioEl.load();
+      return;
+    }
+
+    let statusTimer: number | null = null;
+    const handleReady = () => {
+      setStreamStatus('Stream ready');
+      statusTimer = window.setTimeout(() => setStreamStatus(null), 2000);
+      if (isPlaying) {
+        audioEl.play().catch(() => setStreamStatus('Playback blocked; press play to start'));
+      }
+    };
+
+    const handleError = () => {
+      setStreamStatus('Stream blocked or unsupported. Use HTTPS MP3/AAC links.');
+    };
+
+    audioEl.crossOrigin = 'anonymous';
+    audioEl.src = state.audioPreviewUrl;
+    audioEl.addEventListener('canplay', handleReady);
+    audioEl.addEventListener('error', handleError);
+    audioEl.load();
+
+    if (isPlaying) {
+      audioEl.play().catch(() => setStreamStatus('Playback blocked; press play to start'));
+    }
+
+    return () => {
+      audioEl.removeEventListener('canplay', handleReady);
+      audioEl.removeEventListener('error', handleError);
+      if (statusTimer) window.clearTimeout(statusTimer);
+    };
+  }, [state.audioPreviewUrl, isPlaying]);
 
   // 1. Initialize Hologram
   useEffect(() => {
@@ -1148,7 +1321,7 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
   const startRecording = () => {
       if (!recordCanvasRef.current) return;
-      
+
       let w = 1080;
       let h = 1920;
       
@@ -1158,12 +1331,24 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       if (exportRatio === '9:16') { w = baseDim; h = baseDim * (16/9); }
       else if (exportRatio === '16:9') { w = baseDim * (16/9); h = baseDim; }
       else if (exportRatio === '1:1') { w = baseDim; h = baseDim; }
-      
+
       recordCanvasRef.current.width = Math.floor(w);
       recordCanvasRef.current.height = Math.floor(h);
 
       const stream = recordCanvasRef.current.captureStream(60);
-      
+
+      const recordingFormats = [
+        { mimeType: 'video/mp4;codecs=avc1.42E01E,mp4a.40.2', ext: 'mp4' },
+        { mimeType: 'video/webm;codecs=vp9,opus', ext: 'webm' },
+        { mimeType: 'video/webm;codecs=vp8,opus', ext: 'webm' }
+      ];
+
+      const selectedFormat = recordingFormats.find(fmt =>
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(fmt.mimeType)
+      ) || recordingFormats[1];
+
+      mediaRecorderFormatRef.current = selectedFormat;
+
       // Use audioDest from hook
       if (audioDestRef.current) {
           const audioTracks = audioDestRef.current.stream.getAudioTracks();
@@ -1172,7 +1357,10 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
           }
       }
 
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 8000000 });
+      const recorder = new MediaRecorder(stream, {
+        mimeType: selectedFormat.mimeType,
+        videoBitsPerSecond: 6000000
+      });
       mediaRecorderRef.current = recorder;
       recordedChunksRef.current = [];
       
@@ -1181,11 +1369,12 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
       };
       
       recorder.onstop = () => {
-          const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+          const { mimeType, ext } = mediaRecorderFormatRef.current;
+          const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.webm`;
+          a.download = `jusdnce_${exportRatio.replace(':','x')}_${Date.now()}.${ext}`;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
@@ -1252,10 +1441,149 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
                               ))}
                           </div>
                       </div>
+                      <div className="border border-white/10 bg-black/30 rounded-xl p-4 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 text-white font-semibold text-sm">
+                                  <QrCode size={16} />
+                                  <span>Share or Upgrade via QR</span>
+                              </div>
+                              <div className="flex gap-2 text-xs">
+                                  {(['preview', 'paywall'] as QRTarget[]).map((target) => (
+                                      <button
+                                          key={target}
+                                          onClick={() => setQrTarget(target)}
+                                          className={`px-3 py-1 rounded-lg border transition-all ${qrTarget === target ? 'border-brand-400 bg-brand-500/20 text-white' : 'border-white/10 text-gray-400 hover:border-white/30'}`}
+                                      >
+                                          {target === 'preview' ? 'Preview' : 'Upgrade'}
+                                      </button>
+                                  ))}
+                                  <button
+                                      onClick={() => refreshQr(qrTarget)}
+                                      className="px-2 py-1 rounded-lg border border-white/10 text-gray-300 hover:border-brand-400 hover:text-white"
+                                      title="Refresh QR"
+                                  >
+                                      <RefreshCw size={14} />
+                                  </button>
+                              </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                              <div className="w-32 h-32 bg-black/40 border border-white/10 rounded-xl flex items-center justify-center">
+                                  {qrIsLoading && <Loader2 className="animate-spin text-brand-400" size={24} />}
+                                  {!qrIsLoading && qrDataUrl && <img src={qrDataUrl} alt="Share QR" className="w-full h-full object-contain" />}
+                                  {!qrIsLoading && qrError && (
+                                      <span className="text-xs text-red-300 text-center px-2">{qrError}</span>
+                                  )}
+                              </div>
+                              <div className="flex-1 space-y-2">
+                                  <p className="text-xs text-gray-400">Scan to view the preview or upgrade flow on another device.</p>
+                                  <div className="flex gap-2">
+                                      <input
+                                          value={shareLink}
+                                          readOnly
+                                          className="flex-1 text-xs bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-white"
+                                      />
+                                      <button
+                                          onClick={copyShareLink}
+                                          type="button"
+                                          className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/10 hover:border-brand-400"
+                                      >
+                                          <Copy size={14} />
+                                      </button>
+                                  </div>
+                                  {(qrStatus || qrError) && (
+                                      <p className={`text-xs ${qrError ? 'text-red-300' : 'text-brand-300'}`}>{qrError || qrStatus}</p>
+                                  )}
+                              </div>
+                          </div>
+                      </div>
                       <button onClick={startRecording} className="w-full py-4 bg-red-600 hover:bg-red-500 text-white font-black tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(220,38,38,0.4)] transition-all hover:scale-[1.02]"><CircleDot size={20} /> START RECORDING</button>
                   </div>
               </div>
           </div>
+      )}
+
+      {/* AUDIO SOURCE SELECTOR - Expandable pill system */}
+      <div className="fixed top-[70px] left-3 z-[55]">
+        <AudioSourceSelector
+          activeSource={audioSourceType}
+          isPlaying={isPlaying}
+          isMicActive={isMicActive}
+          hasAudioFile={!!state.audioPreviewUrl && audioSourceType === 'file'}
+          streamUrl={streamLink}
+          onSourceChange={(source) => {
+            setAudioSourceType(source);
+            // Stop other sources when switching
+            if (source !== 'mic' && isMicActive) {
+              toggleMic();
+            }
+          }}
+          onFileUpload={() => trackInputRef.current?.click()}
+          onMicToggle={toggleMic}
+          onStreamSubmit={(url) => {
+            setStreamLink(url);
+            handleStreamLinkSubmit();
+          }}
+          onSystemAudio={async () => {
+            // System audio capture via getDisplayMedia
+            try {
+              const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+              // Stop video track immediately, we only want audio
+              stream.getVideoTracks().forEach(track => track.stop());
+              // Connect audio to analyzer
+              if (audioDestRef.current) {
+                const audioCtx = new AudioContext();
+                const source = audioCtx.createMediaStreamSource(stream);
+                source.connect(audioDestRef.current);
+              }
+              setAudioSourceType('system');
+            } catch (e) {
+              console.error('System audio capture failed:', e);
+            }
+          }}
+          onPlayToggle={() => {
+            setIsPlaying(!isPlaying);
+            if (isMicActive) toggleMic();
+          }}
+        />
+      </div>
+
+      {/* Legacy stream link input (keeping for backwards compatibility) */}
+      {showStreamLinkInput && (
+        <div className="absolute top-16 left-2 z-[55] max-w-md w-[90%] md:w-[420px]">
+          <div className="bg-black/85 border border-white/10 rounded-2xl shadow-2xl p-4 backdrop-blur-xl animate-in slide-in-from-left-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-xs text-gray-400 font-mono tracking-widest">STREAM LINK</p>
+                <h4 className="text-lg font-bold text-white flex items-center gap-2"><Link2 size={16} className="text-green-300" /> Paste music/stream URL</h4>
+              </div>
+              <button onClick={() => setShowStreamLinkInput(false)} className="text-gray-500 hover:text-white"><X size={18} /></button>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none"
+                placeholder="https://example.com/stream.mp3"
+                value={streamLink}
+                onChange={(e) => setStreamLink(e.target.value)}
+              />
+              <button
+                onClick={handlePasteStreamLink}
+                className="px-3 py-2 rounded-lg bg-white/10 border border-white/10 text-white hover:border-brand-400"
+                title="Paste from clipboard"
+              >
+                <Clipboard size={16} />
+              </button>
+              <button
+                onClick={handleStreamLinkSubmit}
+                disabled={!streamLink.trim() || isLinkLoading}
+                className={`px-4 py-2 rounded-lg font-bold text-xs tracking-widest ${(!streamLink.trim() || isLinkLoading) ? 'bg-green-600/40 text-white/60' : 'bg-green-600 hover:bg-green-500 text-white shadow-lg'}`}
+              >
+                {isLinkLoading ? 'LINKING...' : 'LINK'}
+              </button>
+            </div>
+            <p className="text-[11px] text-gray-400 mt-2">HTTPS streams work best. Links must permit CORS-enabled playback.</p>
+            {streamStatus && <p className="text-xs text-brand-300 mt-1">{streamStatus}</p>}
+          </div>
+        </div>
       )}
 
       {!imagesReady && !state.isGenerating && (
@@ -1293,12 +1621,63 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         onChange={handleTrackChange}
       />
 
-      {/* ENGINE PANEL - Collapsible engine controls (bottom-left) */}
-      <EnginePanel
-        isOpen={enginePanel.open}
-        isExpanded={enginePanel.expanded}
-        onToggleOpen={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setEnginePanel(p => ({ ...p, expanded: !p.expanded }))}
+      {/* ============ NEW UI COMPONENTS ============ */}
+
+      {/* STATUS BAR - Top (Play, Mic, BPM, Beat, Cam, More) */}
+      <StatusBar
+        isPlaying={isPlaying}
+        hasAudio={!!state.audioPreviewUrl}
+        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
+        onUploadAudio={() => trackInputRef.current?.click()}
+        onLinkAudio={() => setShowStreamLinkInput(true)}
+        isMicActive={isMicActive}
+        onMicToggle={toggleMic}
+        isCamActive={superCamActive}
+        onCamToggle={() => setSuperCamActive(!superCamActive)}
+        bpm={golemState.telemetry?.bpm ?? 120}
+        beatCounter={beatCounterRef.current}
+        isFrameDeckOpen={false}
+        onFrameDeckToggle={() => {}}
+        onGenerateMore={onGenerateMore}
+        onSaveProject={onSaveProject}
+        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
+        isRecording={isRecording}
+      />
+
+      {/* FX RAIL - Left edge (9 toggles with X/Y axis mapping) */}
+      <FXRail
+        effects={userEffects}
+        onToggleEffect={(effect) => toggleEffect(effect as keyof typeof userEffects)}
+        onResetAll={resetUserEffects}
+        axisMapping={fxAxisMapping}
+        onAxisMappingChange={setFxAxisMapping}
+        fxIntensity={fxIntensity}
+      />
+
+      {/* ANIMATION ZONE CONTROLLER - Touch overlay */}
+      <AnimationZoneController
+        onEngineModeChange={handleEngineModeChange}
+        engineMode={golemState.engineMode}
+        onPatternChange={handlePatternChange}
+        currentPattern={golemState.activePattern}
+        decks={golemState.decks.map(d => ({
+          id: d.id,
+          mixMode: d.mixMode,
+          isActive: d.mixMode !== 'off'
+        }))}
+        onDeckToggle={(deckId) => {
+          const deck = golemState.decks[deckId];
+          if (deck) {
+            const newMode: MixMode = deck.mixMode === 'off' ? 'sequencer' : 'off';
+            handleDeckModeChange(deckId, newMode);
+          }
+        }}
+        onDeckModeChange={handleDeckModeChange}
+        onFXIntensityChange={handleFXIntensityChange}
+      />
+
+      {/* ENGINE STRIP - Bottom (Physics, Patterns, Intensity, Mixer toggle) */}
+      <EngineStrip
         physicsMode={choreoMode}
         onPhysicsModeChange={(mode) => {
           setChoreoMode(mode);
@@ -1306,73 +1685,32 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }}
         engineMode={golemState.engineMode}
         onEngineModeChange={handleEngineModeChange}
-        activePattern={golemState.activePattern}
+        currentPattern={golemState.activePattern}
         onPatternChange={handlePatternChange}
-        sequenceMode={golemState.sequenceMode}
-        onSequenceModeChange={handleSequenceModeChange}
         intensity={intensity}
         onIntensityChange={(val) => {
           setIntensity(val);
-          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.8);
-          flashIntensityRef.current = val * 0.3;
-          if (val > 0.7) {
-            charSkewRef.current = (Math.random() - 0.5) * val;
-          }
+          rgbSplitRef.current = Math.max(rgbSplitRef.current, val * 0.008);
+          flashIntensityRef.current = val * 0.003;
         }}
-        bpm={golemState.telemetry?.bpm}
-        labanEffort={choreographyStateRef.current?.movementQualities ? {
-          weight: choreographyStateRef.current.movementQualities.effort === 'PUNCH' || choreographyStateRef.current.movementQualities.effort === 'PRESS' ? 0.9 : 0.3,
-          space: choreographyStateRef.current.movementQualities.effort === 'DAB' || choreographyStateRef.current.movementQualities.effort === 'FLICK' ? 0.8 : 0.4,
-          time: choreographyStateRef.current.movementQualities.effort === 'SLASH' || choreographyStateRef.current.movementQualities.effort === 'PUNCH' ? 0.9 : 0.3,
-          flow: choreographyStateRef.current.movementQualities.effort === 'FLOAT' || choreographyStateRef.current.movementQualities.effort === 'WRING' ? 0.2 : 0.7
-        } : undefined}
+        isMixerOpen={isMixerDrawerOpen}
+        onMixerToggle={() => setIsMixerDrawerOpen(!isMixerDrawerOpen)}
+        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
       />
 
-      {/* FX PANEL - Collapsible effects controls (bottom-right) */}
-      <FXPanel
-        isOpen={fxPanel.open}
-        isExpanded={fxPanel.expanded}
-        onToggleOpen={() => setFxPanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setFxPanel(p => ({ ...p, expanded: !p.expanded }))}
-        effects={userEffects}
-        onToggleEffect={toggleEffect}
-        onResetAll={resetUserEffects}
-        onPaddlePress={(intensity, effects) => {
-          // Apply intensity-scaled effects based on which effects are mapped to the paddle
-          if (effects.includes('rgbSplit')) rgbSplitRef.current = intensity * 0.8;
-          if (effects.includes('strobe')) flashIntensityRef.current = intensity * 0.5;
-          if (effects.includes('glitch')) charSkewRef.current = (Math.random() - 0.5) * intensity;
-          if (effects.includes('shake')) charBounceYRef.current = (Math.random() - 0.5) * intensity * 30;
-          if (effects.includes('zoom')) camZoomRef.current = BASE_ZOOM + intensity * 0.3;
-          if (effects.includes('ghost')) {} // Ghost is toggle-based, handled separately
-          if (effects.includes('scanlines')) {} // Scanlines is toggle-based
-          if (effects.includes('invert')) {} // Invert is toggle-based
-          if (effects.includes('bw')) {} // B&W is toggle-based
-        }}
-        onPaddleRelease={() => {
-          rgbSplitRef.current = 0;
-          flashIntensityRef.current = 0;
-          charSkewRef.current = 0;
-          camZoomRef.current = BASE_ZOOM;
-        }}
-      />
-
-      {/* DECK MIXER PANEL - 4-Channel deck control (bottom-center) */}
-      <DeckMixerPanel
-        isOpen={deckPanel.open}
-        isExpanded={deckPanel.expanded}
-        onToggleOpen={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
-        onToggleExpand={() => setDeckPanel(p => ({ ...p, expanded: !p.expanded }))}
+      {/* MIXER DRAWER - Bottom sheet (4 decks) */}
+      <MixerDrawer
+        isOpen={isMixerDrawerOpen}
+        onClose={() => setIsMixerDrawerOpen(false)}
         decks={golemState.decks.map((d, i) => ({
           id: d.id,
           frames: d.frames || [],
-          rigName: d.rigName || `Deck ${d.id + 1}`,
-          mixMode: d.mixMode, // Use React state directly - handler keeps both in sync
+          rigName: d.rigName,
+          mixMode: d.mixMode,
           opacity: d.opacity,
           isActive: d.mixMode !== 'off',
           currentFrameIndex: golemMixerRef.current?.getDeckFrameIndex(i) ?? 0
         }))}
-        beatCounter={beatCounterRef.current}
         onLoadDeck={handleLoadDeck}
         onDeckModeChange={handleDeckModeChange}
         onDeckOpacityChange={handleDeckOpacityChange}
@@ -1387,9 +1725,6 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
         }}
         onSelectFrame={(deckId, frameIndex) => {
           golemMixerRef.current?.setDeckFrameIndex(deckId, frameIndex);
-        }}
-        onTriggerFrame={(deckId) => {
-          golemMixerRef.current?.advanceDeckFrame(deckId);
         }}
       />
 
@@ -1407,46 +1742,38 @@ export const Step4Preview: React.FC<Step4Props> = ({ state, onGenerateMore, onSp
 
       {/* Status info moved to ENGINE panel - no longer overlaying animation */}
 
-      {/* RECORDING INDICATOR + EXPORT - Top right */}
-      <div className="absolute top-4 right-4 z-30 pointer-events-auto flex gap-2 items-center">
+      {/* RECORDING INDICATOR + HTML EXPORT - Below StatusBar */}
+      <div className="absolute top-16 right-2 z-30 pointer-events-auto flex flex-col gap-2 items-end">
+        {state.audioPreviewUrl && (
+          <button
+            onClick={() => setShowStreamLinkInput(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-white/10 border border-white/15 rounded-xl text-xs text-white hover:border-brand-400"
+          >
+            <Link2 size={14} className="text-green-300" />
+            <span className="font-bold tracking-widest">{state.audioSourceType === 'url' ? 'STREAM LINK' : 'AUDIO FILE'}</span>
+          </button>
+        )}
         {isRecording && (
           <div className="flex items-center gap-2 bg-red-500/20 border border-red-500/50 px-3 py-1.5 rounded-full animate-pulse">
             <div className="w-2 h-2 bg-red-500 rounded-full" />
             <span className="text-red-300 font-mono text-xs">{(recordingTime / 1000).toFixed(1)}s</span>
           </div>
         )}
+        {/* HTML PLAYER DOWNLOAD - More visible */}
         <button
           onClick={handleExportWidget}
-          className="bg-black/50 backdrop-blur-md border border-white/10 p-2 rounded-lg text-white/60 hover:text-white transition-colors"
-          title="Download Standalone Widget"
+          className="bg-gradient-to-r from-cyan-500/20 to-purple-500/20 backdrop-blur-md
+                     border border-cyan-500/30 px-3 py-2 rounded-xl
+                     text-white/80 hover:text-white hover:border-cyan-400/50
+                     transition-all flex items-center gap-2 shadow-lg"
+          title="Download Standalone HTML Player"
         >
-          <Download size={18} />
+          <Download size={16} />
+          <span className="text-[10px] font-bold tracking-wider">.HTML</span>
         </button>
       </div>
 
-      {/* CONTROL DOCK - Bottom bar */}
-      <ControlDock
-        isPlaying={isPlaying}
-        hasAudio={!!state.audioPreviewUrl}
-        onPlayToggle={() => { setIsPlaying(!isPlaying); if(isMicActive) toggleMic(); }}
-        onUploadAudio={() => trackInputRef.current?.click()}
-        isMicActive={isMicActive}
-        onMicToggle={toggleMic}
-        isMixerOpen={enginePanel.open}
-        onMixerToggle={() => setEnginePanel(p => ({ ...p, open: !p.open }))}
-        activeDeckCount={golemState.decks.filter(d => d.mixMode !== 'off').length}
-        isCamActive={superCamActive}
-        onCamToggle={() => setSuperCamActive(!superCamActive)}
-        choreoMode={choreoMode}
-        onChoreoModeToggle={toggleChoreoMode}
-        isFrameDeckOpen={deckPanel.open}
-        onFrameDeckToggle={() => setDeckPanel(p => ({ ...p, open: !p.open }))}
-        onGenerateMore={onGenerateMore}
-        onSaveProject={onSaveProject}
-        onStartRecording={() => isRecording ? stopRecording() : setShowExportMenu(true)}
-        isRecording={isRecording}
-        beatCounter={beatCounterRef.current}
-      />
+      {/* ControlDock replaced by StatusBar (top) + EngineStrip (bottom) */}
       
     </div>
   );
